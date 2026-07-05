@@ -30,16 +30,19 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Create a non-root user for security
+# Create a non-root user for security and prepare the startup entrypoint
 RUN adduser --disabled-password --gecos '' appuser
-USER appuser
 
 # Copy application code
 COPY --chown=appuser:appuser . .
+
+RUN chmod +x /app/docker-entrypoint.sh
+USER appuser
 
 # Health check — Docker will call this to verify the container is healthy
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import os, httpx; httpx.get('http://localhost:%s/health' % os.environ.get('PORT', '8000'))" || exit 1
 
 # Start the app
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
