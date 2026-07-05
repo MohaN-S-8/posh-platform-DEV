@@ -45,8 +45,7 @@ app.include_router(employee_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 
 
-# DB bootstrap runs from docker-entrypoint.sh before Uvicorn starts.
-# Keeping this function undecorated prevents FastAPI startup from blocking /health.
+@app.on_event("startup")
 async def run_seed_on_startup():
     """
     Ensure required reference data and default login users exist.
