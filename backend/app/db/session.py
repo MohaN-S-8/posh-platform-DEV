@@ -2,14 +2,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import settings
 
-# Create the async database engine
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=True,  # prints SQL queries to console — helpful for debugging
-    pool_pre_ping=True,  # checks connection is alive before using it
+    echo=False,
+    pool_pre_ping=True,
 )
 
-# Session factory
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -17,7 +15,6 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-# Dependency used in FastAPI route handlers
 async def get_db():
     async with AsyncSessionLocal() as session:
         try:
