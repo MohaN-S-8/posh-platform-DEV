@@ -22,7 +22,7 @@ export function CompanyListPage() {
     fetchCompanies();
   }, []);
 
-  const fetchCompanies = async () => {
+  async function fetchCompanies() {
     setLoading(true);
     try {
       const res = await apiClient.get("/companies/");
@@ -32,7 +32,7 @@ export function CompanyListPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleCreate = async (e) => {
     e.preventDefault();
