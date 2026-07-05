@@ -1,0 +1,79 @@
+name: CI — Lint, Test, Build
+
+"on":
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  # ─── Backend Checks ────────────────────────────────────────
+  backend:
+    name: Backend (Python)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run linter (ruff)
+        run: |
+          cd backend
+          ruff check .
+
+      - name: Run formatter check (black)
+        run: |
+          cd backend
+          black --check .
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests/ -v
+        continue-on-error: true
+
+      - name: Build Docker image
+        run: docker build -t posh-backend:test ./backend
+
+  # ─── Frontend Checks ───────────────────────────────────────
+  frontend:
+    name: Frontend (Node/React)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Build Docker image
+        run: docker build -t posh-frontend:test .

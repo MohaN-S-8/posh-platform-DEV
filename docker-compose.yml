@@ -1,0 +1,127 @@
+version: "3.9"
+
+services:
+  # ─── Database ─────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: posh_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306" # expose so you can connect with MySQL Workbench
+    volumes:
+      - mysql_data:/var/lib/mysql # data persists even if container restarts
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ─── Cache / Queue ────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: posh_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Object Storage (local S3 replacement) ────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: posh_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000" # API port
+      - "9001:9001" # Web console — visit http://localhost:9001
+    volumes:
+      - minio_data:/data
+
+  # ─── Email Testing (catches all emails locally) ───────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: posh_mailhog
+    ports:
+      - "1025:1025" # SMTP port (backend sends to this)
+      - "8025:8025" # Web UI — visit http://localhost:8025 to see emails
+    restart: unless-stopped
+
+  # ─── Backend ──────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: posh_backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: mysql+asyncmy://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000" # visit http://localhost:8000/docs for Swagger
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app # live code reloading in development
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ─── Background Job Worker ────────────────────────────────
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: posh_celery
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: mysql+asyncmy://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+      - mysql
+    volumes:
+      - ./backend:/app
+    command: celery -A app.workers.celery_app worker --loglevel=info
+
+  # ─── Frontend ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: posh_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80" # visit http://localhost to see the React app
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  minio_data:
+
