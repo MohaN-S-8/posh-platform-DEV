@@ -100,7 +100,8 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: mysql+asyncmy://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}/railway
+
       REDIS_URL: redis://redis:6379/0
     depends_on:
       - redis
@@ -124,4 +125,3 @@ services:
 volumes:
   mysql_data:
   minio_data:
-
