@@ -1,62 +1,12 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
-from starlette.middleware.base import BaseHTTPMiddleware
+import asyncio
 
-from app.api.v1.admin import router as admin_router
-from app.api.v1.analytics import router as analytics_router
-from app.api.v1.assessments import router as assessments_router
-from app.api.v1.auth import router as auth_router
-from app.api.v1.certificates import router as certificates_router
-from app.api.v1.company import router as company_router
-from app.api.v1.employee import router as employee_router
-from app.api.v1.hr import router as hr_router
-from app.api.v1.notifications import router as notifications_router
-from app.api.v1.users import router as users_router
-from app.api.v1.videos import router as videos_router
-from app.core.config import settings
+from sqlalchemy import text
 
-limiter = Limiter(key_func=get_remote_address)
-
-app = FastAPI(title="POSH Training Platform API", version="1.0.0", docs_url="/docs")
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(company_router, prefix="/api/v1")
-app.include_router(users_router, prefix="/api/v1")
-app.include_router(videos_router, prefix="/api/v1")
-app.include_router(assessments_router, prefix="/api/v1")
-app.include_router(hr_router, prefix="/api/v1")
-app.include_router(certificates_router, prefix="/api/v1")
-app.include_router(analytics_router, prefix="/api/v1")
-app.include_router(admin_router, prefix="/api/v1")
-app.include_router(employee_router, prefix="/api/v1")
-app.include_router(notifications_router, prefix="/api/v1")
+from app.core.security import hash_password
+from app.db.session import AsyncSessionLocal, engine
 
 
-# DB bootstrap runs from docker-entrypoint.sh before Uvicorn starts.
-# Keeping this function undecorated prevents FastAPI startup from blocking /health.
-async def run_seed_on_startup():
-    """
-    Ensure required reference data and default login users exist.
-    This is intentionally idempotent so Docker restarts can repair missing seed rows.
-    """
-    from sqlalchemy import text
-
-    from app.core.security import hash_password
-    from app.db.session import AsyncSessionLocal
-
+async def bootstrap_reference_data() -> None:
     async with AsyncSessionLocal() as db:
         await db.execute(
             text(
@@ -312,28 +262,13 @@ async def run_seed_on_startup():
         )
 
         await db.commit()
-        print("Auto-seed complete: roles, default company, admin, and HR users are ready.")
 
 
-@app.get("/health")
-async def health_check():
-    return {"status": "ok", "app": "POSH Training Platform"}
+async def main() -> None:
+    await bootstrap_reference_data()
+    await engine.dispose()
+    print("Bootstrap complete: reference data and default users are ready.")
 
 
-@app.get("/")
-async def root():
-    return {"message": "POSH Platform API. Visit /docs for documentation."}
-
-
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        return response
-
-
-app.add_middleware(SecurityHeadersMiddleware)
+if __name__ == "__main__":
+    asyncio.run(main())
