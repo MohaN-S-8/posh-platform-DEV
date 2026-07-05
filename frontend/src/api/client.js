@@ -2,7 +2,7 @@ import axios from "axios";
 
 const runtimeApiBaseUrl = window.__APP_CONFIG__?.API_BASE_URL;
 const buildApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-const apiBaseUrl = runtimeApiBaseUrl || buildApiBaseUrl || "/api/v1";
+const apiBaseUrl = buildApiBaseUrl || runtimeApiBaseUrl || "/api/v1";
 
 const apiClient = axios.create({
   baseURL: apiBaseUrl,
