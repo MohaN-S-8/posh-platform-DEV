@@ -1,11 +1,21 @@
 from typing import List
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "mysql+asyncmy://posh_user:password@mysql:3306/posh_db"
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        if isinstance(value, str) and value.startswith("mysql://"):
+            return value.replace("mysql://", "mysql+asyncmy://", 1)
+        if isinstance(value, str) and value.startswith("mysql+pymysql://"):
+            return value.replace("mysql+pymysql://", "mysql+asyncmy://", 1)
+        return value
 
     # Redis
     REDIS_URL: str = "redis://redis:6379/0"
