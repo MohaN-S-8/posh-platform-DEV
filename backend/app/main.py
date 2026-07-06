@@ -19,8 +19,15 @@ from app.api.v1.videos import router as videos_router
 from app.core.config import settings
 
 limiter = Limiter(key_func=get_remote_address)
+is_production = settings.APP_ENV.lower() == "production"
 
-app = FastAPI(title="POSH Training Platform API", version="1.0.0", docs_url="/docs")
+app = FastAPI(
+    title="POSH Training Platform API",
+    version="1.0.0",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -321,7 +328,10 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    return {"message": "POSH Platform API. Visit /docs for documentation."}
+    message = "POSH Platform API."
+    if not is_production:
+        message += " Visit /docs for documentation."
+    return {"message": message}
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
