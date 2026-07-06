@@ -1,12 +1,14 @@
 import axios from "axios";
 
 const apiClient = axios.create({
-  baseURL: "/api/v1",
+  baseURL: `${import.meta.env.VITE_API_BASE_URL}/api/v1`,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
 });
+
+let refreshPromise = null;
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");
@@ -27,11 +29,19 @@ apiClient.interceptors.response.use(
     ) {
       originalRequest._retry = true;
       try {
-        const res = await axios.post(
-          "/api/v1/auth/refresh",
-          {},
-          { withCredentials: true },
-        );
+        if (!refreshPromise) {
+          refreshPromise = axios
+            .post(
+              `${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/refresh`,
+              {},
+              { withCredentials: true },
+            )
+            .finally(() => {
+              refreshPromise = null;
+            });
+        }
+        const res = await refreshPromise;
+
         if (res.data?.access_token) {
           localStorage.setItem("access_token", res.data.access_token);
           originalRequest.headers.Authorization = `Bearer ${res.data.access_token}`;
