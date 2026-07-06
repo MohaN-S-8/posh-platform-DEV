@@ -12,7 +12,6 @@ router = APIRouter(prefix="/hr", tags=["HR Portal"])
 hr_service = HRService()
 
 
-
 @router.get("/employees")
 async def list_assignable_employees(
     db: AsyncSession = Depends(get_db),
