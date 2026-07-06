@@ -1,7 +1,11 @@
 import axios from "axios";
 
+const runtimeApiBaseUrl = window.__APP_CONFIG__?.API_BASE_URL;
+const buildApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+const apiBaseUrl = buildApiBaseUrl || runtimeApiBaseUrl || "/api/v1";
+
 const apiClient = axios.create({
-  baseURL: "/api/v1",
+  baseURL: apiBaseUrl,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -27,11 +31,8 @@ apiClient.interceptors.response.use(
     ) {
       originalRequest._retry = true;
       try {
-        const res = await axios.post(
-          "/api/v1/auth/refresh",
-          {},
-          { withCredentials: true },
-        );
+        const refreshUrl = `${apiBaseUrl.replace(/\/$/, "")}/auth/refresh`;
+        const res = await axios.post(refreshUrl, {}, { withCredentials: true });
         if (res.data?.access_token) {
           localStorage.setItem("access_token", res.data.access_token);
           originalRequest.headers.Authorization = `Bearer ${res.data.access_token}`;
