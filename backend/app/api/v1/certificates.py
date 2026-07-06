@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_permission
+from app.core.dependencies import require_permission, require_role
 from app.db.session import get_db
 from app.schemas.certificate import (
     CertificateTemplateCreate,
@@ -127,7 +127,7 @@ async def upload_certificate_template_asset(
 @router.get("/my")
 async def my_certificates(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(4)),
 ):
     """Employee: list all my certificates."""
     return await cert_service.list_user_certificates(db, current_user.user_id)
@@ -137,7 +137,7 @@ async def my_certificates(
 async def download_certificate(
     certificate_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(4)),
 ):
     """Employee: get a signed URL to download a certificate PDF."""
     return await cert_service.get_download_url(db, certificate_id, current_user.user_id)

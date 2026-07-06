@@ -2,6 +2,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import RedirectResponse
 from jose import jwt
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -43,11 +44,8 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
 @router.post("/signup")
 @limiter.limit("5/minute")
 async def signup(request: Request, data: SignupRequest, db: AsyncSession = Depends(get_db)):
-    """Public signup is disabled; users are created by the parent role in User Management."""
-    raise HTTPException(
-        status_code=403,
-        detail="Public signup is disabled. Please contact your company administrator.",
-    )
+    """Register a new user. Sends OTP to email for verification."""
+    return await auth_service.signup(db, data)
 
 
 @router.post("/verify-otp")
@@ -97,11 +95,14 @@ async def entra_sso_start():
 @router.get("/sso/entra/callback")
 async def entra_sso_callback(
     request: Request,
-    response: Response,
     code: str = Query(...),
+    state: str = Query(""),
     db: AsyncSession = Depends(get_db),
 ):
     """Complete Entra SSO and issue platform JWTs for an existing active user."""
+    if state != "posh-entra":
+        raise HTTPException(400, "Invalid Microsoft Entra SSO state.")
+
     if (
         not settings.ENTRA_TENANT_ID
         or not settings.ENTRA_CLIENT_ID
@@ -140,8 +141,20 @@ async def entra_sso_callback(
     session = await auth_service.issue_session_for_user(
         db, user, request.client.host if request.client else ""
     )
-    _set_refresh_cookie(response, session["refresh_token"])
-    return session
+    callback_params = urlencode(
+        {
+            "access_token": session["access_token"],
+            "user_id": session["user_id"],
+            "role_id": session["role_id"],
+            "company_id": session["company_id"],
+        }
+    )
+    frontend_callback_url = (
+        f"{settings.FRONTEND_URL.rstrip('/')}/sso/entra/callback#{callback_params}"
+    )
+    redirect_response = RedirectResponse(frontend_callback_url, status_code=303)
+    _set_refresh_cookie(redirect_response, session["refresh_token"])
+    return redirect_response
 
 
 @router.post("/logout")
@@ -153,7 +166,9 @@ async def logout(
 ):
     """Revoke refresh token and log out."""
     refresh_token = request.cookies.get("refresh_token", "")
-    result = await auth_service.logout(db, current_user.user_id, refresh_token)
+    result = await auth_service.logout(
+        db, current_user.user_id, refresh_token, current_user.session_id
+    )
     response.delete_cookie("refresh_token", path="/api/v1/auth")
     return result
 

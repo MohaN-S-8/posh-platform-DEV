@@ -1,10 +1,9 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_permission
-from app.core.roles import ROLE_CREATION_RULES, SUPER_ADMIN
+from app.core.dependencies import get_current_user, require_permission
 from app.db.session import get_db
 from app.schemas.user import PasswordResetByAdmin, UserCreate, UserResponse, UserUpdate
 from app.services.audit_service import write_audit_log
@@ -13,20 +12,40 @@ from app.services.user_service import UserService
 router = APIRouter(prefix="/users", tags=["User Management"])
 user_service = UserService()
 
+ROLE_SUPER_ADMIN = 1
+ROLE_COMPANY_ADMIN = 2
+ROLE_HR_IC = 3
+ROLE_EMPLOYEE = 4
 
-def manageable_roles_for(role_id: int) -> set[int]:
-    return ROLE_CREATION_RULES.get(role_id, set())
+ROLE_CREATE_FLOW = {
+    ROLE_SUPER_ADMIN: {ROLE_COMPANY_ADMIN},
+    ROLE_COMPANY_ADMIN: {ROLE_HR_IC},
+    ROLE_HR_IC: {ROLE_EMPLOYEE},
+}
+
+ROLE_VISIBLE_FLOW = {
+    ROLE_SUPER_ADMIN: {ROLE_COMPANY_ADMIN},
+    ROLE_COMPANY_ADMIN: {ROLE_HR_IC, ROLE_EMPLOYEE},
+    ROLE_HR_IC: {ROLE_EMPLOYEE},
+}
 
 
-def scoped_company_id(current_user) -> Optional[int]:
-    return None if current_user.role_id == SUPER_ADMIN else current_user.company_id
+def _managed_company_id(current_user):
+    return None if current_user.role_id == ROLE_SUPER_ADMIN else current_user.company_id
 
 
-def ensure_can_manage_role(current_user, role_id: int) -> None:
-    if role_id not in manageable_roles_for(current_user.role_id):
+def _visible_role_ids(current_user):
+    return ROLE_VISIBLE_FLOW.get(current_user.role_id, set())
+
+
+def _ensure_can_manage_role(current_user, role_id: int) -> None:
+    from fastapi import HTTPException
+
+    allowed_roles = ROLE_CREATE_FLOW.get(current_user.role_id, set())
+    if role_id not in allowed_roles:
         raise HTTPException(
-            status_code=403,
-            detail="This role cannot create or manage the selected user role.",
+            403,
+            "This account cannot manage that role in the configured user-management flow.",
         )
 
 
@@ -36,10 +55,10 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """List users visible to the current role according to the PDF hierarchy."""
-    if current_user.role_id != SUPER_ADMIN:
+    """List users according to the configured role-management flow."""
+    if current_user.role_id != ROLE_SUPER_ADMIN:
         company_id = current_user.company_id
-    return await user_service.get_all(db, company_id, manageable_roles_for(current_user.role_id))
+    return await user_service.get_all(db, company_id, _visible_role_ids(current_user))
 
 
 @router.post("/", response_model=UserResponse, status_code=201)
@@ -49,9 +68,9 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Create only the next role allowed by the PDF user-management flow."""
-    ensure_can_manage_role(current_user, data.role_id)
-    if current_user.role_id != SUPER_ADMIN:
+    """Create a new user."""
+    _ensure_can_manage_role(current_user, data.role_id)
+    if current_user.role_id != ROLE_SUPER_ADMIN:
         data.company_id = current_user.company_id
     user = await user_service.create(db, data)
     await write_audit_log(
@@ -73,13 +92,10 @@ async def get_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Get a user by ID if the current role can manage that user's role."""
-    return await user_service.get_by_id(
-        db,
-        user_id,
-        scoped_company_id(current_user),
-        manageable_roles_for(current_user.role_id),
-    )
+    """Get a user by ID."""
+    user = await user_service.get_by_id(db, user_id, _managed_company_id(current_user))
+    _ensure_can_manage_role(current_user, user.role_id)
+    return user
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -90,17 +106,12 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Update user details within the current role's manageable scope."""
-    manageable_roles = manageable_roles_for(current_user.role_id)
+    """Update user details."""
+    existing = await user_service.get_by_id(db, user_id, _managed_company_id(current_user))
+    _ensure_can_manage_role(current_user, existing.role_id)
     if data.role_id is not None:
-        ensure_can_manage_role(current_user, data.role_id)
-    user = await user_service.update(
-        db,
-        user_id,
-        data,
-        scoped_company_id(current_user),
-        manageable_roles,
-    )
+        _ensure_can_manage_role(current_user, data.role_id)
+    user = await user_service.update(db, user_id, data, _managed_company_id(current_user))
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -122,16 +133,14 @@ async def update_user_status(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Activate or deactivate a manageable user."""
+    """Activate or deactivate a user."""
     if status not in ["Active", "Inactive"]:
+        from fastapi import HTTPException
+
         raise HTTPException(400, "Status must be 'Active' or 'Inactive'")
-    result = await user_service.set_status(
-        db,
-        user_id,
-        status,
-        scoped_company_id(current_user),
-        manageable_roles_for(current_user.role_id),
-    )
+    existing = await user_service.get_by_id(db, user_id, _managed_company_id(current_user))
+    _ensure_can_manage_role(current_user, existing.role_id)
+    result = await user_service.set_status(db, user_id, status, _managed_company_id(current_user))
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -153,13 +162,11 @@ async def admin_reset_password(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Reset password for a manageable user."""
+    """Admin resets a user's password."""
+    existing = await user_service.get_by_id(db, user_id, _managed_company_id(current_user))
+    _ensure_can_manage_role(current_user, existing.role_id)
     result = await user_service.reset_password(
-        db,
-        user_id,
-        data.new_password,
-        scoped_company_id(current_user),
-        manageable_roles_for(current_user.role_id),
+        db, user_id, data.new_password, _managed_company_id(current_user)
     )
     await write_audit_log(
         db,
@@ -181,13 +188,10 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Soft-delete a manageable user."""
-    result = await user_service.delete(
-        db,
-        user_id,
-        scoped_company_id(current_user),
-        manageable_roles_for(current_user.role_id),
-    )
+    """Soft-delete a user according to the configured role-management flow."""
+    existing = await user_service.get_by_id(db, user_id, _managed_company_id(current_user))
+    _ensure_can_manage_role(current_user, existing.role_id)
+    result = await user_service.delete(db, user_id, _managed_company_id(current_user))
     await write_audit_log(
         db,
         user_id=current_user.user_id,

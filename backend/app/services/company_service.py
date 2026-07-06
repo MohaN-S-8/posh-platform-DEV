@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.company import CompanyMaster
@@ -51,6 +51,16 @@ class CompanyService:
         db.add(company)
         await db.commit()
         await db.refresh(company)
+        await db.execute(
+            text(
+                """
+                INSERT IGNORE INTO company_languages (company_id, language_id, is_default)
+                VALUES (:company_id, 1, TRUE)
+                """
+            ),
+            {"company_id": company.company_id},
+        )
+        await db.commit()
         return company
 
     async def update(self, db: AsyncSession, company_id: int, data: CompanyUpdate) -> CompanyMaster:
@@ -77,3 +87,84 @@ class CompanyService:
         company.is_deleted = "Y"  # soft delete
         await db.commit()
         return {"message": "Company deleted successfully."}
+
+    async def get_language_preferences(self, db: AsyncSession, company_id: int) -> list[dict]:
+        await self.get_by_id(db, company_id)
+        result = await db.execute(
+            text(
+                """
+                SELECT
+                    lm.language_id,
+                    lm.language_name,
+                    CASE WHEN cl.language_id IS NULL THEN 0 ELSE 1 END AS enabled,
+                    COALESCE(cl.is_default, 0) AS is_default
+                FROM language_master lm
+                LEFT JOIN company_languages cl
+                    ON cl.language_id = lm.language_id
+                    AND cl.company_id = :company_id
+                ORDER BY lm.language_id
+                """
+            ),
+            {"company_id": company_id},
+        )
+        return [
+            {
+                "language_id": row.language_id,
+                "language_name": row.language_name,
+                "enabled": bool(row.enabled),
+                "is_default": bool(row.is_default),
+            }
+            for row in result
+        ]
+
+    async def update_language_preferences(
+        self,
+        db: AsyncSession,
+        company_id: int,
+        language_ids: list[int],
+        default_language_id: int | None = None,
+    ) -> list[dict]:
+        await self.get_by_id(db, company_id)
+        unique_language_ids = sorted({int(language_id) for language_id in language_ids})
+        if not unique_language_ids:
+            raise HTTPException(400, "Select at least one language.")
+
+        if default_language_id is None:
+            default_language_id = unique_language_ids[0]
+        if default_language_id not in unique_language_ids:
+            raise HTTPException(400, "Default language must be selected.")
+
+        valid_result = await db.execute(
+            text(
+                """
+                SELECT language_id
+                FROM language_master
+                WHERE language_id IN :language_ids
+                """
+            ).bindparams(bindparam("language_ids", expanding=True)),
+            {"language_ids": unique_language_ids},
+        )
+        valid_ids = {row.language_id for row in valid_result}
+        if valid_ids != set(unique_language_ids):
+            raise HTTPException(400, "One or more selected languages are invalid.")
+
+        await db.execute(
+            text("DELETE FROM company_languages WHERE company_id = :company_id"),
+            {"company_id": company_id},
+        )
+        for language_id in unique_language_ids:
+            await db.execute(
+                text(
+                    """
+                    INSERT INTO company_languages (company_id, language_id, is_default)
+                    VALUES (:company_id, :language_id, :is_default)
+                    """
+                ),
+                {
+                    "company_id": company_id,
+                    "language_id": language_id,
+                    "is_default": language_id == default_language_id,
+                },
+            )
+        await db.commit()
+        return await self.get_language_preferences(db, company_id)

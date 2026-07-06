@@ -145,7 +145,7 @@ export function CertificatesPage() {
                   type="button"
                   onClick={() =>
                     window.open(
-                      `/api/v1/certificates/verify/${cert.certificate_number}`,
+                      `/certificates/verify/${cert.certificate_number}`,
                       "_blank",
                     )
                   }

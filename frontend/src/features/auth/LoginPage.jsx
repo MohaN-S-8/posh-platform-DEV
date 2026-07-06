@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { authApi } from "../../api/auth";
+import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { authInputStyle } from "../../styles/formStyles";
 import { useAuthStore } from "../../store/authStore";
@@ -56,6 +57,9 @@ const passwordToggleStyle = {
   padding: 0,
 };
 
+const showDevCredentials =
+  import.meta.env.DEV || import.meta.env.VITE_SHOW_DEV_CREDENTIALS === "true";
+
 export function LoginPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
@@ -81,35 +85,35 @@ export function LoginPage() {
       setAuth({ user_id, role_id, company_id }, access_token);
 
       if (role_id === 1 || role_id === 2) navigate("/admin");
-      else if (role_id === 3 || role_id === 4) navigate("/hr");
-      else navigate("/employee");
+      else if (role_id === 3) navigate("/hr");
+      else if (role_id === 4) navigate("/employee");
+      else navigate("/unauthorized");
     } catch (err) {
-      const detail = err.response?.data?.detail;
       if (err.response?.status === 423) {
-        setError(detail || "Account locked. Try again later.");
+        setError(apiErrorMessage(err, "Account locked. Try again later."));
       } else if (err.response?.status === 403) {
         setError(
-          detail || "Your account is inactive. Contact your administrator.",
+          apiErrorMessage(err, "Your account is inactive. Contact your administrator."),
         );
       } else {
-        setError(detail || "Invalid email or password.");
+        setError(apiErrorMessage(err, "Invalid email or password."));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const startEntraLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await authApi.entraStart();
-      window.location.href = res.data.auth_url;
-    } catch (err) {
-      setError(err.response?.data?.detail || "Microsoft Entra SSO is not configured.");
-      setLoading(false);
-    }
-  };
+  // const startEntraLogin = async () => {
+  //   setLoading(true);
+  //   setError("");
+  //   try {
+  //     const res = await authApi.entraStart();
+  //     window.location.href = res.data.auth_url;
+  //   } catch (err) {
+  //     setError(apiErrorMessage(err, "Microsoft Entra SSO is not configured."));
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <div
@@ -141,24 +145,26 @@ export function LoginPage() {
           Sign in to your account
         </p>
 
-        <div
-          style={{
-            background: "#eef4f8",
-            border: "1px solid #cdd9e2",
-            borderRadius: "8px",
-            padding: "12px 14px",
-            marginBottom: "24px",
-            fontSize: "13px",
-            color: "#17324d",
-            lineHeight: 1.5,
-          }}
-        >
-          <div style={{ fontWeight: 700, marginBottom: "4px" }}>
-            Default development logins
+        {showDevCredentials && (
+          <div
+            style={{
+              background: "#eef4f8",
+              border: "1px solid #cdd9e2",
+              borderRadius: "8px",
+              padding: "12px 14px",
+              marginBottom: "24px",
+              fontSize: "13px",
+              color: "#17324d",
+              lineHeight: 1.5,
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: "4px" }}>
+              Default development logins
+            </div>
+            <div>Admin: admin@posh.com / Admin@1234</div>
+            <div>HR: hr@posh.com / Admin@1234</div>
           </div>
-          <div>Super Admin: admin@posh.com / Admin@1234</div>
-          <div>HR / IC: hr@posh.com / Admin@1234</div>
-        </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
           <div style={{ marginBottom: "20px" }}>
@@ -265,7 +271,7 @@ export function LoginPage() {
           </button>
         </form>
 
-        <button
+        {/* <button
           type="button"
           onClick={startEntraLogin}
           disabled={loading}
@@ -283,7 +289,7 @@ export function LoginPage() {
           }}
         >
           Sign in with Microsoft Entra
-        </button>
+        </button> */}
 
         <div style={{ textAlign: "center", marginTop: "20px" }}>
           <Link
@@ -292,6 +298,14 @@ export function LoginPage() {
           >
             Forgot password?
           </Link>
+        </div>
+        <div style={{ textAlign: "center", marginTop: "12px" }}>
+          <span style={{ fontSize: "14px", color: "#666" }}>
+            Don&apos;t have an account?{" "}
+            <Link to="/signup" style={{ color: "#1a3c5e", fontWeight: 600 }}>
+              Sign up
+            </Link>
+          </span>
         </div>
         <LoadingOverlay
           show={loading}

@@ -7,10 +7,6 @@ _client = None
 _presign_client = None
 
 
-def _region_name() -> str:
-    return os.environ.get("S3_REGION") or os.environ.get("AWS_REGION") or "us-east-1"
-
-
 def _endpoint_url(value: str) -> str:
     return value if value.startswith(("http://", "https://")) else f"http://{value}"
 
@@ -25,7 +21,7 @@ def get_storage_client():
             aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "minioadmin"),
             aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "minioadmin123"),
             config=Config(signature_version="s3v4"),
-            region_name=_region_name(),
+            region_name="us-east-1",
         )
     return _client
 
@@ -44,7 +40,7 @@ def get_presign_client():
             aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "minioadmin"),
             aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "minioadmin123"),
             config=Config(signature_version="s3v4"),
-            region_name=_region_name(),
+            region_name="us-east-1",
         )
     return _presign_client
 
@@ -84,6 +80,13 @@ def generate_presigned_url(bucket: str, object_key: str, expiry_seconds: int = 3
         Params={"Bucket": bucket, "Key": object_key},
         ExpiresIn=expiry_seconds,
     )
+
+
+def read_file(bucket: str, object_key: str) -> bytes:
+    """Read an object from MinIO/S3 through the internal service endpoint."""
+    client = get_storage_client()
+    response = client.get_object(Bucket=bucket, Key=object_key)
+    return response["Body"].read()
 
 
 def delete_file(bucket: str, object_key: str) -> None:

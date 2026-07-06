@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
+import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 
-const implementedItems = [
-  "Management APIs enforce permission_master and role_permission checks.",
-  "company_languages table is created and seeded for the default company.",
-  "Audit Logs shows login attempts and sensitive admin/HR action logging.",
-  "Employee, department, and certificate reports export as Excel, CSV, and PDF.",
-  "HR can create due and overdue training reminder notifications.",
-  "video_quality table stores uploaded quality variants.",
-  "Video transcript text is stored as English WebVTT subtitles.",
-  "Certificate templates support color, font, logo, and signature assets.",
-];
+// const implementedItems = [
+//   "Management APIs enforce permission_master and role_permission checks.",
+//   "company_languages table is created and seeded for the default company.",
+//   "Audit Logs shows login attempts and sensitive admin/HR action logging.",
+//   "Employee, department, and certificate reports export as Excel, CSV, and PDF.",
+//   "HR can create due and overdue training reminder notifications.",
+//   "video_quality table stores uploaded quality variants.",
+//   "Video transcript text is stored as English WebVTT subtitles.",
+//   "Certificate templates support color, font, logo, and signature assets.",
+// ];
+const implementedItems = [" "];
 
 export function AdminSettingsPage() {
   const navigate = useNavigate();
@@ -28,7 +30,7 @@ export function AdminSettingsPage() {
         const res = await apiClient.get("/admin/languages");
         setLanguages(res.data || []);
       } catch (err) {
-        setError(err.response?.data?.detail || "Unable to load settings.");
+        setError(apiErrorMessage(err, "Unable to load settings."));
       } finally {
         setLoading(false);
       }
@@ -38,7 +40,11 @@ export function AdminSettingsPage() {
 
   return (
     <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button type="button" onClick={() => navigate("/admin")} style={backButtonStyle}>
+      <button
+        type="button"
+        onClick={() => navigate("/admin")}
+        style={backButtonStyle}
+      >
         Back to Dashboard
       </button>
       <h1 style={{ color: "#17324d", margin: "0 0 6px", fontSize: "30px" }}>
@@ -82,7 +88,11 @@ export function AdminSettingsPage() {
         </div>
       </section>
 
-      <LoadingOverlay show={loading} title="Loading settings" message="Fetching languages." />
+      <LoadingOverlay
+        show={loading}
+        title="Loading settings"
+        message="Fetching languages."
+      />
     </div>
   );
 }

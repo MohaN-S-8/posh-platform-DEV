@@ -62,7 +62,9 @@ export function HRDashboard() {
       const res = await apiClient.post("/hr/notifications/send-reminders");
       setMessage(res.data?.message || "Training reminders created.");
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to create training reminders.");
+      setError(
+        err.response?.data?.detail || "Unable to create training reminders.",
+      );
     } finally {
       setReminding(false);
     }
@@ -78,7 +80,9 @@ export function HRDashboard() {
         if (active) setData(res.data);
       } catch (err) {
         if (active) {
-          setError(err.response?.data?.detail || "Unable to load HR dashboard.");
+          setError(
+            err.response?.data?.detail || "Unable to load HR dashboard.",
+          );
         }
       } finally {
         if (active) setLoading(false);
@@ -96,47 +100,48 @@ export function HRDashboard() {
       {
         label: "Courses Assigned",
         value:
-          (data?.completed ?? 0) + (data?.in_progress ?? 0) + (data?.not_started ?? 0),
+          (data?.completed ?? 0) +
+          (data?.in_progress ?? 0) +
+          (data?.not_started ?? 0),
       },
       { label: "Completed", value: data?.completed ?? 0 },
-      { label: "Pending", value: (data?.in_progress ?? 0) + (data?.not_started ?? 0) },
+      {
+        label: "Pending",
+        value: (data?.in_progress ?? 0) + (data?.not_started ?? 0),
+      },
       { label: "Compliance Rate", value: `${data?.compliance_rate ?? 0}%` },
     ],
     [data],
   );
 
-  const canManageTraining = user?.role_id === 4;
-  const canManageUsers = user?.role_id === 3 || user?.role_id === 4;
-
   const modules = [
-    ...(canManageTraining
-      ? [
-          {
-            title: "Employee Upload",
-            description: "Import employee records with Excel or CSV validation.",
-            path: "/hr/upload",
-            icon: <CloudUploadIcon />,
-            status: "Available",
-          },
-          {
-            title: "Training Assignment",
-            description: "Assign videos to one employee, a department, or the company.",
-            path: "/hr/assign",
-            icon: <PlaylistAddCheckIcon />,
-            status: "Available",
-          },
-        ]
-      : []),
     {
-      title: "Video Management",
-      description: "Upload, edit, publish, and archive POSH training videos.",
-      path: "/admin/videos",
+      title: "Employee Upload",
+      description: "Import employee records with Excel or CSV validation.",
+      path: "/hr/upload",
+      icon: <CloudUploadIcon />,
+      status: "Available",
+    },
+    {
+      title: "Training Assignment",
+      description:
+        "Assign videos to one employee, a department, or the company.",
+      path: "/hr/assign",
       icon: <PlaylistAddCheckIcon />,
       status: "Available",
     },
     {
+      title: "Video Upload",
+      description:
+        "Upload draft training videos for Admin or Management review.",
+      path: "/hr/videos",
+      icon: <CloudUploadIcon />,
+      status: "Available",
+    },
+    {
       title: "Compliance Tracking",
-      description: "Monitor completion, pending employees, and overdue training.",
+      description:
+        "Monitor completion, pending employees, and overdue training.",
       path: "/hr/compliance",
       icon: <AssessmentIcon />,
       status: "Available",
@@ -148,26 +153,25 @@ export function HRDashboard() {
       icon: <DownloadIcon />,
       status: "Available",
     },
-    ...(canManageUsers
+    ...([1, 2, 3].includes(user?.role_id)
       ? [
           {
-            title: user?.role_id === 3 ? "HR / IC Management" : "Employee Management",
+            title: "Employee Management",
             description:
-              user?.role_id === 3
-                ? "Create, activate, deactivate, and reset HR / IC users."
-                : "Create, activate, deactivate, and reset employee users.",
-            path: "/admin/users",
+              "Create, activate, deactivate, and reset employee accounts.",
+            path: "/hr/users",
             icon: <GroupsIcon />,
-            status: "Available",
+            status: "Shared",
           },
         ]
       : []),
     {
       title: "Certificate Downloads",
-      description: "Certificate reports are available; per-certificate downloads are employee-side.",
+      description:
+        "Certificate reports are available; per-certificate downloads are employee-side.",
       path: "/hr/reports",
       icon: <BadgeIcon />,
-      status: "Partial",
+      status: "Available",
     },
   ];
 
@@ -188,7 +192,8 @@ export function HRDashboard() {
             HR Portal
           </h1>
           <p style={{ color: "#64748b", margin: "6px 0 0" }}>
-            Manage employee training, assignments, compliance, reports, and certificates.
+            Manage employee training, assignments, compliance, reports, and
+            certificates.
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -284,7 +289,9 @@ export function HRDashboard() {
         }}
       >
         <div style={cardStyle}>
-          <h2 style={{ color: "#17324d", margin: "0 0 16px", fontSize: "20px" }}>
+          <h2
+            style={{ color: "#17324d", margin: "0 0 16px", fontSize: "20px" }}
+          >
             Department Compliance
           </h2>
           {data?.department_breakdown?.length ? (
@@ -317,7 +324,8 @@ export function HRDashboard() {
                       style={{
                         height: "100%",
                         width: `${Math.min(100, dept.compliance_rate)}%`,
-                        background: dept.compliance_rate >= 80 ? "#1f7a4d" : "#c77918",
+                        background:
+                          dept.compliance_rate >= 80 ? "#1f7a4d" : "#c77918",
                       }}
                     />
                   </div>
@@ -326,13 +334,16 @@ export function HRDashboard() {
             </div>
           ) : (
             <p style={{ color: "#64748b", margin: 0 }}>
-              Department compliance appears after employees are uploaded and training starts.
+              Department compliance appears after employees are uploaded and
+              training starts.
             </p>
           )}
         </div>
 
         <div style={cardStyle}>
-          <h2 style={{ color: "#17324d", margin: "0 0 16px", fontSize: "20px" }}>
+          <h2
+            style={{ color: "#17324d", margin: "0 0 16px", fontSize: "20px" }}
+          >
             Alerts
           </h2>
           <div style={{ display: "grid", gap: "10px" }}>
@@ -422,12 +433,15 @@ export function HRDashboard() {
                     marginBottom: "14px",
                   }}
                 >
-                  <span style={{ color: "#17324d", display: "flex" }}>{module.icon}</span>
+                  <span style={{ color: "#17324d", display: "flex" }}>
+                    {module.icon}
+                  </span>
                   <span
                     style={{
                       fontSize: "11px",
                       fontWeight: 800,
-                      color: module.status === "Available" ? "#1f7a4d" : "#64748b",
+                      color:
+                        module.status === "Available" ? "#1f7a4d" : "#64748b",
                       background:
                         module.status === "Available" ? "#e8f5e9" : "#eef2f6",
                       borderRadius: "999px",
@@ -437,10 +451,23 @@ export function HRDashboard() {
                     {module.status}
                   </span>
                 </div>
-                <h3 style={{ color: "#17324d", margin: "0 0 8px", fontSize: "17px" }}>
+                <h3
+                  style={{
+                    color: "#17324d",
+                    margin: "0 0 8px",
+                    fontSize: "17px",
+                  }}
+                >
                   {module.title}
                 </h3>
-                <p style={{ color: "#64748b", margin: 0, fontSize: "13px", lineHeight: 1.5 }}>
+                <p
+                  style={{
+                    color: "#64748b",
+                    margin: 0,
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                  }}
+                >
                   {module.description}
                 </p>
               </button>

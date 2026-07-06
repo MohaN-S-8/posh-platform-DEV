@@ -1,4 +1,5 @@
 import io
+import logging
 import uuid
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -14,12 +15,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.storage import generate_presigned_url, upload_file
+from app.core.storage import generate_presigned_url, read_file, upload_file
 from app.models.certificate import Certificate, CertificateTemplate
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
 
 CERT_BUCKET = "posh-certificates"
+logger = logging.getLogger(__name__)
 
 
 class CertificateService:
@@ -93,8 +95,7 @@ class CertificateService:
         cert_number = f"POSH-{year}-{uuid.uuid4().hex[:10].upper()}"
 
         # 3. Generate QR code
-        verify_base_url = settings.PUBLIC_APP_URL.rstrip("/")
-        verify_url = f"{verify_base_url}/api/v1/certificates/verify/{cert_number}"
+        verify_url = self._verification_url(cert_number)
         qr_bytes = self._generate_qr(verify_url)
         qr_path = f"certificates/{company_id}/qr/{cert_number}.png"
         upload_file(qr_bytes, CERT_BUCKET, qr_path, "image/png")
@@ -224,16 +225,17 @@ class CertificateService:
         story.append(Spacer(1, 1 * cm))
         if template and template.logo_path:
             try:
+                logo_bytes = io.BytesIO(read_file(CERT_BUCKET, template.logo_path))
                 story.append(
                     Image(
-                        generate_presigned_url(CERT_BUCKET, template.logo_path, 300),
+                        logo_bytes,
                         width=3 * cm,
                         height=2 * cm,
                     )
                 )
                 story.append(Spacer(1, 0.3 * cm))
             except Exception:
-                pass
+                logger.exception("Unable to embed certificate logo: %s", template.logo_path)
         story.append(Paragraph("Certificate of Completion", title_style))
         story.append(Paragraph("This is to certify that", body_style))
         story.append(Paragraph(employee_name, name_style))
@@ -249,20 +251,23 @@ class CertificateService:
         story.append(Spacer(1, 1 * cm))
         if template and template.signature_path:
             try:
+                signature_bytes = io.BytesIO(read_file(CERT_BUCKET, template.signature_path))
                 story.append(
                     Image(
-                        generate_presigned_url(CERT_BUCKET, template.signature_path, 300),
+                        signature_bytes,
                         width=4 * cm,
                         height=1.5 * cm,
                     )
                 )
                 story.append(Spacer(1, 0.2 * cm))
             except Exception:
-                pass
+                logger.exception(
+                    "Unable to embed certificate signature: %s", template.signature_path
+                )
         story.append(Paragraph(f"Certificate Number: {cert_number}", small_style))
         story.append(
             Paragraph(
-                f"Verify at: {settings.PUBLIC_APP_URL.rstrip('/')}/api/v1/certificates/verify/{cert_number}",
+                f"Verify at: {self._verification_url(cert_number)}",
                 small_style,
             )
         )
@@ -270,6 +275,10 @@ class CertificateService:
         doc.build(story)
         buf.seek(0)
         return buf.read()
+
+    def _verification_url(self, cert_number: str) -> str:
+        """Return the public frontend verification page for a certificate."""
+        return f"{settings.PUBLIC_APP_URL.rstrip('/')}/certificates/verify/{cert_number}"
 
     async def get_download_url(self, db, certificate_id: int, user_id: int) -> dict:
         """Get a short-lived signed URL to download the certificate PDF."""

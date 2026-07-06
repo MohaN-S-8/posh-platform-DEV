@@ -2,8 +2,8 @@ import { Navigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import { useAuthStore } from "../store/authStore";
 
-// allowedRoles: array of numbers, e.g. [1] for Super Admin
-// Role IDs: 1=Super Admin, 2=Admin, 3=Client / Management, 4=HR / IC, 5=Employee
+// allowedRoles: array of numbers.
+// Role IDs: 1=Super Admin, 2=Company Admin, 3=HR / IC, 4=Employee
 export function RoleRoute({ children, allowedRoles }) {
   const { user } = useAuthStore();
 

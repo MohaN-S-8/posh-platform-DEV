@@ -2,6 +2,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
+import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 
 const reports = [
@@ -88,7 +89,7 @@ export function AdminReportsPage() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to download report.");
+      setError(apiErrorMessage(err, "Unable to download report."));
     } finally {
       setDownloading("");
     }

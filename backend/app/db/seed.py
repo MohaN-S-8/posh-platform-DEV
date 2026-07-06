@@ -1,5 +1,5 @@
 """
-Seed script â€” run once to populate reference data.
+Seed script — run once to populate reference data.
 Run with: python -m app.db.seed
 """
 
@@ -20,23 +20,22 @@ AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_co
 
 async def seed():
     async with AsyncSessionLocal() as db:
-        # â”€â”€ 1. Roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── 1. Roles ──────────────────────────────────────────────────────
         await db.execute(
             text(
                 """
                 INSERT INTO role_master (role_id, role_name)
                 VALUES
                     (1, 'Super Admin'),
-                    (2, 'Admin'),
-                    (3, 'Client / Management'),
-                    (4, 'HR / IC'),
-                    (5, 'Employee')
+                    (2, 'Company Admin'),
+                    (3, 'HR / IC'),
+                    (4, 'Employee')
                 ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)
             """
             )
         )
 
-        # â”€â”€ 2. Default company (needed for signup FK) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── 2. Default company (needed for signup FK) ─────────────────────
         await db.execute(
             text(
                 """
@@ -48,7 +47,7 @@ async def seed():
             )
         )
 
-        # â”€â”€ 3. Languages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── 3. Languages ──────────────────────────────────────────────────
         await db.execute(
             text(
                 """
@@ -64,7 +63,49 @@ async def seed():
             )
         )
 
-        # â”€â”€ 4. Video Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── 4. Video Categories ───────────────────────────────────────────
+        await db.execute(
+            text(
+                """
+                INSERT INTO permission_master (permission_key, permission_name)
+                VALUES
+                    ('users.manage', 'Manage Users'),
+                    ('videos.upload', 'Upload Videos'),
+                    ('videos.manage', 'Manage Videos'),
+                    ('certificates.manage', 'Manage Certificates'),
+                    ('reports.view', 'View Reports'),
+                    ('training.assign', 'Assign Training'),
+                    ('courses.watch', 'Watch Courses')
+                ON DUPLICATE KEY UPDATE permission_name = VALUES(permission_name)
+            """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                DELETE rp FROM role_permission rp
+                JOIN permission_master pm ON pm.permission_id = rp.permission_id
+                WHERE
+                    (rp.role_id = 3 AND pm.permission_key = 'videos.manage')
+                    OR rp.role_id = 5
+            """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                INSERT IGNORE INTO role_permission (role_id, permission_id)
+                SELECT 1, permission_id FROM permission_master
+                UNION SELECT 2, permission_id FROM permission_master
+                WHERE permission_key IN ('users.manage','videos.manage','certificates.manage','reports.view','training.assign')
+                UNION SELECT 3, permission_id FROM permission_master
+                WHERE permission_key IN ('users.manage','videos.upload','reports.view','training.assign')
+                UNION SELECT 4, permission_id FROM permission_master
+                WHERE permission_key IN ('courses.watch')
+            """
+            )
+        )
+
         await db.execute(
             text(
                 """
@@ -80,7 +121,7 @@ async def seed():
         )
 
         await db.commit()
-        print("âœ… Seed complete â€” roles and default company inserted.")
+        print("✅ Seed complete — roles and default company inserted.")
 
 
 if __name__ == "__main__":

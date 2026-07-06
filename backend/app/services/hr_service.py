@@ -21,7 +21,7 @@ from app.models.user import UserMaster
 from app.models.video import VideoMaster
 from app.schemas.hr import TrainingAssignRequest
 
-REQUIRED_COLUMNS = {"employee_id", "first_name", "email", "mobile", "role_id"}
+REQUIRED_COLUMNS = {"employee_id", "first_name", "email", "mobile"}
 
 
 class HRService:
@@ -30,7 +30,7 @@ class HRService:
             select(UserMaster)
             .where(
                 UserMaster.company_id == company_id,
-                UserMaster.role_id == 5,
+                UserMaster.role_id == 4,
                 UserMaster.status == "Active",
                 UserMaster.is_deleted == "N",
             )
@@ -92,7 +92,7 @@ class HRService:
             raise HTTPException(
                 status_code=400,
                 detail=f"Missing required columns: {', '.join(missing)}. "
-                f"Required: employee_id, first_name, email, mobile, role_id",
+                f"Required: employee_id, first_name, email, mobile",
             )
 
         # 4. Create batch record
@@ -124,11 +124,11 @@ class HRService:
             designation = str(row.get("designation", "")).strip()
 
             try:
-                role_id = int(row.get("role_id", 5))
+                role_id = int(row.get("role_id", 4))
             except (ValueError, TypeError):
-                role_id = 5  # default to Employee
+                role_id = 4  # default to Employee
 
-            # â”€â”€ Validate each field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── Validate each field ────────────────────────────────────────
             if not employee_id:
                 row_errors.append("employee_id is required")
 
@@ -141,10 +141,10 @@ class HRService:
             if not mobile.isdigit() or len(mobile) != 10:
                 row_errors.append("mobile must be exactly 10 digits")
 
-            if role_id not in [5]:
-                row_errors.append("role_id must be 5 for Employee")
+            if role_id != 4:
+                row_errors.append("bulk employee upload can only create Employee users")
 
-            # â”€â”€ CSV injection defense â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── CSV injection defense ──────────────────────────────────────
             # Prefix cells starting with =, +, -, @ with apostrophe
             # These are formula injection characters in Excel/Google Sheets
             for dangerous_prefix in ["=", "+", "-", "@"]:
@@ -157,19 +157,19 @@ class HRService:
                 errors.append({"row": row_num, "email": email, "errors": row_errors})
                 continue
 
-            # â”€â”€ Check duplicate email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── Check duplicate email ──────────────────────────────────────
             existing = await db.execute(select(UserMaster).where(UserMaster.email == email))
             if existing.scalar_one_or_none():
                 errors.append(
                     {
                         "row": row_num,
                         "email": email,
-                        "errors": ["Email already registered â€” skipped"],
+                        "errors": ["Email already registered — skipped"],
                     }
                 )
                 continue
 
-            # â”€â”€ Create user â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            # ── Create user ────────────────────────────────────────────────
             user = UserMaster(
                 company_id=company_id,
                 employee_id=employee_id,
@@ -348,7 +348,7 @@ class HRService:
                 UserMaster.company_id == company_id,
                 UserMaster.status == "Active",
                 UserMaster.is_deleted == "N",
-                UserMaster.role_id == 5,  # Employee role only
+                UserMaster.role_id == 4,  # Employee role only
             )
         )
         total = total_result.scalar() or 0
@@ -383,7 +383,7 @@ class HRService:
             .where(
                 UserMaster.company_id == company_id,
                 UserMaster.status == "Active",
-                UserMaster.role_id == 5,
+                UserMaster.role_id == 4,
             )
             .group_by(UserMaster.department)
         )
@@ -403,7 +403,7 @@ class HRService:
                 .where(
                     UserMaster.company_id == company_id,
                     UserMaster.status == "Active",
-                    UserMaster.role_id == 5,
+                    UserMaster.role_id == 4,
                     UserMaster.is_deleted == "N",
                     UserMaster.department == row.department,
                 )
@@ -708,7 +708,7 @@ class HRService:
                 UserMaster.company_id == company_id,
                 UserMaster.status == "Active",
                 UserMaster.is_deleted == "N",
-                UserMaster.role_id == 5,
+                UserMaster.role_id == 4,
                 CourseAssignment.due_date <= reminder_until,
                 TrainingHistory.id.is_(None),
             )

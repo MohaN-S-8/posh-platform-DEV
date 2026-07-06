@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
+import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 
 export function AdminAuditLogPage() {
@@ -43,7 +44,7 @@ export function AdminAuditLogPage() {
           ),
         );
       } catch (err) {
-        setError(err.response?.data?.detail || "Unable to load audit logs.");
+        setError(apiErrorMessage(err, "Unable to load audit logs."));
       } finally {
         setLoading(false);
       }

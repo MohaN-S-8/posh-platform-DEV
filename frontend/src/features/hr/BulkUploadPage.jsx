@@ -36,9 +36,9 @@ export function BulkUploadPage() {
 
   const downloadTemplate = () => {
     const csv =
-      "employee_id,first_name,last_name,email,mobile,department,designation,role_id\n" +
-      "EMP001,Ravi,Kumar,ravi@company.com,9876543210,IT,Developer,4\n" +
-      "EMP002,Priya,Sharma,priya@company.com,9876543211,HR,Manager,3";
+      "employee_id,first_name,last_name,email,mobile,department,designation\n" +
+      "EMP001,Ravi,Kumar,ravi@company.com,9876543210,IT,Developer\n" +
+      "EMP002,Priya,Sharma,priya@company.com,9876543211,Finance,Analyst";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -78,7 +78,7 @@ export function BulkUploadPage() {
         <p style={{ color: "#666", fontSize: "14px", marginBottom: "16px" }}>
           Upload an Excel (.xlsx) or CSV (.csv) file with employee data.
           Required columns:{" "}
-          <code>employee_id, first_name, email, mobile, role_id</code>
+          <code>employee_id, first_name, email, mobile</code>
         </p>
         <button
           onClick={downloadTemplate}

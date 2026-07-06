@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
+import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { useAuthStore } from "../../store/authStore";
 
 export function VideoListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuthStore();
   const fileInputRef = useRef(null);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +21,13 @@ export function VideoListPage() {
   const [languages, setLanguages] = useState([]);
   const [assetForms, setAssetForms] = useState({});
   const [questionForms, setQuestionForms] = useState({});
+  const [editingVideo, setEditingVideo] = useState(null);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    duration_minutes: "",
+    status: "Draft",
+  });
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -25,6 +36,10 @@ export function VideoListPage() {
     quality_label: "720p",
     transcript_text: "",
   });
+  const isHrRoute = location.pathname.startsWith("/hr/");
+  const canManageVideos = [1, 2].includes(user?.role_id);
+  const dashboardPath = isHrRoute ? "/hr" : "/admin";
+  const pageTitle = canManageVideos ? "Video Management" : "Video Upload";
 
   const fetchVideos = async ({ showLoading = true } = {}) => {
     if (showLoading) {
@@ -35,7 +50,7 @@ export function VideoListPage() {
       const res = await apiClient.get("/videos/");
       setVideos(res.data);
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to load videos.");
+      setError(apiErrorMessage(err, "Unable to load videos."));
     } finally {
       setLoading(false);
     }
@@ -90,7 +105,11 @@ export function VideoListPage() {
         );
         return [res.data, ...withoutDuplicate];
       });
-      setUploadProgress("Upload successful. Video is saved as Draft. Publish it now so employees can watch it.");
+      setUploadProgress(
+        canManageVideos
+          ? "Upload successful. Video is saved as Draft. Publish it now so employees can watch it."
+          : "Upload successful. Video is saved as Draft for Admin or Management review.",
+      );
       setForm({
         title: "",
         description: "",
@@ -102,7 +121,7 @@ export function VideoListPage() {
       fileInputRef.current.value = "";
       await fetchVideos();
     } catch (err) {
-      setError(err.response?.data?.detail || "Upload failed.");
+      setError(apiErrorMessage(err, "Upload failed."));
       setUploadProgress("");
     } finally {
       setUploading(false);
@@ -165,7 +184,7 @@ export function VideoListPage() {
       });
       updateAssetForm(videoId, { qualityFile: null });
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to upload quality variant.");
+      setError(apiErrorMessage(err, "Unable to upload quality variant."));
     } finally {
       setOverlay(null);
     }
@@ -189,7 +208,7 @@ export function VideoListPage() {
       });
       updateAssetForm(videoId, { subtitleFile: null, audioFile: null });
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to upload language track.");
+      setError(apiErrorMessage(err, "Unable to upload language track."));
     } finally {
       setOverlay(null);
     }
@@ -209,7 +228,7 @@ export function VideoListPage() {
       });
       updateQuestionForm(videoId, defaultQuestionForm);
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to create assessment question.");
+      setError(apiErrorMessage(err, "Unable to create assessment question."));
     } finally {
       setOverlay(null);
     }
@@ -234,9 +253,70 @@ export function VideoListPage() {
       );
       await fetchVideos();
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to publish video.");
+      setError(apiErrorMessage(err, "Unable to publish video."));
     } finally {
       setPublishingId(null);
+      setOverlay(null);
+    }
+  };
+
+  const startEdit = (video) => {
+    setEditingVideo(video);
+    setEditForm({
+      title: video.title || "",
+      description: video.description || "",
+      duration_minutes: video.duration_minutes || "",
+      status: video.status || "Draft",
+    });
+  };
+
+  const submitEdit = async (e) => {
+    e.preventDefault();
+    if (!editingVideo) return;
+    setOverlay({ title: "Saving video", message: "Updating video details." });
+    setError("");
+    try {
+      await apiClient.put(`/videos/${editingVideo.video_id}`, {
+        title: editForm.title,
+        description: editForm.description,
+        duration_minutes: editForm.duration_minutes
+          ? Number(editForm.duration_minutes)
+          : null,
+        status: editForm.status,
+      });
+      setEditingVideo(null);
+      await fetchVideos();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to update video."));
+    } finally {
+      setOverlay(null);
+    }
+  };
+
+  const archiveVideo = async (videoId) => {
+    setOverlay({ title: "Archiving video", message: "Removing this video from employee view." });
+    setError("");
+    try {
+      await apiClient.patch(`/videos/${videoId}/archive`);
+      await fetchVideos();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to archive video."));
+    } finally {
+      setOverlay(null);
+    }
+  };
+
+  const deleteVideo = async (video) => {
+    const confirmed = window.confirm(`Delete "${video.title}"? This cannot be undone.`);
+    if (!confirmed) return;
+    setOverlay({ title: "Deleting video", message: "Removing unused video content." });
+    setError("");
+    try {
+      await apiClient.delete(`/videos/${video.video_id}`);
+      await fetchVideos();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to delete video."));
+    } finally {
       setOverlay(null);
     }
   };
@@ -255,7 +335,7 @@ export function VideoListPage() {
     <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
       <div style={{ marginBottom: "24px" }}>
         <button
-          onClick={() => navigate("/admin")}
+          onClick={() => navigate(dashboardPath)}
           style={{
             background: "none",
             border: "none",
@@ -267,7 +347,7 @@ export function VideoListPage() {
           Back to Dashboard
         </button>
         <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-          Video Management
+          {pageTitle}
         </h1>
       </div>
 
@@ -284,6 +364,65 @@ export function VideoListPage() {
         >
           {error}
         </div>
+      )}
+
+      {editingVideo && canManageVideos && (
+        <form onSubmit={submitEdit} style={panelStyle}>
+          <h3 style={{ color: "#17324d", marginTop: 0 }}>Edit Video</h3>
+          <div style={editGridStyle}>
+            <label style={labelStyle}>
+              Video Title *
+              <input
+                required
+                value={editForm.title}
+                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                style={inputStyle}
+              />
+            </label>
+            <label style={labelStyle}>
+              Duration (minutes)
+              <input
+                type="number"
+                value={editForm.duration_minutes}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, duration_minutes: e.target.value })
+                }
+                style={inputStyle}
+              />
+            </label>
+            <label style={labelStyle}>
+              Status
+              <select
+                value={editForm.status}
+                onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                style={inputStyle}
+              >
+                {["Draft", "Published", "Archived"].map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label style={labelStyle}>
+            Description
+            <textarea
+              value={editForm.description}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              rows={3}
+              style={{ ...inputStyle, resize: "vertical", marginTop: "6px" }}
+            />
+          </label>
+          <div style={{ display: "flex", gap: "10px", marginTop: "16px", flexWrap: "wrap" }}>
+            <button type="submit" style={primaryButtonStyle}>
+              Save Changes
+            </button>
+            <button type="button" onClick={() => setEditingVideo(null)} style={ghostButtonStyle}>
+              Cancel
+            </button>
+          </div>
+        </form>
       )}
 
       <div
@@ -384,7 +523,7 @@ export function VideoListPage() {
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: "8px" }}>{uploadProgress}</div>
-              {lastUploadedVideo?.status === "Draft" && (
+              {canManageVideos && lastUploadedVideo?.status === "Draft" && (
                 <button
                   type="button"
                   onClick={() => publishVideo(lastUploadedVideo.video_id)}
@@ -405,7 +544,7 @@ export function VideoListPage() {
                     : "Publish Now"}
                 </button>
               )}
-              {lastUploadedVideo?.status === "Published" && (
+              {canManageVideos && lastUploadedVideo?.status === "Published" && (
                 <div style={{ color: "#1f7a4d", fontWeight: 700 }}>
                   Published. Employees can watch it after assignment.
                 </div>
@@ -494,140 +633,142 @@ export function VideoListPage() {
                       ? ` - ${video.duration_minutes} min`
                       : ""}
                   </p>
-                  <div style={toolsGridStyle}>
-                    <div style={toolBoxStyle}>
-                      <strong style={toolTitleStyle}>Quality Variant</strong>
-                      <select
-                        value={assetForms[video.video_id]?.quality_label || "720p"}
-                        onChange={(e) =>
-                          updateAssetForm(video.video_id, { quality_label: e.target.value })
-                        }
-                        style={compactInputStyle}
-                      >
-                        {["360p", "480p", "720p", "1080p"].map((quality) => (
-                          <option key={quality} value={quality}>
-                            {quality}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="file"
-                        accept=".mp4,.avi,.mov"
-                        onChange={(e) =>
-                          updateAssetForm(video.video_id, {
-                            qualityFile: e.target.files?.[0] || null,
-                          })
-                        }
-                        style={fileInputStyle}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => uploadQualityVariant(video.video_id)}
-                        style={smallButtonStyle}
-                      >
-                        Upload Quality
-                      </button>
-                    </div>
-                    <div style={toolBoxStyle}>
-                      <strong style={toolTitleStyle}>Language Track</strong>
-                      <select
-                        value={assetForms[video.video_id]?.language_id || "1"}
-                        onChange={(e) =>
-                          updateAssetForm(video.video_id, { language_id: e.target.value })
-                        }
-                        style={compactInputStyle}
-                      >
-                        {(languages.length ? languages : [{ language_id: 1, language_name: "English" }]).map(
-                          (language) => (
-                            <option key={language.language_id} value={language.language_id}>
-                              {language.language_name}
+                  {canManageVideos && (
+                    <div style={toolsGridStyle}>
+                      <div style={toolBoxStyle}>
+                        <strong style={toolTitleStyle}>Quality Variant</strong>
+                        <select
+                          value={assetForms[video.video_id]?.quality_label || "720p"}
+                          onChange={(e) =>
+                            updateAssetForm(video.video_id, { quality_label: e.target.value })
+                          }
+                          style={compactInputStyle}
+                        >
+                          {["360p", "480p", "720p", "1080p"].map((quality) => (
+                            <option key={quality} value={quality}>
+                              {quality}
                             </option>
+                          ))}
+                        </select>
+                        <input
+                          type="file"
+                          accept=".mp4,.avi,.mov"
+                          onChange={(e) =>
+                            updateAssetForm(video.video_id, {
+                              qualityFile: e.target.files?.[0] || null,
+                            })
+                          }
+                          style={fileInputStyle}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => uploadQualityVariant(video.video_id)}
+                          style={smallButtonStyle}
+                        >
+                          Upload Quality
+                        </button>
+                      </div>
+                      <div style={toolBoxStyle}>
+                        <strong style={toolTitleStyle}>Language Track</strong>
+                        <select
+                          value={assetForms[video.video_id]?.language_id || "1"}
+                          onChange={(e) =>
+                            updateAssetForm(video.video_id, { language_id: e.target.value })
+                          }
+                          style={compactInputStyle}
+                        >
+                          {(languages.length ? languages : [{ language_id: 1, language_name: "English" }]).map(
+                            (language) => (
+                              <option key={language.language_id} value={language.language_id}>
+                                {language.language_name}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                        <input
+                          type="file"
+                          accept=".vtt,.txt"
+                          onChange={(e) =>
+                            updateAssetForm(video.video_id, {
+                              subtitleFile: e.target.files?.[0] || null,
+                            })
+                          }
+                          style={fileInputStyle}
+                        />
+                        <input
+                          type="file"
+                          accept=".mp3,.m4a,.aac,.wav"
+                          onChange={(e) =>
+                            updateAssetForm(video.video_id, {
+                              audioFile: e.target.files?.[0] || null,
+                            })
+                          }
+                          style={fileInputStyle}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => uploadLanguageTrack(video.video_id)}
+                          style={smallButtonStyle}
+                        >
+                          Upload Language
+                        </button>
+                      </div>
+                      <div style={toolBoxStyle}>
+                        <strong style={toolTitleStyle}>Assessment Question</strong>
+                        <textarea
+                          rows={2}
+                          placeholder="Question text"
+                          value={
+                            (questionForms[video.video_id] || defaultQuestionForm).question_text
+                          }
+                          onChange={(e) =>
+                            updateQuestionForm(video.video_id, { question_text: e.target.value })
+                          }
+                          style={{ ...compactInputStyle, resize: "vertical" }}
+                        />
+                        {(questionForms[video.video_id] || defaultQuestionForm).options.map(
+                          (option, index) => (
+                            <input
+                              key={option.option_label}
+                              placeholder={`${option.option_label} option`}
+                              value={option.option_text}
+                              onChange={(e) => {
+                                const current =
+                                  questionForms[video.video_id] || defaultQuestionForm;
+                                const nextOptions = current.options.map((row, rowIndex) =>
+                                  rowIndex === index
+                                    ? { ...row, option_text: e.target.value }
+                                    : row,
+                                );
+                                updateQuestionForm(video.video_id, { options: nextOptions });
+                              }}
+                              style={compactInputStyle}
+                            />
                           ),
                         )}
-                      </select>
-                      <input
-                        type="file"
-                        accept=".vtt,.txt"
-                        onChange={(e) =>
-                          updateAssetForm(video.video_id, {
-                            subtitleFile: e.target.files?.[0] || null,
-                          })
-                        }
-                        style={fileInputStyle}
-                      />
-                      <input
-                        type="file"
-                        accept=".mp3,.m4a,.aac,.wav"
-                        onChange={(e) =>
-                          updateAssetForm(video.video_id, {
-                            audioFile: e.target.files?.[0] || null,
-                          })
-                        }
-                        style={fileInputStyle}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => uploadLanguageTrack(video.video_id)}
-                        style={smallButtonStyle}
-                      >
-                        Upload Language
-                      </button>
+                        <select
+                          value={(questionForms[video.video_id] || defaultQuestionForm).correct_option}
+                          onChange={(e) =>
+                            updateQuestionForm(video.video_id, { correct_option: e.target.value })
+                          }
+                          style={compactInputStyle}
+                        >
+                          {["A", "B", "C", "D"].map((label) => (
+                            <option key={label} value={label}>
+                              Correct: {label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => createQuestion(video.video_id)}
+                          style={smallButtonStyle}
+                        >
+                          Add Question
+                        </button>
+                      </div>
                     </div>
-                    <div style={toolBoxStyle}>
-                      <strong style={toolTitleStyle}>Assessment Question</strong>
-                      <textarea
-                        rows={2}
-                        placeholder="Question text"
-                        value={
-                          (questionForms[video.video_id] || defaultQuestionForm).question_text
-                        }
-                        onChange={(e) =>
-                          updateQuestionForm(video.video_id, { question_text: e.target.value })
-                        }
-                        style={{ ...compactInputStyle, resize: "vertical" }}
-                      />
-                      {(questionForms[video.video_id] || defaultQuestionForm).options.map(
-                        (option, index) => (
-                          <input
-                            key={option.option_label}
-                            placeholder={`${option.option_label} option`}
-                            value={option.option_text}
-                            onChange={(e) => {
-                              const current =
-                                questionForms[video.video_id] || defaultQuestionForm;
-                              const nextOptions = current.options.map((row, rowIndex) =>
-                                rowIndex === index
-                                  ? { ...row, option_text: e.target.value }
-                                  : row,
-                              );
-                              updateQuestionForm(video.video_id, { options: nextOptions });
-                            }}
-                            style={compactInputStyle}
-                          />
-                        ),
-                      )}
-                      <select
-                        value={(questionForms[video.video_id] || defaultQuestionForm).correct_option}
-                        onChange={(e) =>
-                          updateQuestionForm(video.video_id, { correct_option: e.target.value })
-                        }
-                        style={compactInputStyle}
-                      >
-                        {["A", "B", "C", "D"].map((label) => (
-                          <option key={label} value={label}>
-                            Correct: {label}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => createQuestion(video.video_id)}
-                        style={smallButtonStyle}
-                      >
-                        Add Question
-                      </button>
-                    </div>
-                  </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <span
@@ -641,7 +782,16 @@ export function VideoListPage() {
                   >
                     {video.status}
                   </span>
-                  {video.status === "Draft" && (
+                  {canManageVideos && (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(video)}
+                      style={secondaryButtonStyle}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canManageVideos && video.status === "Draft" && (
                     <button
                       type="button"
                       onClick={() => publishVideo(video.video_id)}
@@ -658,6 +808,24 @@ export function VideoListPage() {
                       }}
                     >
                       {publishingId === video.video_id ? "Publishing..." : "Publish"}
+                    </button>
+                  )}
+                  {canManageVideos && video.status !== "Archived" && (
+                    <button
+                      type="button"
+                      onClick={() => archiveVideo(video.video_id)}
+                      style={secondaryButtonStyle}
+                    >
+                      Archive
+                    </button>
+                  )}
+                  {canManageVideos && (
+                    <button
+                      type="button"
+                      onClick={() => deleteVideo(video)}
+                      style={dangerButtonStyle}
+                    >
+                      Delete
                     </button>
                   )}
                 </div>
@@ -689,6 +857,57 @@ const inputStyle = {
   borderRadius: "6px",
   fontSize: "14px",
   boxSizing: "border-box",
+};
+
+const panelStyle = {
+  background: "white",
+  borderRadius: "8px",
+  padding: "24px",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  border: "1px solid #e7edf3",
+  marginBottom: "24px",
+};
+
+const editGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "16px",
+  marginBottom: "16px",
+};
+
+const primaryButtonStyle = {
+  padding: "9px 14px",
+  background: "#17324d",
+  color: "white",
+  border: "none",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const secondaryButtonStyle = {
+  padding: "8px 12px",
+  background: "#eef4f8",
+  color: "#17324d",
+  border: "1px solid #cdd9e2",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const ghostButtonStyle = {
+  ...secondaryButtonStyle,
+  background: "white",
+};
+
+const dangerButtonStyle = {
+  padding: "8px 12px",
+  background: "#fff7f6",
+  color: "#c0392b",
+  border: "1px solid #f3b4ae",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontWeight: 700,
 };
 
 const toolsGridStyle = {

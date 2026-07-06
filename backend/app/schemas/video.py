@@ -11,6 +11,14 @@ class VideoCreate(BaseModel):
     duration_minutes: Optional[int] = None
 
 
+class VideoUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category_id: Optional[int] = None
+    duration_minutes: Optional[int] = None
+    status: Optional[str] = None
+
+
 class VideoResponse(BaseModel):
     video_id: int
     title: str

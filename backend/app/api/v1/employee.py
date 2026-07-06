@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_roles
-from app.core.roles import EMPLOYEE
+from app.core.dependencies import require_role
 from app.db.session import get_db
 from app.schemas.employee import (
     EmployeeCourseResponse,
@@ -18,7 +17,7 @@ employee_service = EmployeeService()
 @router.get("/courses", response_model=list[EmployeeCourseResponse])
 async def my_courses(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([EMPLOYEE])),
+    current_user=Depends(require_role(4)),
 ):
     """List courses assigned to the current employee."""
     return await employee_service.list_courses(db, current_user.user_id, current_user.company_id)
@@ -27,7 +26,7 @@ async def my_courses(
 @router.get("/summary", response_model=EmployeeSummaryResponse)
 async def my_summary(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([EMPLOYEE])),
+    current_user=Depends(require_role(4)),
 ):
     """Return current employee's training summary."""
     return await employee_service.summary(db, current_user.user_id, current_user.company_id)
@@ -36,7 +35,7 @@ async def my_summary(
 @router.get("/history", response_model=list[EmployeeTrainingHistoryResponse])
 async def my_training_history(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([EMPLOYEE])),
+    current_user=Depends(require_role(4)),
 ):
     """Return current employee's training history with assessment and certificate details."""
     return await employee_service.training_history(

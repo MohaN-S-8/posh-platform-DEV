@@ -4,6 +4,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.api.v1.admin import router as admin_router
 from app.api.v1.analytics import router as analytics_router
@@ -17,18 +18,10 @@ from app.api.v1.notifications import router as notifications_router
 from app.api.v1.users import router as users_router
 from app.api.v1.videos import router as videos_router
 from app.core.config import settings
-from app.core.roles import ADMIN, CLIENT_MANAGEMENT, EMPLOYEE, HR_IC, SUPER_ADMIN
 
 limiter = Limiter(key_func=get_remote_address)
-is_production = settings.APP_ENV.lower() == "production"
 
-app = FastAPI(
-    title="POSH Training Platform API",
-    version="1.0.0",
-    docs_url=None if is_production else "/docs",
-    redoc_url=None if is_production else "/redoc",
-    openapi_url=None if is_production else "/openapi.json",
-)
+app = FastAPI(title="POSH Training Platform API", version="1.0.0", docs_url="/docs")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -39,6 +32,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if settings.APP_ENV.lower() == "production":
+    app.add_middleware(HTTPSRedirectMiddleware)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(company_router, prefix="/api/v1")
@@ -143,32 +139,10 @@ async def run_seed_on_startup():
                 INSERT INTO role_master (role_id, role_name)
                 VALUES
                     (1, 'Super Admin'),
-                    (2, 'Admin'),
-                    (3, 'Client / Management'),
-                    (4, 'HR / IC'),
-                    (5, 'Employee')
+                    (2, 'Company Admin'),
+                    (3, 'HR / IC'),
+                    (4, 'Employee')
                 ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)
-                """
-            )
-        )
-
-        await db.execute(
-            text(
-                """
-                UPDATE user_master
-                SET role_id = 5
-                WHERE role_id = 4
-                  AND email NOT IN ('hr@posh.com')
-                """
-            )
-        )
-        await db.execute(
-            text(
-                """
-                UPDATE user_master
-                SET role_id = 4
-                WHERE role_id = 3
-                   OR email = 'hr@posh.com'
                 """
             )
         )
@@ -228,7 +202,7 @@ async def run_seed_on_startup():
                 "last_name": "Admin",
                 "email": "admin@posh.com",
                 "mobile": "9000000001",
-                "role_id": SUPER_ADMIN,
+                "role_id": 1,
             },
             {
                 "employee_id": "HR001",
@@ -236,7 +210,7 @@ async def run_seed_on_startup():
                 "last_name": "Manager",
                 "email": "hr@posh.com",
                 "mobile": "9000000002",
-                "role_id": HR_IC,
+                "role_id": 3,
             },
         ]
 
@@ -301,8 +275,8 @@ async def run_seed_on_startup():
                 """
                 INSERT INTO permission_master (permission_key, permission_name)
                 VALUES
-                    ('companies.manage', 'Manage Companies'),
                     ('users.manage', 'Manage Users'),
+                    ('videos.upload', 'Upload Videos'),
                     ('videos.manage', 'Manage Videos'),
                     ('certificates.manage', 'Manage Certificates'),
                     ('reports.view', 'View Reports'),
@@ -315,40 +289,27 @@ async def run_seed_on_startup():
         await db.execute(
             text(
                 """
-                DELETE FROM role_permission
-                WHERE role_id IN (:super_admin, :admin, :client_management, :hr_ic, :employee)
+                DELETE rp FROM role_permission rp
+                JOIN permission_master pm ON pm.permission_id = rp.permission_id
+                WHERE
+                    (rp.role_id = 3 AND pm.permission_key = 'videos.manage')
+                    OR rp.role_id = 5
                 """
-            ),
-            {
-                "super_admin": SUPER_ADMIN,
-                "admin": ADMIN,
-                "client_management": CLIENT_MANAGEMENT,
-                "hr_ic": HR_IC,
-                "employee": EMPLOYEE,
-            },
+            )
         )
         await db.execute(
             text(
                 """
                 INSERT IGNORE INTO role_permission (role_id, permission_id)
-                SELECT :super_admin, permission_id FROM permission_master
-                UNION SELECT :admin, permission_id FROM permission_master
-                WHERE permission_key IN ('companies.manage','users.manage','videos.manage','certificates.manage','reports.view')
-                UNION SELECT :client_management, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','videos.manage','reports.view')
-                UNION SELECT :hr_ic, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','videos.manage','reports.view','training.assign')
-                UNION SELECT :employee, permission_id FROM permission_master
+                SELECT 1, permission_id FROM permission_master
+                UNION SELECT 2, permission_id FROM permission_master
+                WHERE permission_key IN ('users.manage','videos.manage','certificates.manage','reports.view','training.assign')
+                UNION SELECT 3, permission_id FROM permission_master
+                WHERE permission_key IN ('users.manage','videos.upload','reports.view','training.assign')
+                UNION SELECT 4, permission_id FROM permission_master
                 WHERE permission_key IN ('courses.watch')
                 """
-            ),
-            {
-                "super_admin": SUPER_ADMIN,
-                "admin": ADMIN,
-                "client_management": CLIENT_MANAGEMENT,
-                "hr_ic": HR_IC,
-                "employee": EMPLOYEE,
-            },
+            )
         )
         await db.execute(
             text(
@@ -376,10 +337,7 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    message = "POSH Platform API."
-    if not is_production:
-        message += " Visit /docs for documentation."
-    return {"message": message}
+    return {"message": "POSH Platform API. Visit /docs for documentation."}
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

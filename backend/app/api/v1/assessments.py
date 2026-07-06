@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_permission
+from app.core.dependencies import require_permission, require_role
 from app.db.session import get_db
 from app.schemas.assessment import (
     AssessmentQuestionCreate,
@@ -19,7 +19,7 @@ assessment_service = AssessmentService()
 async def get_questions(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(4)),
 ):
     """Return assessment questions/options for a published company video."""
     return await assessment_service.questions(db, video_id, current_user.company_id)
@@ -29,7 +29,7 @@ async def get_questions(
 async def assessment_availability(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(4)),
 ):
     """Return whether the current user can take the assessment."""
     return await assessment_service.availability(
@@ -85,7 +85,7 @@ async def delete_assessment_question(
 async def submit_assessment(
     data: AssessmentSubmit,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(4)),
 ):
     """
     Submit assessment answers.

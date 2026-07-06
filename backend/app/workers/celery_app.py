@@ -25,13 +25,17 @@ def generate_certificate_task(self, user_id: int, video_id: int, company_id: int
     """
     import asyncio
 
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import AsyncSessionLocal, engine
     from app.services.certificate_service import CertificateService
 
     async def _run():
-        async with AsyncSessionLocal() as db:
-            service = CertificateService()
-            await service.generate_certificate(db, user_id, video_id, company_id)
+        await engine.dispose()
+        try:
+            async with AsyncSessionLocal() as db:
+                service = CertificateService()
+                await service.generate_certificate(db, user_id, video_id, company_id)
+        finally:
+            await engine.dispose()
 
     try:
         asyncio.run(_run())

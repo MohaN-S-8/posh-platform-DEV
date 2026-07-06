@@ -29,12 +29,30 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    employee_id: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
     mobile: Optional[str] = None
     department: Optional[str] = None
     designation: Optional[str] = None
     role_id: Optional[int] = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        if v is None:
+            return v
+        return v.strip().lower()
+
+    @field_validator("mobile")
+    @classmethod
+    def validate_mobile(cls, v):
+        if v is None:
+            return v
+        if not re.match(r"^\d{10}$", v.strip()):
+            raise ValueError("Mobile must be exactly 10 digits")
+        return v.strip()
 
 
 class UserResponse(BaseModel):

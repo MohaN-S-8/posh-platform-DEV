@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_permission
+from app.core.dependencies import require_any_permission, require_permission, require_role
 from app.db.session import get_db
-from app.schemas.video import ProgressUpdate, VideoCreate, VideoListResponse, VideoResponse
+from app.schemas.video import (
+    ProgressUpdate,
+    VideoCreate,
+    VideoListResponse,
+    VideoResponse,
+    VideoUpdate,
+)
 from app.services.audit_service import write_audit_log
 from app.services.video_service import VideoService
 
@@ -14,7 +20,7 @@ video_service = VideoService()
 @router.get("/", response_model=list[VideoListResponse])
 async def list_videos(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_any_permission(["videos.upload", "videos.manage"])),
 ):
     """List all videos for current user's company (all statuses)."""
     return await video_service.list_videos(db, current_user.company_id)
@@ -40,7 +46,7 @@ async def upload_video(
     transcript_text: str = Form(None),
     request: Request = None,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("videos.manage")),
+    current_user=Depends(require_any_permission(["videos.upload", "videos.manage"])),
 ):
     """
     Upload a video file. Accepts MP4, AVI, MOV up to 500MB.
@@ -73,6 +79,29 @@ async def upload_video(
     )
     await db.commit()
     return video
+
+
+@router.put("/{video_id}", response_model=VideoResponse)
+async def update_video(
+    video_id: int,
+    data: VideoUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("videos.manage")),
+):
+    """Admin/Management: edit video metadata and lifecycle status."""
+    result = await video_service.update_video(db, video_id, current_user.company_id, data)
+    await write_audit_log(
+        db,
+        user_id=current_user.user_id,
+        company_id=current_user.company_id,
+        action="VIDEO_UPDATED",
+        table_name="video_master",
+        record_id=video_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return result
 
 
 @router.patch("/{video_id}/publish")
@@ -163,22 +192,7 @@ async def archive_video(
     current_user=Depends(require_permission("videos.manage")),
 ):
     """Archive a published video — removes it from employee view."""
-    from sqlalchemy import select
-
-    from app.models.video import VideoMaster
-
-    result = await db.execute(
-        select(VideoMaster).where(
-            VideoMaster.video_id == video_id,
-            VideoMaster.company_id == current_user.company_id,
-        )
-    )
-    video = result.scalar_one_or_none()
-    if not video:
-        from fastapi import HTTPException
-
-        raise HTTPException(404, "Video not found.")
-    video.status = "Archived"
+    video = await video_service.archive_video(db, video_id, current_user.company_id)
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -192,11 +206,33 @@ async def archive_video(
     return {"message": f"Video '{video.title}' archived."}
 
 
+@router.delete("/{video_id}")
+async def delete_video(
+    video_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("videos.manage")),
+):
+    """Admin/Management: delete an unused video."""
+    result = await video_service.delete_video(db, video_id, current_user.company_id)
+    await write_audit_log(
+        db,
+        user_id=current_user.user_id,
+        company_id=current_user.company_id,
+        action="VIDEO_DELETED",
+        table_name="video_master",
+        record_id=video_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return result
+
+
 @router.get("/{video_id}/stream-url")
 async def get_stream_url(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(4)),
 ):
     """
     Get a short-lived signed URL for video streaming.
@@ -212,7 +248,7 @@ async def update_progress(
     video_id: int,
     data: ProgressUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(4)),
 ):
     """
     Update video watch progress (called every 10 seconds by the player).

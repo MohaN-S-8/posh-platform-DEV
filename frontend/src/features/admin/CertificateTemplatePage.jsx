@@ -2,6 +2,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
+import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 
 const inputStyle = {
@@ -37,7 +38,7 @@ export function CertificateTemplatePage() {
       const res = await apiClient.get("/certificates/templates");
       setTemplates(res.data || []);
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to load certificate templates.");
+      setError(apiErrorMessage(err, "Unable to load certificate templates."));
     } finally {
       setLoading(false);
     }
@@ -62,7 +63,7 @@ export function CertificateTemplatePage() {
       setShowForm(false);
       await loadTemplates();
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to save certificate template.");
+      setError(apiErrorMessage(err, "Unable to save certificate template."));
     } finally {
       setSaving(false);
     }
@@ -80,7 +81,7 @@ export function CertificateTemplatePage() {
       setSuccess(`Template ${nextStatus.toLowerCase()} successfully.`);
       await loadTemplates();
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to update template status.");
+      setError(apiErrorMessage(err, "Unable to update template status."));
     } finally {
       setSaving(false);
     }
@@ -101,7 +102,7 @@ export function CertificateTemplatePage() {
       setSuccess(`${assetType === "logo" ? "Logo" : "Signature"} uploaded successfully.`);
       await loadTemplates();
     } catch (err) {
-      setError(err.response?.data?.detail || "Unable to upload template asset.");
+      setError(apiErrorMessage(err, "Unable to upload template asset."));
     } finally {
       setAssetUploading("");
     }

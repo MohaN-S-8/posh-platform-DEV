@@ -4,14 +4,20 @@ from typing import Optional
 
 import magic  # python-magic for real MIME type detection
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.storage import generate_presigned_url, upload_file
-from app.models.training import CourseAssignment, TrainingHistory
+from app.models.training import (
+    AssessmentOption,
+    AssessmentQuestion,
+    AssessmentResult,
+    CourseAssignment,
+    TrainingHistory,
+)
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
-from app.schemas.video import VideoCreate
+from app.schemas.video import VideoCreate, VideoUpdate
 
 ALLOWED_MIME_TYPES = {"video/mp4", "video/x-msvideo", "video/quicktime"}
 ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov"}
@@ -526,6 +532,85 @@ class VideoService:
         video.status = "Published"
         await db.commit()
         return video
+
+    async def update_video(
+        self, db: AsyncSession, video_id: int, company_id: int, data: VideoUpdate
+    ) -> VideoMaster:
+        video = await self._get_company_video(db, video_id, company_id)
+        update_data = data.model_dump(exclude_unset=True)
+        if "status" in update_data and update_data["status"] not in {
+            "Draft",
+            "Published",
+            "Archived",
+        }:
+            raise HTTPException(400, "Status must be Draft, Published, or Archived.")
+
+        for field, value in update_data.items():
+            setattr(video, field, value)
+        await db.commit()
+        await db.refresh(video)
+        return video
+
+    async def archive_video(self, db: AsyncSession, video_id: int, company_id: int) -> VideoMaster:
+        video = await self._get_company_video(db, video_id, company_id)
+        video.status = "Archived"
+        await db.commit()
+        return video
+
+    async def delete_video(self, db: AsyncSession, video_id: int, company_id: int) -> dict:
+        video = await self._get_company_video(db, video_id, company_id)
+        usage_result = await db.execute(
+            select(func.count())
+            .select_from(CourseAssignment)
+            .where(
+                CourseAssignment.video_id == video_id,
+                CourseAssignment.company_id == company_id,
+            )
+        )
+        history_result = await db.execute(
+            select(func.count())
+            .select_from(TrainingHistory)
+            .where(
+                TrainingHistory.video_id == video_id,
+                TrainingHistory.company_id == company_id,
+            )
+        )
+        result_result = await db.execute(
+            select(func.count())
+            .select_from(AssessmentResult)
+            .where(AssessmentResult.video_id == video_id)
+        )
+        if usage_result.scalar_one() or history_result.scalar_one() or result_result.scalar_one():
+            raise HTTPException(
+                409,
+                "This video has assignments or training history. Archive it instead.",
+            )
+
+        question_ids_result = await db.execute(
+            select(AssessmentQuestion.question_id).where(AssessmentQuestion.video_id == video_id)
+        )
+        question_ids = list(question_ids_result.scalars().all())
+        if question_ids:
+            await db.execute(
+                delete(AssessmentOption).where(AssessmentOption.question_id.in_(question_ids))
+            )
+        await db.execute(delete(AssessmentQuestion).where(AssessmentQuestion.video_id == video_id))
+        await db.execute(
+            text("DELETE FROM video_language WHERE video_id = :video_id"),
+            {"video_id": video_id},
+        )
+        await db.execute(
+            text(
+                """
+                DELETE FROM video_quality
+                WHERE video_id = :video_id AND company_id = :company_id
+                """
+            ),
+            {"video_id": video_id, "company_id": company_id},
+        )
+        await db.delete(video)
+        await db.commit()
+        return {"message": "Video deleted successfully."}
 
     async def list_videos(self, db: AsyncSession, company_id: int):
         result = await db.execute(

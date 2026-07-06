@@ -9,6 +9,7 @@ import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
+import { apiErrorMessage } from "../../api/errors";
 import { useAuthStore } from "../../store/authStore";
 
 const cardStyle = {
@@ -57,9 +58,7 @@ export function AdminDashboard() {
         const res = await apiClient.get(endpoint);
         setAnalytics(res.data);
       } catch (err) {
-        setAnalyticsError(
-          err.response?.data?.detail || "Analytics are not available for this account.",
-        );
+        setAnalyticsError(apiErrorMessage(err, "Analytics are not available for this account."));
       } finally {
         setLoadingAnalytics(false);
       }
@@ -99,20 +98,31 @@ export function AdminDashboard() {
       path: "/admin/companies",
       icon: <BusinessIcon />,
       status: "Available",
+      allowedRoles: [1],
     },
     {
       title: "User Management",
-      description: "View users, activate or deactivate accounts, and review roles.",
+      description: "Create HR/IC users, activate or deactivate accounts, and review roles.",
       path: "/admin/users",
       icon: <PeopleIcon />,
       status: "Available",
+      allowedRoles: [1, 2],
     },
+    // {
+    //   title: "Owner Admin Setup",
+    //   description: "Direct-link company owner flow for creating Admin users.",
+    //   path: "/owner/admin-setup",
+    //   icon: <PeopleIcon />,
+    //   status: "Owner",
+    //   allowedRoles: [1],
+    // },
     {
       title: "Video Management",
       description: "Upload, publish, and manage POSH training videos.",
       path: "/admin/videos",
       icon: <VideoLibraryIcon />,
       status: "Available",
+      allowedRoles: [1, 2],
     },
     {
       title: "Certificate Module",
@@ -120,13 +130,15 @@ export function AdminDashboard() {
       path: "/admin/certificates",
       icon: <BadgeIcon />,
       status: "Available",
+      allowedRoles: [1, 2],
     },
     {
       title: "Analytics",
       description: "Platform and company-level training metrics.",
-      path: null,
+      path: "/admin/analytics",
       icon: <AssessmentIcon />,
-      status: "Dashboard",
+      status: "Available",
+      allowedRoles: [1, 2],
     },
     {
       title: "Audit Logs",
@@ -134,6 +146,7 @@ export function AdminDashboard() {
       path: "/admin/audit-logs",
       icon: <HistoryIcon />,
       status: "Available",
+      allowedRoles: [1, 2],
     },
     {
       title: "Reports",
@@ -141,6 +154,7 @@ export function AdminDashboard() {
       path: "/admin/reports",
       icon: <AssessmentIcon />,
       status: "Available",
+      allowedRoles: [1, 2],
     },
     {
       title: "System Settings",
@@ -148,8 +162,13 @@ export function AdminDashboard() {
       path: "/admin/settings",
       icon: <SettingsIcon />,
       status: "Available",
+      allowedRoles: [1, 2],
     },
   ];
+
+  const visibleModules = modules.filter((module) =>
+    module.allowedRoles.includes(user?.role_id),
+  );
 
   return (
     <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
@@ -165,7 +184,7 @@ export function AdminDashboard() {
       >
         <div>
           <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-            Admin Portal
+            {user?.role_id === 2 ? "Company Admin Portal" : "Admin Portal"}
           </h1>
           <p style={{ color: "#64748b", margin: "6px 0 0" }}>
             Manage companies, users, videos, certificates, analytics, and platform controls.
@@ -248,7 +267,7 @@ export function AdminDashboard() {
             gap: "16px",
           }}
         >
-          {modules.map((module) => {
+          {visibleModules.map((module) => {
             const enabled = Boolean(module.path);
             return (
               <button
