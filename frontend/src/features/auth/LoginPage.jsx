@@ -81,7 +81,7 @@ export function LoginPage() {
       setAuth({ user_id, role_id, company_id }, access_token);
 
       if (role_id === 1 || role_id === 2) navigate("/admin");
-      else if (role_id === 3) navigate("/hr");
+      else if (role_id === 3 || role_id === 4) navigate("/hr");
       else navigate("/employee");
     } catch (err) {
       const detail = err.response?.data?.detail;
@@ -156,8 +156,8 @@ export function LoginPage() {
           <div style={{ fontWeight: 700, marginBottom: "4px" }}>
             Default development logins
           </div>
-          <div>Admin: admin@posh.com / Admin@1234</div>
-          <div>HR: hr@posh.com / Admin@1234</div>
+          <div>Super Admin: admin@posh.com / Admin@1234</div>
+          <div>HR / IC: hr@posh.com / Admin@1234</div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -292,14 +292,6 @@ export function LoginPage() {
           >
             Forgot password?
           </Link>
-        </div>
-        <div style={{ textAlign: "center", marginTop: "12px" }}>
-          <span style={{ fontSize: "14px", color: "#666" }}>
-            Don&apos;t have an account?{" "}
-            <Link to="/signup" style={{ color: "#1a3c5e", fontWeight: 600 }}>
-              Sign up
-            </Link>
-          </span>
         </div>
         <LoadingOverlay
           show={loading}

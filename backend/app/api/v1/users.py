@@ -1,9 +1,10 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_permission
+from app.core.dependencies import require_permission
+from app.core.roles import ROLE_CREATION_RULES, SUPER_ADMIN
 from app.db.session import get_db
 from app.schemas.user import PasswordResetByAdmin, UserCreate, UserResponse, UserUpdate
 from app.services.audit_service import write_audit_log
@@ -13,17 +14,32 @@ router = APIRouter(prefix="/users", tags=["User Management"])
 user_service = UserService()
 
 
+def manageable_roles_for(role_id: int) -> set[int]:
+    return ROLE_CREATION_RULES.get(role_id, set())
+
+
+def scoped_company_id(current_user) -> Optional[int]:
+    return None if current_user.role_id == SUPER_ADMIN else current_user.company_id
+
+
+def ensure_can_manage_role(current_user, role_id: int) -> None:
+    if role_id not in manageable_roles_for(current_user.role_id):
+        raise HTTPException(
+            status_code=403,
+            detail="This role cannot create or manage the selected user role.",
+        )
+
+
 @router.get("/", response_model=list[UserResponse])
 async def list_users(
     company_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """List users. Super Admin can filter by company. Company Admin sees own company."""
-    # Company Admin can only see their own company's users
-    if current_user.role_id == 2:
+    """List users visible to the current role according to the PDF hierarchy."""
+    if current_user.role_id != SUPER_ADMIN:
         company_id = current_user.company_id
-    return await user_service.get_all(db, company_id)
+    return await user_service.get_all(db, company_id, manageable_roles_for(current_user.role_id))
 
 
 @router.post("/", response_model=UserResponse, status_code=201)
@@ -33,9 +49,9 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Create a new user."""
-    # Company Admin cannot create users for other companies
-    if current_user.role_id == 2:
+    """Create only the next role allowed by the PDF user-management flow."""
+    ensure_can_manage_role(current_user, data.role_id)
+    if current_user.role_id != SUPER_ADMIN:
         data.company_id = current_user.company_id
     user = await user_service.create(db, data)
     await write_audit_log(
@@ -57,9 +73,13 @@ async def get_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Get a user by ID."""
-    company_id = current_user.company_id if current_user.role_id in [2, 3] else None
-    return await user_service.get_by_id(db, user_id, company_id)
+    """Get a user by ID if the current role can manage that user's role."""
+    return await user_service.get_by_id(
+        db,
+        user_id,
+        scoped_company_id(current_user),
+        manageable_roles_for(current_user.role_id),
+    )
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -70,9 +90,17 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Update user details."""
-    company_id = current_user.company_id if current_user.role_id == 2 else None
-    user = await user_service.update(db, user_id, data, company_id)
+    """Update user details within the current role's manageable scope."""
+    manageable_roles = manageable_roles_for(current_user.role_id)
+    if data.role_id is not None:
+        ensure_can_manage_role(current_user, data.role_id)
+    user = await user_service.update(
+        db,
+        user_id,
+        data,
+        scoped_company_id(current_user),
+        manageable_roles,
+    )
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -94,13 +122,16 @@ async def update_user_status(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Activate or deactivate a user."""
+    """Activate or deactivate a manageable user."""
     if status not in ["Active", "Inactive"]:
-        from fastapi import HTTPException
-
         raise HTTPException(400, "Status must be 'Active' or 'Inactive'")
-    company_id = current_user.company_id if current_user.role_id == 2 else None
-    result = await user_service.set_status(db, user_id, status, company_id)
+    result = await user_service.set_status(
+        db,
+        user_id,
+        status,
+        scoped_company_id(current_user),
+        manageable_roles_for(current_user.role_id),
+    )
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -122,9 +153,14 @@ async def admin_reset_password(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Admin resets a user's password."""
-    company_id = current_user.company_id if current_user.role_id == 2 else None
-    result = await user_service.reset_password(db, user_id, data.new_password, company_id)
+    """Reset password for a manageable user."""
+    result = await user_service.reset_password(
+        db,
+        user_id,
+        data.new_password,
+        scoped_company_id(current_user),
+        manageable_roles_for(current_user.role_id),
+    )
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -145,8 +181,13 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Soft-delete a user. Super Admin only."""
-    result = await user_service.delete(db, user_id)
+    """Soft-delete a manageable user."""
+    result = await user_service.delete(
+        db,
+        user_id,
+        scoped_company_id(current_user),
+        manageable_roles_for(current_user.role_id),
+    )
     await write_audit_log(
         db,
         user_id=current_user.user_id,

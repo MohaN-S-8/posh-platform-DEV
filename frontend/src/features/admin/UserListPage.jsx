@@ -6,7 +6,8 @@ import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { useAuthStore } from "../../store/authStore";
 
-const ROLES = { 1: "Super Admin", 2: "Company Admin", 3: "HR", 4: "Employee" };
+const ROLES = { 1: "Super Admin", 2: "Admin", 3: "Client / Management", 4: "HR / IC", 5: "Employee" };
+const CREATION_ROLE_BY_ACTOR = { 1: 2, 2: 3, 3: 4, 4: 5 };
 
 const inputStyle = {
   width: "100%",
@@ -27,7 +28,7 @@ const initialForm = {
   mobile: "",
   department: "",
   designation: "",
-  role_id: 4,
+  role_id: 5,
   company_id: "",
 };
 
@@ -46,7 +47,7 @@ export function UserListPage() {
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
 
-  const canCreateSuperAdmin = user?.role_id === 1;
+  const creatableRole = CREATION_ROLE_BY_ACTOR[user?.role_id];
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -60,7 +61,8 @@ export function UserListPage() {
       setCompanies(companyRes.data || []);
       setForm((current) => ({
         ...current,
-        company_id: user?.role_id === 2 ? user.company_id : current.company_id,
+        role_id: CREATION_ROLE_BY_ACTOR[user?.role_id] || current.role_id,
+        company_id: user?.role_id !== 1 ? user.company_id : current.company_id,
       }));
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load users.");
@@ -76,13 +78,10 @@ export function UserListPage() {
     return () => window.clearTimeout(timer);
   }, [loadData]);
 
-  const roleOptions = useMemo(
-    () =>
-      Object.entries(ROLES)
-        .map(([value, label]) => ({ value: Number(value), label }))
-        .filter((role) => canCreateSuperAdmin || role.value !== 1),
-    [canCreateSuperAdmin],
-  );
+  const roleOptions = useMemo(() => {
+    if (!creatableRole) return [];
+    return [{ value: creatableRole, label: ROLES[creatableRole] }];
+  }, [creatableRole]);
 
   const filtered = users.filter((u) =>
     `${u.employee_id} ${u.first_name} ${u.last_name || ""} ${u.email} ${u.department || ""}`
@@ -100,14 +99,14 @@ export function UserListPage() {
         ...form,
         email: form.email.trim().toLowerCase(),
         role_id: Number(form.role_id),
-        company_id: Number(user?.role_id === 2 ? user.company_id : form.company_id),
+        company_id: Number(user?.role_id !== 1 ? user.company_id : form.company_id),
       };
       await apiClient.post("/users/", payload);
       setSuccess("User created successfully. Temporary password was emailed.");
       setForm({
         ...initialForm,
-        role_id: 4,
-        company_id: user?.role_id === 2 ? user.company_id : "",
+        role_id: CREATION_ROLE_BY_ACTOR[user?.role_id] || 5,
+        company_id: user?.role_id !== 1 ? user.company_id : "",
       });
       setShowCreate(false);
       await loadData();
@@ -165,7 +164,7 @@ export function UserListPage() {
         <div>
           <button
             type="button"
-            onClick={() => navigate("/admin")}
+            onClick={() => navigate(user?.role_id === 1 || user?.role_id === 2 ? "/admin" : "/hr")}
             style={{
               background: "none",
               border: "none",

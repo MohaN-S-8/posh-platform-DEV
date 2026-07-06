@@ -39,7 +39,7 @@ class AuthService:
             last_name=data.last_name,
             email=data.email.lower(),
             mobile=data.mobile,
-            role_id=4,
+            role_id=5,
             username=data.email.lower(),
             password_hash=password_hash,
             status="Inactive",
@@ -313,7 +313,7 @@ class AuthService:
         result = await db.execute(select(UserMaster).where(UserMaster.email == email.lower()))
         user = result.scalar_one_or_none()
 
-        # Always return same message — don't reveal if email exists (security)
+        # Always return same message â€” don't reveal if email exists (security)
         if not user:
             return {"message": "If this email is registered, you will receive reset instructions."}
 

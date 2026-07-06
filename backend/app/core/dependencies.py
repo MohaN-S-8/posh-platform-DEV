@@ -9,7 +9,7 @@ from app.models.user import UserMaster
 
 
 class CurrentUser:
-    """Holds the authenticated user's info — passed to every protected route."""
+    """Holds the authenticated user's info Ã¢â‚¬â€ passed to every protected route."""
 
     def __init__(self, user: UserMaster):
         self.user_id = user.user_id
@@ -28,7 +28,7 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> CurrentUser:
 
-    # print("🔥 TOKEN:", token)
+    # print("Ã°Å¸â€Â¥ TOKEN:", token)
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,8 +63,8 @@ async def get_current_user(
 
 def require_role(role_id: int):
     """
-    Dependency factory — restricts endpoint to a specific role.
-    Usage: Depends(require_role(1))  ← Super Admin only
+    Dependency factory Ã¢â‚¬â€ restricts endpoint to a specific role.
+    Usage: Depends(require_role(1))  Ã¢â€ Â Super Admin only
     """
 
     async def checker(current_user: CurrentUser = Depends(get_current_user)):
@@ -80,8 +80,8 @@ def require_role(role_id: int):
 
 def require_roles(role_ids: list[int]):
     """
-    Dependency factory — restricts endpoint to multiple allowed roles.
-    Usage: Depends(require_roles([1, 2]))  ← Super Admin or Company Admin
+    Dependency factory Ã¢â‚¬â€ restricts endpoint to multiple allowed roles.
+    Usage: Depends(require_roles([1, 2]))  Super Admin or Admin
     """
 
     async def checker(current_user: CurrentUser = Depends(get_current_user)):

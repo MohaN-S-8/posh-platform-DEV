@@ -42,7 +42,6 @@ function App() {
     <BrowserRouter>
       <SessionTimeout />
       <Routes>
-        {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-otp" element={<OTPPage />} />
@@ -58,7 +57,6 @@ function App() {
           }
         />
 
-        {/* Admin portal — role 1 or 2 only */}
         <Route
           path="/admin"
           element={
@@ -73,7 +71,7 @@ function App() {
           path="/admin/companies"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1]}>
+              <RoleRoute allowedRoles={[1, 2]}>
                 <CompanyListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -83,7 +81,16 @@ function App() {
           path="/admin/users"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[1, 2, 3, 4]}>
+                <UserListPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />        <Route
+          path="/company-owner"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]}>
                 <UserListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -93,7 +100,7 @@ function App() {
           path="/admin/videos"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[1, 2, 3, 4]}>
                 <VideoListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -140,12 +147,11 @@ function App() {
           }
         />
 
-        {/* HR portal — role 1, 2, or 3 */}
         <Route
           path="/hr"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[3, 4]}>
                 <HRDashboard />
               </RoleRoute>
             </ProtectedRoute>
@@ -155,7 +161,7 @@ function App() {
           path="/hr/upload"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[4]}>
                 <BulkUploadPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -165,7 +171,7 @@ function App() {
           path="/hr/assign"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[4]}>
                 <TrainingAssignPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -175,7 +181,7 @@ function App() {
           path="/hr/compliance"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[3, 4]}>
                 <CompliancePage />
               </RoleRoute>
             </ProtectedRoute>
@@ -185,19 +191,20 @@ function App() {
           path="/hr/reports"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[3, 4]}>
                 <HRReportsPage />
               </RoleRoute>
             </ProtectedRoute>
           }
         />
 
-        {/* Employee portal — all authenticated users */}
         <Route
           path="/employee"
           element={
             <ProtectedRoute>
-              <EmployeeDashboard />
+              <RoleRoute allowedRoles={[5]}>
+                <EmployeeDashboard />
+              </RoleRoute>
             </ProtectedRoute>
           }
         />
@@ -205,7 +212,9 @@ function App() {
           path="/employee/courses"
           element={
             <ProtectedRoute>
-              <CoursesPage />
+              <RoleRoute allowedRoles={[5]}>
+                <CoursesPage />
+              </RoleRoute>
             </ProtectedRoute>
           }
         />
@@ -213,7 +222,9 @@ function App() {
           path="/employee/video/:videoId"
           element={
             <ProtectedRoute>
-              <VideoPlayerPage />
+              <RoleRoute allowedRoles={[5]}>
+                <VideoPlayerPage />
+              </RoleRoute>
             </ProtectedRoute>
           }
         />
@@ -221,7 +232,9 @@ function App() {
           path="/employee/assessment/:videoId"
           element={
             <ProtectedRoute>
-              <AssessmentPage />
+              <RoleRoute allowedRoles={[5]}>
+                <AssessmentPage />
+              </RoleRoute>
             </ProtectedRoute>
           }
         />
@@ -229,7 +242,9 @@ function App() {
           path="/employee/certificates"
           element={
             <ProtectedRoute>
-              <CertificatesPage />
+              <RoleRoute allowedRoles={[5]}>
+                <CertificatesPage />
+              </RoleRoute>
             </ProtectedRoute>
           }
         />
@@ -237,12 +252,13 @@ function App() {
           path="/employee/history"
           element={
             <ProtectedRoute>
-              <TrainingHistoryPage />
+              <RoleRoute allowedRoles={[5]}>
+                <TrainingHistoryPage />
+              </RoleRoute>
             </ProtectedRoute>
           }
         />
 
-        {/* Catch-all */}
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

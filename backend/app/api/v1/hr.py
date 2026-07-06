@@ -11,7 +11,6 @@ from app.services.hr_service import HRService
 router = APIRouter(prefix="/hr", tags=["HR Portal"])
 hr_service = HRService()
 
-HR_ROLES = [1, 2, 3]  # Super Admin, Company Admin, HR
 
 
 @router.get("/employees")

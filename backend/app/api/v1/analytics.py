@@ -73,7 +73,7 @@ async def company_analytics(
         select(func.count()).where(
             UserMaster.company_id == company_id,
             UserMaster.is_deleted == "N",
-            UserMaster.role_id == 4,
+            UserMaster.role_id == 5,
         )
     )
     total = total_result.scalar() or 0

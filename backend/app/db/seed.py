@@ -1,5 +1,5 @@
 """
-Seed script — run once to populate reference data.
+Seed script â€” run once to populate reference data.
 Run with: python -m app.db.seed
 """
 
@@ -20,21 +20,23 @@ AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_co
 
 async def seed():
     async with AsyncSessionLocal() as db:
-        # ── 1. Roles ──────────────────────────────────────────────────────
+        # â”€â”€ 1. Roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         await db.execute(
             text(
                 """
-                INSERT IGNORE INTO role_master (role_id, role_name)
+                INSERT INTO role_master (role_id, role_name)
                 VALUES
                     (1, 'Super Admin'),
-                    (2, 'Company Admin'),
-                    (3, 'HR'),
-                    (4, 'Employee')
+                    (2, 'Admin'),
+                    (3, 'Client / Management'),
+                    (4, 'HR / IC'),
+                    (5, 'Employee')
+                ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)
             """
             )
         )
 
-        # ── 2. Default company (needed for signup FK) ─────────────────────
+        # â”€â”€ 2. Default company (needed for signup FK) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         await db.execute(
             text(
                 """
@@ -46,7 +48,7 @@ async def seed():
             )
         )
 
-        # ── 3. Languages ──────────────────────────────────────────────────
+        # â”€â”€ 3. Languages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         await db.execute(
             text(
                 """
@@ -62,7 +64,7 @@ async def seed():
             )
         )
 
-        # ── 4. Video Categories ───────────────────────────────────────────
+        # â”€â”€ 4. Video Categories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         await db.execute(
             text(
                 """
@@ -78,7 +80,7 @@ async def seed():
         )
 
         await db.commit()
-        print("✅ Seed complete — roles and default company inserted.")
+        print("âœ… Seed complete â€” roles and default company inserted.")
 
 
 if __name__ == "__main__":

@@ -105,18 +105,32 @@ export function HRDashboard() {
     [data],
   );
 
+  const canManageTraining = user?.role_id === 4;
+  const canManageUsers = user?.role_id === 3 || user?.role_id === 4;
+
   const modules = [
+    ...(canManageTraining
+      ? [
+          {
+            title: "Employee Upload",
+            description: "Import employee records with Excel or CSV validation.",
+            path: "/hr/upload",
+            icon: <CloudUploadIcon />,
+            status: "Available",
+          },
+          {
+            title: "Training Assignment",
+            description: "Assign videos to one employee, a department, or the company.",
+            path: "/hr/assign",
+            icon: <PlaylistAddCheckIcon />,
+            status: "Available",
+          },
+        ]
+      : []),
     {
-      title: "Employee Upload",
-      description: "Import employee records with Excel or CSV validation.",
-      path: "/hr/upload",
-      icon: <CloudUploadIcon />,
-      status: "Available",
-    },
-    {
-      title: "Training Assignment",
-      description: "Assign videos to one employee, a department, or the company.",
-      path: "/hr/assign",
+      title: "Video Management",
+      description: "Upload, edit, publish, and archive POSH training videos.",
+      path: "/admin/videos",
       icon: <PlaylistAddCheckIcon />,
       status: "Available",
     },
@@ -134,14 +148,17 @@ export function HRDashboard() {
       icon: <DownloadIcon />,
       status: "Available",
     },
-    ...(user?.role_id === 1 || user?.role_id === 2
+    ...(canManageUsers
       ? [
           {
-            title: "Employee Management",
-            description: "Activate, deactivate, and update employees from Admin Users.",
+            title: user?.role_id === 3 ? "HR / IC Management" : "Employee Management",
+            description:
+              user?.role_id === 3
+                ? "Create, activate, deactivate, and reset HR / IC users."
+                : "Create, activate, deactivate, and reset employee users.",
             path: "/admin/users",
             icon: <GroupsIcon />,
-            status: "Shared",
+            status: "Available",
           },
         ]
       : []),

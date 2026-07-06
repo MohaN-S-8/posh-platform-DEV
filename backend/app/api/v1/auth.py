@@ -43,8 +43,11 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
 @router.post("/signup")
 @limiter.limit("5/minute")
 async def signup(request: Request, data: SignupRequest, db: AsyncSession = Depends(get_db)):
-    """Register a new user. Sends OTP to email for verification."""
-    return await auth_service.signup(db, data)
+    """Public signup is disabled; users are created by the parent role in User Management."""
+    raise HTTPException(
+        status_code=403,
+        detail="Public signup is disabled. Please contact your company administrator.",
+    )
 
 
 @router.post("/verify-otp")
