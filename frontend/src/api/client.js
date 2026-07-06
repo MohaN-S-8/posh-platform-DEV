@@ -2,8 +2,9 @@ import axios from "axios";
 
 const runtimeApiBaseUrl = window.__APP_CONFIG__?.API_BASE_URL;
 const buildApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+
 const apiBaseUrl = buildApiBaseUrl || runtimeApiBaseUrl || "/api/v1";
-  
+
 const apiClient = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
@@ -12,16 +13,19 @@ const apiClient = axios.create({
   },
 });
 
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("access_token");
 
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
 
-  return config;
-});
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
 
 apiClient.interceptors.response.use(
   (response) => response,
@@ -41,7 +45,9 @@ apiClient.interceptors.response.use(
         const res = await axios.post(
           `${apiBaseUrl}/auth/refresh`,
           {},
-          { withCredentials: true },
+          {
+            withCredentials: true,
+          },
         );
 
         if (res.data?.access_token) {
@@ -55,7 +61,11 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         localStorage.removeItem("access_token");
         localStorage.removeItem("auth_user");
-        window.location.href = "/login";
+
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
+
         return Promise.reject(refreshError);
       }
     }
