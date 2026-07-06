@@ -48,6 +48,8 @@ app.include_router(admin_router, prefix="/api/v1")
 app.include_router(employee_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 
+print(f"Starting POSH Training Platform API in {settings.APP_ENV} mode. Version: 1.0.0")
+
 
 @app.on_event("startup")
 async def run_seed_on_startup():
