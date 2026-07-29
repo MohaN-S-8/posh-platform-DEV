@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 export function TrainingAssignPage() {
-  const navigate = useNavigate();
   const [videos, setVideos] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -98,32 +97,12 @@ export function TrainingAssignPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button
-        onClick={() => navigate("/hr")}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#17324d",
-          cursor: "pointer",
-          marginBottom: "16px",
-        }}
-      >
-        Back to HR Dashboard
-      </button>
-      <h1 style={{ color: "#17324d", margin: "0 0 24px", fontSize: "30px" }}>
-        Assign Training
-      </h1>
-
-      <div
-        style={{
-          background: "white",
-          borderRadius: "8px",
-          padding: "24px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          maxWidth: "760px",
-        }}
-      >
+    <PortalShell
+      title="Training Assignment"
+      subtitle="Assign published training to employees, departments, or the full company."
+    >
+      <div className="portal-section-title">Assignment Details</div>
+      <div className="portal-card" style={{ maxWidth: "820px" }}>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: "18px" }}>
             <label style={labelStyle}>Training Video *</label>
@@ -168,12 +147,15 @@ export function TrainingAssignPage() {
                     borderRadius: "6px",
                     border:
                       form.assign_type === type
-                        ? "1px solid #17324d"
-                        : "1px solid #cdd9e2",
-                    background: form.assign_type === type ? "#17324d" : "#ffffff",
-                    color: form.assign_type === type ? "white" : "#17324d",
+                        ? "1px solid var(--portal-purple)"
+                        : "1px solid var(--portal-border)",
+                    background:
+                      form.assign_type === type
+                        ? "var(--portal-purple)"
+                        : "#ffffff",
+                    color: form.assign_type === type ? "white" : "var(--portal-purple)",
                     cursor: "pointer",
-                    fontWeight: 600,
+                    fontWeight: 700,
                   }}
                 >
                   {type}
@@ -237,11 +219,11 @@ export function TrainingAssignPage() {
             <div
               style={{
                 marginBottom: "18px",
-                background: "#eef4f8",
-                border: "1px solid #cdd9e2",
+                background: "#f1eafb",
+                border: "1px solid #ddcbf3",
                 borderRadius: "8px",
                 padding: "14px",
-                color: "#17324d",
+                color: "var(--portal-purple)",
                 fontSize: "14px",
               }}
             >
@@ -292,13 +274,15 @@ export function TrainingAssignPage() {
             style={{
               padding: "10px 28px",
               background:
-                submitting || loadingOptions || !canSubmit ? "#93a4b7" : "#17324d",
+                submitting || loadingOptions || !canSubmit
+                  ? "#c8b7dc"
+                  : "var(--portal-pink)",
               color: "white",
               border: "none",
-              borderRadius: "6px",
+              borderRadius: "8px",
               cursor:
                 submitting || loadingOptions || !canSubmit ? "not-allowed" : "pointer",
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
             {submitting ? "Assigning..." : "Assign Training"}
@@ -315,23 +299,23 @@ export function TrainingAssignPage() {
             : "Fetching published videos, employees, and departments."
         }
       />
-    </div>
+    </PortalShell>
   );
 }
 
 const labelStyle = {
   display: "block",
   marginBottom: "6px",
-  fontWeight: 600,
-  color: "#17324d",
+  fontWeight: 700,
+  color: "var(--portal-purple)",
   fontSize: "14px",
 };
 
 const inputStyle = {
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid #cfd7df",
-  borderRadius: "6px",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
   fontSize: "14px",
   boxSizing: "border-box",
   background: "white",
@@ -340,7 +324,7 @@ const inputStyle = {
 
 const hintStyle = {
   margin: "8px 0 0",
-  color: "#667085",
+  color: "var(--portal-muted)",
   fontSize: "13px",
 };
 

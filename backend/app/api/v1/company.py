@@ -15,7 +15,7 @@ from app.services.company_service import CompanyService
 router = APIRouter(prefix="/companies", tags=["Company Management"])
 company_service = CompanyService()
 
-# Role IDs: 1=Super Admin, 2=Company Admin, 3=HR / IC, 4=Employee
+# Role IDs: 1=Super Admin, 2=Admin, 5=Client / Management, 3=HR / IC, 4=Employee
 ADMIN_ROLES = [1, 2]
 
 

@@ -18,6 +18,7 @@ from app.models.training import (
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
 from app.schemas.video import VideoCreate, VideoUpdate
+from app.services.notification_service import notification_service
 
 ALLOWED_MIME_TYPES = {"video/mp4", "video/x-msvideo", "video/quicktime"}
 ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov"}
@@ -502,11 +503,35 @@ class VideoService:
             history.completion_percent = 100
 
         # Mark as completed when >= 95% watched or player reaches the end.
-        if (history.completion_percent >= 95 or reached_end) and history.status != "Completed":
+        completed_now = (
+            (history.completion_percent >= 95 or reached_end)
+            and history.status != "Completed"
+        )
+        if completed_now:
             history.status = "Completed"
             from datetime import datetime, timezone
 
             history.completed_at = datetime.now(timezone.utc)
+            user_result = await db.execute(
+                select(UserMaster).where(
+                    UserMaster.user_id == user_id,
+                    UserMaster.company_id == history.company_id,
+                )
+            )
+            user = user_result.scalar_one_or_none()
+            watcher_ids = await notification_service.course_watcher_ids(
+                db,
+                company_id=history.company_id,
+                video_id=video_id,
+                employee_department=user.department if user else None,
+            )
+            await notification_service.create_for_user_ids(
+                db,
+                user_ids=watcher_ids,
+                company_id=history.company_id,
+                title="Training completed",
+                message=f"{user.first_name if user else 'An employee'} completed assigned training.",
+            )
 
         await db.commit()
 
@@ -530,6 +555,18 @@ class VideoService:
         if not video:
             raise HTTPException(404, "Video not found.")
         video.status = "Published"
+        recipient_ids = await notification_service.active_user_ids_by_roles(
+            db,
+            company_id=company_id,
+            role_ids=[5, 3, 4],
+        )
+        await notification_service.create_for_user_ids(
+            db,
+            user_ids=recipient_ids,
+            company_id=company_id,
+            title="Video published",
+            message=f"{video.title} is now published.",
+        )
         await db.commit()
         return video
 

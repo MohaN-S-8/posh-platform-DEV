@@ -147,6 +147,7 @@ async def entra_sso_callback(
             "user_id": session["user_id"],
             "role_id": session["role_id"],
             "company_id": session["company_id"],
+            "permissions": ",".join(session.get("permissions", [])),
         }
     )
     frontend_callback_url = (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 const emptyForm = {
   employee_id: "",
@@ -15,7 +15,6 @@ const emptyForm = {
 };
 
 export function OwnerAdminSetupPage() {
-  const navigate = useNavigate();
   const [companies, setCompanies] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -63,18 +62,10 @@ export function OwnerAdminSetupPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button type="button" onClick={() => navigate("/admin")} style={linkButtonStyle}>
-        Back to Admin Portal
-      </button>
-      <h1 style={{ color: "#17324d", margin: "0 0 6px", fontSize: "30px" }}>
-        Company Owner Admin Setup
-      </h1>
-      <p style={{ color: "#64748b", margin: "0 0 24px" }}>
-        Direct-link setup page for Super Admin to create the first Admin user for a company.
-        Available at /owner/admin-setup and /super-admin/company-owner-setup.
-      </p>
-
+    <PortalShell
+      title="Company Owner Admin Setup"
+      subtitle="Setup page for Super Admin to create the first Admin user for a company."
+    >
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
@@ -127,7 +118,7 @@ export function OwnerAdminSetupPage() {
         title={saving ? "Creating Admin" : "Loading companies"}
         message={saving ? "Saving the Admin user." : "Fetching company list."}
       />
-    </div>
+    </PortalShell>
   );
 }
 

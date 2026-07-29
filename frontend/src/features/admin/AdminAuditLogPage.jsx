@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 export function AdminAuditLogPage() {
-  const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,16 +52,10 @@ export function AdminAuditLogPage() {
   }, []);
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button type="button" onClick={() => navigate("/admin")} style={backButtonStyle}>
-        Back to Dashboard
-      </button>
-      <h1 style={{ color: "#17324d", margin: "0 0 6px", fontSize: "30px" }}>
-        Audit Logs
-      </h1>
-      <p style={{ color: "#64748b", margin: "0 0 24px" }}>
-        Recent login attempts and admin/HR actions captured with user, IP, target, and timestamp.
-      </p>
+    <PortalShell
+      title="Audit Logs"
+      subtitle="Recent login attempts and admin/HR actions captured with user, IP, target, and timestamp."
+    >
 
       {error && <div style={errorStyle}>{error}</div>}
 
@@ -110,7 +103,7 @@ export function AdminAuditLogPage() {
       </div>
 
       <LoadingOverlay show={loading} title="Loading audit logs" message="Fetching login and action events." />
-    </div>
+    </PortalShell>
   );
 }
 

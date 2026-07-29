@@ -1,11 +1,10 @@
-import asyncio
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.api.v1.admin import router as admin_router
 from app.api.v1.analytics import router as analytics_router
@@ -34,6 +33,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+if settings.APP_ENV.lower() == "production":
+    app.add_middleware(HTTPSRedirectMiddleware)
+
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(company_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
@@ -49,11 +51,6 @@ app.include_router(notifications_router, prefix="/api/v1")
 
 @app.on_event("startup")
 async def run_seed_on_startup():
-    print(f"Starting POSH Training Platform API in {settings.APP_ENV} mode. Version: {app.version}")
-    asyncio.create_task(seed_reference_data())
-
-
-async def seed_reference_data():
     """
     Ensure required reference data and default login users exist.
     This is intentionally idempotent so Docker restarts can repair missing seed rows.
@@ -135,6 +132,26 @@ async def seed_reference_data():
                 """
             )
         )
+        template_column_result = await db.execute(
+            text(
+                """
+                SELECT COUNT(*) AS column_count
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'certificate_template'
+                  AND column_name = 'template_file_path'
+                """
+            )
+        )
+        if template_column_result.scalar_one() == 0:
+            await db.execute(
+                text(
+                    """
+                    ALTER TABLE certificate_template
+                    ADD COLUMN template_file_path VARCHAR(255) NULL
+                    """
+                )
+            )
 
         await db.execute(
             text(
@@ -142,7 +159,8 @@ async def seed_reference_data():
                 INSERT INTO role_master (role_id, role_name)
                 VALUES
                     (1, 'Super Admin'),
-                    (2, 'Company Admin'),
+                    (2, 'Admin'),
+                    (5, 'Client / Management'),
                     (3, 'HR / IC'),
                     (4, 'Employee')
                 ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)
@@ -307,6 +325,8 @@ async def seed_reference_data():
                 SELECT 1, permission_id FROM permission_master
                 UNION SELECT 2, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage','videos.manage','certificates.manage','reports.view','training.assign')
+                UNION SELECT 5, permission_id FROM permission_master
+                WHERE permission_key IN ('users.manage')
                 UNION SELECT 3, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage','videos.upload','reports.view','training.assign')
                 UNION SELECT 4, permission_id FROM permission_master

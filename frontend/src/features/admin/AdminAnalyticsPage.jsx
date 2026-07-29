@@ -4,14 +4,13 @@ import BusinessIcon from "@mui/icons-material/Business";
 import GroupsIcon from "@mui/icons-material/Groups";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
 
 export function AdminAnalyticsPage() {
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -101,20 +100,14 @@ export function AdminAnalyticsPage() {
   const complianceRate = analytics?.compliance_rate ?? 0;
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button type="button" onClick={() => navigate("/admin")} style={backButtonStyle}>
-        Back to Dashboard
-      </button>
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-          Analytics
-        </h1>
-        <p style={{ color: "#64748b", margin: "6px 0 0" }}>
-          {user?.role_id === 1
-            ? "Platform-wide companies, users, completions, and certificate metrics."
-            : "Company training completion, compliance, assessment, and certificate metrics."}
-        </p>
-      </div>
+    <PortalShell
+      title="Analytics & Metrics"
+      subtitle={
+        user?.role_id === 1
+          ? "Platform-wide companies, users, completions, and certificate metrics."
+          : "Company training completion, compliance, assessment, and certificate metrics."
+      }
+    >
 
       {error && <div style={errorStyle}>{error}</div>}
 
@@ -156,7 +149,7 @@ export function AdminAnalyticsPage() {
         title="Loading analytics"
         message="Fetching current training metrics."
       />
-    </div>
+    </PortalShell>
   );
 }
 

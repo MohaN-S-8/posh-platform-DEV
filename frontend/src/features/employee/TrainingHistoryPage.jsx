@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 const inputStyle = {
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid #cfd7df",
-  borderRadius: "6px",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
   fontSize: "14px",
   boxSizing: "border-box",
   background: "white",
@@ -20,7 +20,6 @@ function formatDate(value) {
 }
 
 export function TrainingHistoryPage() {
-  const navigate = useNavigate();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -75,38 +74,14 @@ export function TrainingHistoryPage() {
   );
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button
-        type="button"
-        onClick={() => navigate("/employee")}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#17324d",
-          cursor: "pointer",
-          marginBottom: "16px",
-          fontWeight: 700,
-        }}
-      >
-        Back to Dashboard
-      </button>
-
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-          Training History
-        </h1>
-        <p style={{ color: "#64748b", margin: "6px 0 0" }}>
-          Review course status, completion dates, assessment scores, and certificates.
-        </p>
-      </div>
+    <PortalShell
+      title="Training History"
+      subtitle="Review course status, completion dates, assessment scores, and certificates."
+    >
 
       <div
+        className="portal-card"
         style={{
-          background: "white",
-          borderRadius: "8px",
-          padding: "18px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          border: "1px solid #e7edf3",
           marginBottom: "18px",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -163,18 +138,14 @@ export function TrainingHistoryPage() {
       )}
 
       <div
+        className="portal-card"
         style={{
-          background: "white",
-          borderRadius: "8px",
-          padding: "20px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          border: "1px solid #e7edf3",
           overflowX: "auto",
         }}
       >
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "860px" }}>
+        <table className="portal-table" style={{ minWidth: "860px" }}>
           <thead>
-            <tr style={{ background: "#f6f8fb" }}>
+            <tr>
               {[
                 "Course Name",
                 "Status",
@@ -186,12 +157,6 @@ export function TrainingHistoryPage() {
               ].map((heading) => (
                 <th
                   key={heading}
-                  style={{
-                    padding: "10px 14px",
-                    textAlign: "left",
-                    color: "#64748b",
-                    fontSize: "13px",
-                  }}
                 >
                   {heading}
                 </th>
@@ -201,35 +166,35 @@ export function TrainingHistoryPage() {
           <tbody>
             {filteredHistory.length ? (
               filteredHistory.map((row) => (
-                <tr key={row.video_id} style={{ borderBottom: "1px solid #eef2f6" }}>
-                  <td style={{ padding: "12px 14px", color: "#17324d", fontWeight: 700 }}>
+                <tr key={row.video_id}>
+                  <td style={{ color: "var(--portal-purple)", fontWeight: 700 }}>
                     {row.course_name}
                   </td>
-                  <td style={{ padding: "12px 14px", color: "#17324d" }}>
+                  <td>
                     {row.status}
                   </td>
-                  <td style={{ padding: "12px 14px", color: "#17324d" }}>
+                  <td>
                     {Math.round(row.completion_percent || 0)}%
                   </td>
-                  <td style={{ padding: "12px 14px", color: "#64748b" }}>
+                  <td>
                     {formatDate(row.completion_date)}
                   </td>
-                  <td style={{ padding: "12px 14px", color: "#17324d" }}>
+                  <td>
                     {row.assessment_score === null || row.assessment_score === undefined
                       ? "-"
                       : `${row.assessment_score}%`}
                   </td>
-                  <td style={{ padding: "12px 14px", color: "#17324d" }}>
+                  <td>
                     {row.assessment_result || "-"}
                   </td>
-                  <td style={{ padding: "12px 14px", color: "#64748b" }}>
+                  <td>
                     {row.certificate_number || "-"}
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={7} style={{ padding: "18px", color: "#64748b" }}>
+                <td colSpan={7} style={{ padding: "18px", color: "var(--portal-muted)" }}>
                   No training history found for the selected filters.
                 </td>
               </tr>
@@ -243,6 +208,6 @@ export function TrainingHistoryPage() {
         title="Loading training history"
         message="Fetching course status, assessment scores, and certificates."
       />
-    </div>
+    </PortalShell>
   );
 }

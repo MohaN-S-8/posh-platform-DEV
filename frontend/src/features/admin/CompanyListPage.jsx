@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
+import { PortalShell } from "../../components/PortalShell";
 
 const emptyForm = {
   company_code: "",
@@ -164,14 +165,11 @@ export function CompanyListPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f5f7fa", minHeight: "100vh" }}>
-      <div style={headerStyle}>
-        <div>
-          <button type="button" onClick={() => navigate("/admin")} style={linkButtonStyle}>
-            Back to Dashboard
-          </button>
-          <h1 style={{ color: "#1a3c5e", margin: 0 }}>Company Management</h1>
-        </div>
+    <PortalShell
+      title="Company Management"
+      subtitle="Manage registered companies, employee counts, and configurations."
+    >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "20px" }}>
         <button type="button" onClick={openCreate} style={primaryButtonStyle}>
           Add Company
         </button>
@@ -354,7 +352,7 @@ export function CompanyListPage() {
           </table>
         </div>
       )}
-    </div>
+    </PortalShell>
   );
 }
 

@@ -1,15 +1,17 @@
 import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 const inputStyle = {
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid #cfd7df",
-  borderRadius: "6px",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
   fontSize: "14px",
   boxSizing: "border-box",
 };
@@ -21,7 +23,6 @@ const initialForm = {
 };
 
 export function CertificateTemplatePage() {
-  const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [showForm, setShowForm] = useState(false);
@@ -99,7 +100,13 @@ export function CertificateTemplatePage() {
       await apiClient.post(`/certificates/templates/${template.template_id}/asset`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setSuccess(`${assetType === "logo" ? "Logo" : "Signature"} uploaded successfully.`);
+      const label =
+        assetType === "logo"
+          ? "Logo"
+          : assetType === "signature"
+            ? "Signature"
+            : "Ready-made certificate template";
+      setSuccess(`${label} uploaded successfully.`);
       await loadTemplates();
     } catch (err) {
       setError(apiErrorMessage(err, "Unable to upload template asset."));
@@ -108,43 +115,37 @@ export function CertificateTemplatePage() {
     }
   };
 
+  const deleteTemplate = async (template) => {
+    const confirmed = window.confirm(
+      `Delete certificate template "${template.template_name}"? Issued certificates will remain, but this template file will be removed.`,
+    );
+    if (!confirmed) return;
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await apiClient.delete(`/certificates/templates/${template.template_id}`);
+      setSuccess(res.data?.message || "Certificate template deleted.");
+      await loadTemplates();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to delete certificate template."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "16px",
-          flexWrap: "wrap",
-          alignItems: "center",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <button
-            type="button"
-            onClick={() => navigate("/admin")}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#17324d",
-              cursor: "pointer",
-              marginBottom: "8px",
-              fontWeight: 700,
-            }}
-          >
-            Back to Dashboard
-          </button>
-          <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-            Certificate Templates
-          </h1>
-          <p style={{ color: "#64748b", margin: "6px 0 0" }}>
-            Configure certificate style used for generated POSH completion PDFs.
-          </p>
-        </div>
-        <button type="button" onClick={() => setShowForm((v) => !v)} style={primaryButtonStyle}>
-          <AddIcon fontSize="small" />
-          New Template
+    <PortalShell
+      title="Certificate Setup"
+      subtitle="Design certificate layout templates, uploaded images, and signature positioning."
+    >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "20px" }}>
+        <button
+          type="button"
+          onClick={() => setShowForm((curr) => !curr)}
+          style={primaryButtonStyle}
+        >
+          <AddIcon fontSize="small" /> New Template
         </button>
       </div>
 
@@ -152,7 +153,10 @@ export function CertificateTemplatePage() {
       {success && <div style={successStyle}>{success}</div>}
 
       {showForm && (
-        <form onSubmit={submitTemplate} style={panelStyle}>
+        <form onSubmit={submitTemplate} className="portal-card" style={{ marginBottom: "20px" }}>
+          <div className="portal-section-title" style={{ marginTop: 0 }}>
+            Template Details
+          </div>
           <div
             style={{
               display: "grid",
@@ -200,11 +204,22 @@ export function CertificateTemplatePage() {
         </form>
       )}
 
+      <div className="portal-card" style={{ marginBottom: "20px" }}>
+        <div className="portal-section-title" style={{ marginTop: 0 }}>
+          Ready-Made Template Placeholders
+        </div>
+        <p style={{ color: "var(--portal-muted)", margin: 0, fontSize: "13px" }}>
+          Upload a certificate background or document containing placeholders like{" "}
+          <strong>&lt;&lt;name&gt;&gt;</strong>, <strong>&lt;&lt;course&gt;&gt;</strong>,{" "}
+          <strong>&lt;&lt;date&gt;&gt;</strong>, and <strong>&lt;&lt;certificate_no&gt;&gt;</strong>.
+        </p>
+      </div>
+
       <div style={tableWrapStyle}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "680px" }}>
+        <table className="portal-table" style={{ minWidth: "920px" }}>
           <thead>
-            <tr style={{ background: "#17324d", color: "white" }}>
-              {["Template", "Font", "Color", "Status", "Assets", "Actions"].map((heading) => (
+            <tr>
+              {["Template", "Font", "Color", "Status", "Ready Template", "Assets", "Actions"].map((heading) => (
                 <th key={heading} style={thStyle}>
                   {heading}
                 </th>
@@ -214,8 +229,8 @@ export function CertificateTemplatePage() {
           <tbody>
             {templates.length ? (
               templates.map((template) => (
-                <tr key={template.template_id} style={{ borderBottom: "1px solid #eef2f6" }}>
-                  <td style={{ ...tdStyle, color: "#17324d", fontWeight: 700 }}>
+                <tr key={template.template_id}>
+                  <td style={{ ...tdStyle, color: "var(--portal-purple)", fontWeight: 700 }}>
                     {template.template_name}
                   </td>
                   <td style={tdStyle}>{template.font_name}</td>
@@ -235,6 +250,24 @@ export function CertificateTemplatePage() {
                     {template.color_code}
                   </td>
                   <td style={tdStyle}>{template.status}</td>
+                  <td style={tdStyle}>
+                    <label style={fileButtonStyle}>
+                      <UploadFileIcon fontSize="small" />
+                      {template.template_file_path ? "Replace Template" : "Upload Template"}
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg,.docx"
+                        disabled={assetUploading === `${template.template_id}-template`}
+                        onChange={(e) => uploadAsset(template, "template", e.target.files?.[0])}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                    {template.template_file_path && (
+                      <div style={{ marginTop: "6px", color: "#1f7a4d", fontSize: "12px" }}>
+                        Uploaded
+                      </div>
+                    )}
+                  </td>
                   <td style={tdStyle}>
                     <div style={{ display: "grid", gap: "6px" }}>
                       <label>
@@ -260,19 +293,29 @@ export function CertificateTemplatePage() {
                     </div>
                   </td>
                   <td style={tdStyle}>
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(template)}
-                      style={secondaryButtonStyle}
-                    >
-                      {template.status === "Active" ? "Deactivate" : "Activate"}
-                    </button>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => toggleStatus(template)}
+                        style={secondaryButtonStyle}
+                      >
+                        {template.status === "Active" ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteTemplate(template)}
+                        style={dangerButtonStyle}
+                      >
+                        <DeleteIcon fontSize="small" />
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} style={{ padding: "28px", color: "#64748b" }}>
+                <td colSpan={7} style={{ padding: "28px", color: "#64748b" }}>
                   No certificate templates created yet.
                 </td>
               </tr>
@@ -286,21 +329,12 @@ export function CertificateTemplatePage() {
         title={saving ? "Saving template" : "Loading templates"}
         message="Fetching certificate template configuration."
       />
-    </div>
+    </PortalShell>
   );
 }
 
-const panelStyle = {
-  background: "white",
-  borderRadius: "8px",
-  padding: "20px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-  border: "1px solid #e7edf3",
-  marginBottom: "20px",
-};
-
 const labelStyle = {
-  color: "#17324d",
+  color: "var(--portal-purple)",
   fontWeight: 700,
   fontSize: "13px",
   display: "grid",
@@ -309,10 +343,10 @@ const labelStyle = {
 
 const primaryButtonStyle = {
   padding: "10px 14px",
-  background: "#17324d",
+  background: "var(--portal-pink)",
   color: "white",
   border: "none",
-  borderRadius: "6px",
+  borderRadius: "8px",
   cursor: "pointer",
   fontWeight: 700,
   display: "inline-flex",
@@ -322,19 +356,38 @@ const primaryButtonStyle = {
 
 const secondaryButtonStyle = {
   padding: "7px 10px",
-  background: "#f0f4ff",
-  color: "#17324d",
-  border: "1px solid #cdd9e2",
-  borderRadius: "6px",
+  background: "#f1eafb",
+  color: "var(--portal-purple)",
+  border: "1px solid #ddcbf3",
+  borderRadius: "8px",
   cursor: "pointer",
   fontWeight: 700,
+};
+
+const dangerButtonStyle = {
+  padding: "7px 10px",
+  background: "#fff7f6",
+  color: "#c0392b",
+  border: "1px solid #f3b4ae",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontWeight: 700,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "5px",
+};
+
+const fileButtonStyle = {
+  ...secondaryButtonStyle,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
 };
 
 const tableWrapStyle = {
   background: "white",
   borderRadius: "8px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-  border: "1px solid #e7edf3",
+  border: "1px solid var(--portal-border)",
   overflowX: "auto",
 };
 

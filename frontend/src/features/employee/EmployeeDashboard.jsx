@@ -1,14 +1,13 @@
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import BadgeIcon from "@mui/icons-material/Badge";
 import HistoryIcon from "@mui/icons-material/History";
-import LogoutIcon from "@mui/icons-material/Logout";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
-import { useAuthStore } from "../../store/authStore";
+import { PortalShell } from "../../components/PortalShell";
 
 const cardStyle = {
   background: "white",
@@ -34,7 +33,6 @@ const statValueStyle = {
 
 export function EmployeeDashboard() {
   const navigate = useNavigate();
-  const { clearAuth } = useAuthStore();
   const [summary, setSummary] = useState(null);
   const [courses, setCourses] = useState([]);
   const [history, setHistory] = useState([]);
@@ -70,11 +68,6 @@ export function EmployeeDashboard() {
       active = false;
     };
   }, []);
-
-  const logout = async () => {
-    await clearAuth();
-    navigate("/login");
-  };
 
   const stats = [
     { label: "Assigned Courses", value: summary?.total_courses ?? 0 },
@@ -151,62 +144,10 @@ export function EmployeeDashboard() {
   ];
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "28px",
-          gap: "16px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-            Employee Portal
-          </h1>
-          <p style={{ color: "#64748b", margin: "6px 0 0" }}>
-            Complete assigned POSH training, assessments, certificates, and history.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={() => navigate("/change-password")}
-            style={{
-              padding: "10px 16px",
-              background: "#eef4f8",
-              color: "#17324d",
-              border: "1px solid #cdd9e2",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: 700,
-            }}
-          >
-            Change Password
-          </button>
-          <button
-            type="button"
-            onClick={logout}
-            style={{
-              padding: "10px 16px",
-              background: "#c0392b",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              fontWeight: 700,
-            }}
-          >
-            <LogoutIcon fontSize="small" />
-            Logout
-          </button>
-        </div>
-      </div>
+    <PortalShell
+      title="Home"
+      subtitle="Your PoSH programme, assigned training, assessments, and certificates."
+    >
 
       {error && (
         <div
@@ -367,6 +308,6 @@ export function EmployeeDashboard() {
         title="Loading employee portal"
         message="Fetching assigned courses, progress, certificates, and training history."
       />
-    </div>
+    </PortalShell>
   );
 }

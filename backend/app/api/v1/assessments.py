@@ -22,7 +22,9 @@ async def get_questions(
     current_user=Depends(require_role(4)),
 ):
     """Return assessment questions/options for a published company video."""
-    return await assessment_service.questions(db, video_id, current_user.company_id)
+    return await assessment_service.questions(
+        db, video_id, current_user.company_id, current_user.user_id
+    )
 
 
 @router.get("/{video_id}/availability")

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
+import { PortalShell } from "../../components/PortalShell";
 
 const inputStyle = {
   width: "100%",
@@ -12,7 +12,6 @@ const inputStyle = {
 };
 
 export function ChangePasswordPage() {
-  const navigate = useNavigate();
   const [form, setForm] = useState({
     current_password: "",
     new_password: "",
@@ -39,21 +38,7 @@ export function ChangePasswordPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#17324d",
-          cursor: "pointer",
-          marginBottom: "16px",
-          fontWeight: 700,
-        }}
-      >
-        Back
-      </button>
+    <PortalShell title="Change Password" subtitle="Update your account password.">
       <div
         style={{
           background: "white",
@@ -64,9 +49,6 @@ export function ChangePasswordPage() {
           maxWidth: "520px",
         }}
       >
-        <h1 style={{ color: "#17324d", margin: "0 0 18px", fontSize: "28px" }}>
-          Change Password
-        </h1>
         {error && <div style={messageStyle("#fff7f6", "#f3b4ae", "#c0392b")}>{error}</div>}
         {success && <div style={messageStyle("#e8f5ee", "#1f7a4d", "#1f7a4d")}>{success}</div>}
         <form onSubmit={submit} style={{ display: "grid", gap: "14px" }}>
@@ -121,7 +103,7 @@ export function ChangePasswordPage() {
           </button>
         </form>
       </div>
-    </div>
+    </PortalShell>
   );
 }
 

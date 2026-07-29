@@ -4,7 +4,7 @@ import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { useAuthStore } from "../../store/authStore";
 
 function dashboardForRole(roleId) {
-  if (roleId === 1 || roleId === 2) return "/admin";
+  if (roleId === 1 || roleId === 2 || roleId === 5) return "/admin";
   if (roleId === 3) return "/hr";
   if (roleId === 4) return "/employee";
   return "/unauthorized";
@@ -21,6 +21,10 @@ export function EntraCallbackPage() {
   const userId = Number(params.get("user_id"));
   const roleId = Number(params.get("role_id"));
   const companyId = Number(params.get("company_id"));
+  const permissions = (params.get("permissions") || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
   const error =
     !accessToken || !userId || !roleId || !companyId
       ? "Microsoft Entra sign-in did not return a complete session."
@@ -32,7 +36,7 @@ export function EntraCallbackPage() {
     }
 
     setAuth(
-      { user_id: userId, role_id: roleId, company_id: companyId },
+      { user_id: userId, role_id: roleId, company_id: companyId, permissions },
       accessToken,
     );
     navigate(dashboardForRole(roleId), { replace: true });

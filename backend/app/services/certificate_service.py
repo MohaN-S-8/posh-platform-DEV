@@ -10,12 +10,15 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer
-from sqlalchemy import func, select
+from pypdf import PdfReader, PdfWriter
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.storage import generate_presigned_url, read_file, upload_file
+from app.core.storage import delete_file, generate_presigned_url, read_file, upload_file
 from app.models.certificate import Certificate, CertificateTemplate
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
@@ -170,6 +173,21 @@ class CertificateService:
         template: Optional[CertificateTemplate] = None,
     ) -> bytes:
         """Generate certificate PDF using ReportLab."""
+        if template and template.template_file_path:
+            try:
+                return self._generate_pdf_from_ready_template(
+                    employee_name=employee_name,
+                    course_name=course_name,
+                    cert_number=cert_number,
+                    completion_date=completion_date,
+                    template=template,
+                )
+            except Exception:
+                logger.exception(
+                    "Unable to use ready-made certificate template: %s",
+                    template.template_file_path,
+                )
+
         buf = io.BytesIO()
         doc = SimpleDocTemplate(
             buf,
@@ -275,6 +293,170 @@ class CertificateService:
         doc.build(story)
         buf.seek(0)
         return buf.read()
+
+    def _generate_pdf_from_ready_template(
+        self,
+        employee_name: str,
+        course_name: str,
+        cert_number: str,
+        completion_date: date,
+        template: CertificateTemplate,
+    ) -> bytes:
+        template_bytes = read_file(CERT_BUCKET, template.template_file_path)
+        object_key = template.template_file_path.lower()
+        if object_key.endswith(".pdf"):
+            return self._merge_overlay_with_template_pdf(
+                template_bytes,
+                employee_name,
+                course_name,
+                cert_number,
+                completion_date,
+                template,
+            )
+        if object_key.endswith((".png", ".jpg", ".jpeg")):
+            return self._render_template_image_pdf(
+                template_bytes,
+                employee_name,
+                course_name,
+                cert_number,
+                completion_date,
+                template,
+            )
+        raise HTTPException(400, "Ready-made certificate template must be PDF, PNG, JPG, or JPEG.")
+
+    def _template_overlay_pdf(
+        self,
+        width: float,
+        height: float,
+        employee_name: str,
+        course_name: str,
+        cert_number: str,
+        completion_date: date,
+        template: CertificateTemplate,
+    ) -> bytes:
+        overlay = io.BytesIO()
+        c = canvas.Canvas(overlay, pagesize=(width, height))
+        brand_color = template.color_code or "#1a3c5e"
+        font_name = template.font_name or "Helvetica"
+        try:
+            c.setFillColor(colors.HexColor(brand_color))
+        except Exception:
+            c.setFillColor(colors.HexColor("#1a3c5e"))
+
+        def cover_centered(x_center: float, y_center: float, box_width: float, box_height: float):
+            c.saveState()
+            c.setFillColor(colors.white)
+            c.rect(
+                x_center - box_width / 2,
+                y_center - box_height / 2,
+                box_width,
+                box_height,
+                stroke=0,
+                fill=1,
+            )
+            c.restoreState()
+
+        name_y = height * 0.50
+        sentence_placeholder_y = height * 0.445
+        sentence_text_y = height * 0.385
+        certificate_no_placeholder_y = height * 0.355
+        certificate_no_text_y = height * 0.13
+
+        cover_centered(width / 2, name_y, width * 0.46, 52)
+        cover_centered(width / 2, sentence_placeholder_y, width * 0.74, 74)
+        cover_centered(width / 2, certificate_no_placeholder_y, width * 0.42, 36)
+
+        try:
+            c.setFillColor(colors.HexColor(brand_color))
+        except Exception:
+            c.setFillColor(colors.HexColor("#1a3c5e"))
+        c.setFont(font_name, 28)
+        c.drawCentredString(width / 2, name_y - 8, employee_name)
+        c.setFillColor(colors.HexColor("#1f2430"))
+        c.setFont(font_name, 13)
+        c.drawCentredString(
+            width / 2,
+            sentence_text_y,
+            f"has successfully completed {course_name} on {completion_date.strftime('%d %B %Y')}.",
+        )
+        c.setFillColor(colors.HexColor("#1f2430"))
+        c.setFont(font_name, 10)
+        c.drawCentredString(width / 2, certificate_no_text_y, cert_number)
+        c.save()
+        overlay.seek(0)
+        return overlay.read()
+
+    def _merge_overlay_with_template_pdf(
+        self,
+        template_bytes: bytes,
+        employee_name: str,
+        course_name: str,
+        cert_number: str,
+        completion_date: date,
+        template: CertificateTemplate,
+    ) -> bytes:
+        reader = PdfReader(io.BytesIO(template_bytes))
+        if not reader.pages:
+            raise HTTPException(400, "Ready-made certificate template PDF has no pages.")
+        template_page = reader.pages[0]
+        width = float(template_page.mediabox.width)
+        height = float(template_page.mediabox.height)
+        overlay_reader = PdfReader(
+            io.BytesIO(
+                self._template_overlay_pdf(
+                    width,
+                    height,
+                    employee_name,
+                    course_name,
+                    cert_number,
+                    completion_date,
+                    template,
+                )
+            )
+        )
+        template_page.merge_page(overlay_reader.pages[0])
+        writer = PdfWriter()
+        writer.add_page(template_page)
+        out = io.BytesIO()
+        writer.write(out)
+        return out.getvalue()
+
+    def _render_template_image_pdf(
+        self,
+        template_bytes: bytes,
+        employee_name: str,
+        course_name: str,
+        cert_number: str,
+        completion_date: date,
+        template: CertificateTemplate,
+    ) -> bytes:
+        width, height = landscape(A4)
+        out = io.BytesIO()
+        c = canvas.Canvas(out, pagesize=(width, height))
+        c.drawImage(ImageReader(io.BytesIO(template_bytes)), 0, 0, width=width, height=height)
+        c.save()
+        overlay_reader = PdfReader(
+            io.BytesIO(
+                self._template_overlay_pdf(
+                    width,
+                    height,
+                    employee_name,
+                    course_name,
+                    cert_number,
+                    completion_date,
+                    template,
+                )
+            )
+        )
+        overlay_page = overlay_reader.pages[0]
+        base_reader = PdfReader(io.BytesIO(out.getvalue()))
+        base_page = base_reader.pages[0]
+        base_page.merge_page(overlay_page)
+        writer = PdfWriter()
+        writer.add_page(base_page)
+        merged = io.BytesIO()
+        writer.write(merged)
+        return merged.getvalue()
 
     def _verification_url(self, cert_number: str) -> str:
         """Return the public frontend verification page for a certificate."""
@@ -412,8 +594,8 @@ class CertificateService:
     async def upload_template_asset(
         self, db, template_id: int, company_id: int, file, asset_type: str
     ) -> CertificateTemplate:
-        if asset_type not in ["logo", "signature"]:
-            raise HTTPException(400, "asset_type must be logo or signature.")
+        if asset_type not in ["logo", "signature", "template"]:
+            raise HTTPException(400, "asset_type must be logo, signature, or template.")
         result = await db.execute(
             select(CertificateTemplate).where(
                 CertificateTemplate.template_id == template_id,
@@ -433,8 +615,103 @@ class CertificateService:
 
         if asset_type == "logo":
             template.logo_path = object_key
-        else:
+        elif asset_type == "signature":
             template.signature_path = object_key
+        else:
+            template.template_file_path = object_key
         await db.commit()
         await db.refresh(template)
         return template
+
+    async def delete_template(self, db, template_id: int, company_id: int) -> dict:
+        result = await db.execute(
+            select(CertificateTemplate).where(
+                CertificateTemplate.template_id == template_id,
+                CertificateTemplate.company_id == company_id,
+            )
+        )
+        template = result.scalar_one_or_none()
+        if not template:
+            raise HTTPException(404, "Certificate template not found.")
+
+        replacement_result = await db.execute(
+            select(CertificateTemplate)
+            .where(
+                CertificateTemplate.company_id == company_id,
+                CertificateTemplate.template_id != template_id,
+                CertificateTemplate.status == "Active",
+            )
+            .order_by(
+                CertificateTemplate.updated_date.desc(),
+                CertificateTemplate.template_id.desc(),
+            )
+            .limit(1)
+        )
+        replacement_template = replacement_result.scalar_one_or_none()
+        replacement_template_id = (
+            replacement_template.template_id if replacement_template else None
+        )
+
+        regenerated_count = 0
+        if replacement_template:
+            certificate_result = await db.execute(
+                select(Certificate, UserMaster)
+                .join(UserMaster, Certificate.user_id == UserMaster.user_id)
+                .where(
+                    Certificate.template_id == template_id,
+                    Certificate.company_id == company_id,
+                    Certificate.status == "Valid",
+                )
+            )
+            for certificate, user in certificate_result.all():
+                employee_name = f"{user.first_name} {user.last_name or ''}".strip()
+                pdf_bytes = self._generate_pdf(
+                    employee_name=employee_name,
+                    course_name=certificate.course_name,
+                    cert_number=certificate.certificate_number,
+                    completion_date=certificate.completion_date or date.today(),
+                    template=replacement_template,
+                )
+                pdf_path = (
+                    certificate.pdf_path
+                    or f"certificates/{company_id}/pdf/{certificate.certificate_number}.pdf"
+                )
+                upload_file(pdf_bytes, CERT_BUCKET, pdf_path, "application/pdf")
+                certificate.pdf_path = pdf_path
+                certificate.template_id = replacement_template_id
+                regenerated_count += 1
+
+        await db.execute(
+            update(Certificate)
+            .where(
+                Certificate.template_id == template_id,
+                Certificate.company_id == company_id,
+            )
+            .values(template_id=replacement_template_id)
+        )
+
+        await db.execute(
+            delete(CertificateTemplate).where(
+                CertificateTemplate.template_id == template_id,
+                CertificateTemplate.company_id == company_id,
+            )
+        )
+        await db.commit()
+        for object_key in [template.logo_path, template.signature_path, template.template_file_path]:
+            if object_key:
+                try:
+                    delete_file(CERT_BUCKET, object_key)
+                except Exception:
+                    logger.exception("Unable to delete certificate template file: %s", object_key)
+        message = "Certificate template deleted."
+        if replacement_template_id:
+            message += (
+                " Issued certificates now use the latest active template."
+                f" Regenerated {regenerated_count} certificate PDF(s)."
+            )
+        return {
+            "message": message,
+            "deleted": True,
+            "replacement_template_id": replacement_template_id,
+            "regenerated_certificates": regenerated_count,
+        }

@@ -101,7 +101,7 @@ def require_role(role_id: int):
 def require_roles(role_ids: list[int]):
     """
     Dependency factory — restricts endpoint to multiple allowed roles.
-    Usage: Depends(require_roles([1, 2]))  ← Super Admin or Company Admin
+    Usage: Depends(require_roles([1, 2]))  ← Super Admin or Admin
     """
 
     async def checker(current_user: CurrentUser = Depends(get_current_user)):

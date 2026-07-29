@@ -367,6 +367,7 @@ export function VideoPlayerPage() {
 
         <div
           ref={playerRef}
+          className="employee-video-player"
           style={{
             background: "#111827",
             borderRadius: "8px",
@@ -416,6 +417,7 @@ export function VideoPlayerPage() {
                   audioRef.current?.pause();
                 }}
                 onClick={isPlaying ? pauseVideo : playVideo}
+                className="employee-video-element"
                 style={{
                   width: "100%",
                   height: "clamp(220px, 52vh, 620px)",

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
 
 export function VideoListPage() {
@@ -332,24 +333,10 @@ export function VideoListPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <div style={{ marginBottom: "24px" }}>
-        <button
-          onClick={() => navigate(dashboardPath)}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#17324d",
-            cursor: "pointer",
-            marginBottom: "8px",
-          }}
-        >
-          Back to Dashboard
-        </button>
-        <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-          {pageTitle}
-        </h1>
-      </div>
+    <PortalShell
+      title={pageTitle}
+      subtitle="Upload and manage POSH training modules, audio tracks, and assessment questions."
+    >
 
       {error && (
         <div
@@ -839,7 +826,7 @@ export function VideoListPage() {
         title={overlay?.title || "Loading videos"}
         message={overlay?.message || "Fetching the latest video list."}
       />
-    </div>
+    </PortalShell>
   );
 }
 

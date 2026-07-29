@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 export function CoursesPage() {
   const navigate = useNavigate();
@@ -35,30 +36,10 @@ export function CoursesPage() {
   }, []);
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button
-        type="button"
-        onClick={() => navigate("/employee")}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#17324d",
-          cursor: "pointer",
-          marginBottom: "16px",
-          fontWeight: 700,
-        }}
-      >
-        Back to Dashboard
-      </button>
-
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-          Video Courses
-        </h1>
-        <p style={{ color: "#64748b", margin: "6px 0 0" }}>
-          Watch assigned training videos, resume progress, and unlock assessments.
-        </p>
-      </div>
+    <PortalShell
+      title="POSH Awareness Training"
+      subtitle="Watch assigned training videos, resume progress, and unlock assessments."
+    >
 
       {error && (
         <div
@@ -76,34 +57,27 @@ export function CoursesPage() {
       )}
 
       {!loading && courses.length === 0 ? (
-        <div
-          style={{
-            background: "white",
-            borderRadius: "8px",
-            padding: "40px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-            border: "1px solid #e7edf3",
-            textAlign: "center",
-          }}
-        >
-          <h2 style={{ color: "#17324d" }}>No courses assigned yet</h2>
-          <p style={{ color: "#64748b" }}>
+        <div className="portal-card" style={{ padding: "40px", textAlign: "center" }}>
+          <h2>No courses assigned yet</h2>
+          <p>
             Your HR team will assign training courses to you.
           </p>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: "16px" }}>
+        <>
+          <div className="portal-section-title">Assigned Courses</div>
+          <div style={{ display: "grid", gap: "16px" }}>
           {courses.map((course) => {
             const complete = Math.round(course.completion_percent || 0);
+            const assessmentTaken = Boolean(course.assessment_attempted);
+            const assessmentFailed = course.assessment_result === "Fail";
+            const canTakeAssessment = course.assessment_unlocked && !assessmentTaken;
+            const canRetakeAssessment = course.assessment_unlocked && assessmentFailed;
             return (
               <div
                 key={course.assignment_id}
+                className="portal-card"
                 style={{
-                  background: "white",
-                  borderRadius: "8px",
-                  padding: "20px",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                  border: "1px solid #e7edf3",
                   display: "grid",
                   gridTemplateColumns: "minmax(0, 1fr) auto",
                   gap: "18px",
@@ -111,10 +85,10 @@ export function CoursesPage() {
                 }}
               >
                 <div>
-                  <h2 style={{ color: "#17324d", margin: "0 0 6px", fontSize: "18px" }}>
+                  <h2 style={{ margin: "0 0 6px", fontSize: "18px" }}>
                     {course.title}
                   </h2>
-                  <p style={{ color: "#64748b", margin: "0 0 10px", fontSize: "13px" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: "13px" }}>
                     {course.description || "POSH training course"} | Passing score:{" "}
                     {course.passing_score}%
                   </p>
@@ -127,26 +101,18 @@ export function CoursesPage() {
                       maxWidth: "520px",
                     }}
                   >
-                    <span style={{ color: "#17324d", fontWeight: 700, fontSize: "13px" }}>
+                    <span style={{ color: "var(--portal-purple)", fontWeight: 700, fontSize: "13px" }}>
                       {complete}%
                     </span>
-                    <div
-                      style={{
-                        height: "8px",
-                        background: "#edf2f7",
-                        borderRadius: "999px",
-                        overflow: "hidden",
-                      }}
-                    >
+                    <div className="portal-progress">
                       <div
+                        className="portal-progress-bar"
                         style={{
-                          height: "100%",
                           width: `${Math.min(100, complete)}%`,
-                          background: complete >= 95 ? "#1f7a4d" : "#2d6a8e",
                         }}
                       />
                     </div>
-                    <span style={{ color: "#64748b", fontSize: "13px" }}>
+                    <span style={{ color: "var(--portal-muted)", fontSize: "13px" }}>
                       {course.status}
                     </span>
                   </div>
@@ -156,7 +122,7 @@ export function CoursesPage() {
                       gap: "12px",
                       flexWrap: "wrap",
                       marginTop: "10px",
-                      color: "#64748b",
+                      color: "var(--portal-muted)",
                       fontSize: "13px",
                     }}
                   >
@@ -182,10 +148,10 @@ export function CoursesPage() {
                     onClick={() => navigate(`/employee/video/${course.video_id}`)}
                     style={{
                       padding: "9px 14px",
-                      background: "#17324d",
+                      background: "var(--portal-pink)",
                       color: "white",
                       border: "none",
-                      borderRadius: "6px",
+                      borderRadius: "8px",
                       cursor: "pointer",
                       fontWeight: 700,
                       display: "inline-flex",
@@ -198,33 +164,47 @@ export function CoursesPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={!course.assessment_unlocked}
+                    disabled={!canTakeAssessment && !canRetakeAssessment}
                     onClick={() => navigate(`/employee/assessment/${course.video_id}`)}
                     style={{
                       padding: "9px 14px",
-                      background: course.assessment_unlocked ? "#1f7a4d" : "#edf2f7",
-                      color: course.assessment_unlocked ? "white" : "#64748b",
-                      border: "none",
-                      borderRadius: "6px",
-                      cursor: course.assessment_unlocked ? "pointer" : "not-allowed",
+                      background:
+                        canTakeAssessment || canRetakeAssessment
+                          ? "var(--portal-teal)"
+                          : "var(--portal-bg)",
+                      color:
+                        canTakeAssessment || canRetakeAssessment
+                          ? "white"
+                          : "var(--portal-muted)",
+                      border: "1px solid var(--portal-border)",
+                      borderRadius: "8px",
+                      cursor:
+                        canTakeAssessment || canRetakeAssessment
+                          ? "pointer"
+                          : "not-allowed",
                       fontWeight: 700,
                       display: "inline-flex",
                       alignItems: "center",
                       gap: "6px",
                     }}
                   >
-                    {course.assessment_unlocked ? (
+                    {canTakeAssessment || canRetakeAssessment ? (
                       <AssessmentIcon fontSize="small" />
                     ) : (
                       <LockIcon fontSize="small" />
                     )}
-                    Assessment
+                    {canRetakeAssessment
+                      ? "Retake Assessment"
+                      : assessmentTaken
+                      ? `Assessment ${course.assessment_result || "Submitted"}`
+                      : "Assessment"}
                   </button>
                 </div>
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
 
       <LoadingOverlay
@@ -232,6 +212,6 @@ export function CoursesPage() {
         title="Loading courses"
         message="Fetching assigned training videos and progress."
       />
-    </div>
+    </PortalShell>
   );
 }

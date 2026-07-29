@@ -109,41 +109,24 @@ export function SignupPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f5f7fa",
-        padding: "20px",
-      }}
-    >
-      <div
-        style={{
-          background: "white",
-          padding: "40px",
-          borderRadius: "12px",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-          width: "100%",
-          maxWidth: "480px",
-        }}
-      >
-        <h1 style={{ color: "#1a3c5e", marginBottom: "8px", textAlign: "center" }}>
-          Create Account
-        </h1>
-        <p style={{ color: "#666", textAlign: "center", marginBottom: "32px" }}>
-          Join POSH Training Platform
-        </p>
+    <div className="auth-page">
+      <Link to="/" className="auth-brand" aria-label="POSH platform home">
+        <span className="auth-brand-mark">P</span>
+        <span>
+          <strong>POSH</strong>
+          <small>Training Platform</small>
+        </span>
+      </Link>
+
+      <section className="auth-card auth-card-lg">
+        <div className="auth-card-header">
+          <p className="auth-eyebrow">Client onboarding</p>
+          <h1>Create account</h1>
+          <p>Join the POSH Training Platform and verify your account with OTP.</p>
+        </div>
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "16px",
-            }}
-          >
+          <div className="auth-form-grid">
             <div>
               <label htmlFor="first_name" style={labelStyle}>
                 First Name *
@@ -154,7 +137,7 @@ export function SignupPage() {
                 aria-invalid={!!errors.first_name}
                 aria-describedby={errors.first_name ? "first_name_error" : undefined}
                 {...register("first_name")}
-                style={authInputStyle(!!errors.first_name)}
+                style={{ ...authInputStyle(!!errors.first_name), borderRadius: "8px" }}
               />
               {errors.first_name && (
                 <p id="first_name_error" style={errorStyle}>
@@ -173,7 +156,7 @@ export function SignupPage() {
                 aria-invalid={!!errors.last_name}
                 aria-describedby={errors.last_name ? "last_name_error" : undefined}
                 {...register("last_name")}
-                style={authInputStyle(!!errors.last_name)}
+                style={{ ...authInputStyle(!!errors.last_name), borderRadius: "8px" }}
               />
               {errors.last_name && (
                 <p id="last_name_error" style={errorStyle}>
@@ -194,7 +177,7 @@ export function SignupPage() {
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? "email_error" : undefined}
               {...register("email")}
-              style={authInputStyle(!!errors.email)}
+              style={{ ...authInputStyle(!!errors.email), borderRadius: "8px" }}
             />
             {errors.email && (
               <p id="email_error" style={errorStyle}>
@@ -216,7 +199,7 @@ export function SignupPage() {
               aria-describedby={errors.mobile ? "mobile_error" : undefined}
               {...register("mobile")}
               placeholder="10 digit number"
-              style={authInputStyle(!!errors.mobile)}
+              style={{ ...authInputStyle(!!errors.mobile), borderRadius: "8px" }}
             />
             {errors.mobile && (
               <p id="mobile_error" style={errorStyle}>
@@ -239,7 +222,11 @@ export function SignupPage() {
                   errors.password ? "password_error password_help" : "password_help"
                 }
                 {...register("password")}
-                style={{ ...authInputStyle(!!errors.password), paddingRight: "46px" }}
+                style={{
+                  ...authInputStyle(!!errors.password),
+                  paddingRight: "46px",
+                  borderRadius: "8px",
+                }}
               />
               <button
                 type="button"
@@ -258,7 +245,7 @@ export function SignupPage() {
             )}
             <p
               id="password_help"
-              style={{ fontSize: "11px", color: "#999", marginTop: "4px" }}
+              className="auth-help-text"
             >
               8-15 characters, uppercase, lowercase, number, special character
             </p>
@@ -281,6 +268,7 @@ export function SignupPage() {
                 style={{
                   ...authInputStyle(!!errors.confirm_password),
                   paddingRight: "46px",
+                  borderRadius: "8px",
                 }}
               />
               <button
@@ -309,18 +297,7 @@ export function SignupPage() {
           </div>
 
           {error && (
-            <div
-              role="alert"
-              style={{
-                background: "#fdf0f0",
-                border: "1px solid #e74c3c",
-                borderRadius: "6px",
-                padding: "10px 14px",
-                color: "#e74c3c",
-                fontSize: "14px",
-                marginTop: "16px",
-              }}
-            >
+            <div role="alert" className="auth-error auth-error-spaced">
               {error}
             </div>
           )}
@@ -328,29 +305,16 @@ export function SignupPage() {
           <button
             type="submit"
             disabled={!isValid || loading}
-            style={{
-              width: "100%",
-              padding: "12px",
-              marginTop: "24px",
-              background: !isValid || loading ? "#93b8d4" : "#1a3c5e",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "16px",
-              fontWeight: 600,
-              cursor: !isValid || loading ? "not-allowed" : "pointer",
-            }}
+            className="auth-submit-btn"
           >
             {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
 
-        <div style={{ textAlign: "center", marginTop: "20px" }}>
-          <span style={{ fontSize: "14px", color: "#666" }}>
+        <div className="auth-footer-links">
+          <span>
             Already have an account?{" "}
-            <Link to="/login" style={{ color: "#1a3c5e", fontWeight: 600 }}>
-              Sign in
-            </Link>
+            <Link to="/login">Sign in</Link>
           </span>
         </div>
         <LoadingOverlay
@@ -358,7 +322,7 @@ export function SignupPage() {
           title="Creating account"
           message="Saving your account and sending the OTP email."
         />
-      </div>
+      </section>
     </div>
   );
 }

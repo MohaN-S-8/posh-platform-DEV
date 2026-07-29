@@ -83,8 +83,19 @@ export function AssessmentPage() {
         <p style={{ color: "#666" }}>Loading assessment...</p>
       ) : error ? (
         <div style={{ background: "white", borderRadius: "8px", padding: "28px" }}>
-          <h3 style={{ color: "#c0392b", marginTop: 0 }}>Assessment Locked</h3>
+          <h3 style={{ color: availability?.attempted ? "#17324d" : "#c0392b", marginTop: 0 }}>
+            {availability?.result === "Fail"
+              ? "Rewatch Required"
+              : availability?.attempted
+                ? "Assessment Submitted"
+                : "Assessment Locked"}
+          </h3>
           <p style={{ color: "#666" }}>{error}</p>
+          {availability?.attempted && (
+            <p style={{ color: "#17324d", fontWeight: 700 }}>
+              Result: {availability.result} | Score: {availability.score}%
+            </p>
+          )}
           {availability?.question_count === 0 && (
             <p style={{ color: "#666" }}>No questions have been configured for this video yet.</p>
           )}
@@ -120,7 +131,11 @@ export function AssessmentPage() {
           <p style={{ color: "#666" }}>{result.message}</p>
           <button
             onClick={() =>
-              navigate(result.result === "Pass" ? "/employee/certificates" : "/employee/courses")
+              navigate(
+                result.result === "Pass"
+                  ? "/employee/certificates"
+                  : `/employee/video/${videoId}`,
+              )
             }
             style={{
               marginTop: "18px",
@@ -132,7 +147,7 @@ export function AssessmentPage() {
               cursor: "pointer",
             }}
           >
-            {result.result === "Pass" ? "View Certificates" : "Back to Courses"}
+            {result.result === "Pass" ? "View Certificates" : "Rewatch Video"}
           </button>
         </div>
       ) : (

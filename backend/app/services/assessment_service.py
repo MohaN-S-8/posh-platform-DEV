@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,11 +11,24 @@ from app.models.training import (
     CourseAssignment,
     TrainingHistory,
 )
+from app.models.user import UserMaster
 from app.models.video import VideoMaster
 from app.schemas.assessment import AssessmentQuestionCreate, AssessmentSubmit
+from app.services.notification_service import notification_service
 
 
 class AssessmentService:
+    def _attempt_blocks_assessment(self, history, latest_attempt) -> bool:
+        if not latest_attempt:
+            return False
+        if latest_attempt.result == "Pass":
+            return True
+        return not (
+            history
+            and history.status == "Completed"
+            and float(history.completion_percent or 0) >= 95
+        )
+
     async def availability(
         self, db: AsyncSession, video_id: int, user_id: int, company_id: int
     ) -> dict:
@@ -29,19 +44,44 @@ class AssessmentService:
             select(func.count()).where(AssessmentQuestion.video_id == video_id)
         )
         question_count = question_count_result.scalar() or 0
+        attempt_result = await db.execute(
+            select(AssessmentResult)
+            .where(
+                AssessmentResult.user_id == user_id,
+                AssessmentResult.video_id == video_id,
+            )
+            .order_by(AssessmentResult.attempted_at.desc(), AssessmentResult.id.desc())
+            .limit(1)
+        )
+        latest_attempt = attempt_result.scalar_one_or_none()
         completed = bool(history and history.status == "Completed")
+        attempted = latest_attempt is not None
+        attempt_blocks = self._attempt_blocks_assessment(history, latest_attempt)
+        available = completed and question_count > 0 and not attempt_blocks
+        if available:
+            message = "Assessment is available."
+        elif latest_attempt and latest_attempt.result == "Pass":
+            message = "Assessment has already been passed for this course."
+        elif latest_attempt and latest_attempt.result == "Fail":
+            message = "Please rewatch the training video to unlock another assessment attempt."
+        elif question_count == 0:
+            message = "No assessment questions have been configured for this video yet."
+        else:
+            message = "Please complete the training video before taking the assessment."
         return {
-            "available": completed and question_count > 0,
+            "available": available,
             "video_completed": completed,
             "question_count": question_count,
-            "message": (
-                "Assessment is available."
-                if completed and question_count > 0
-                else "Please complete the training video before taking the assessment."
-            ),
+            "attempted": attempted,
+            "attempt_number": latest_attempt.attempt_number if latest_attempt else 0,
+            "result": latest_attempt.result if latest_attempt else None,
+            "score": float(latest_attempt.score) if latest_attempt else None,
+            "message": message,
         }
 
-    async def questions(self, db: AsyncSession, video_id: int, company_id: int) -> list[dict]:
+    async def questions(
+        self, db: AsyncSession, video_id: int, company_id: int, user_id: int
+    ) -> list[dict]:
         video_result = await db.execute(
             select(VideoMaster).where(
                 VideoMaster.video_id == video_id,
@@ -51,6 +91,32 @@ class AssessmentService:
         )
         if not video_result.scalar_one_or_none():
             raise HTTPException(404, "Video not found.")
+
+        attempt_result = await db.execute(
+            select(AssessmentResult)
+            .where(
+                AssessmentResult.user_id == user_id,
+                AssessmentResult.video_id == video_id,
+            )
+            .order_by(AssessmentResult.attempted_at.desc(), AssessmentResult.id.desc())
+            .limit(1)
+        )
+        latest_attempt = attempt_result.scalar_one_or_none()
+        history_result = await db.execute(
+            select(TrainingHistory).where(
+                TrainingHistory.user_id == user_id,
+                TrainingHistory.video_id == video_id,
+                TrainingHistory.company_id == company_id,
+            )
+        )
+        history = history_result.scalar_one_or_none()
+        if self._attempt_blocks_assessment(history, latest_attempt):
+            if latest_attempt and latest_attempt.result == "Fail":
+                raise HTTPException(
+                    409,
+                    "Please rewatch the training video to unlock another assessment attempt.",
+                )
+            raise HTTPException(409, "Assessment has already been passed for this course.")
 
         question_result = await db.execute(
             select(AssessmentQuestion)
@@ -89,20 +155,42 @@ class AssessmentService:
                 TrainingHistory.status == "Completed",
             )
         )
-        if not history_result.scalar_one_or_none():
+        history = history_result.scalar_one_or_none()
+        if not history:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Please complete the training video before taking the assessment.",
             )
 
+        existing_attempt = await db.execute(
+            select(AssessmentResult)
+            .where(
+                AssessmentResult.user_id == user_id,
+                AssessmentResult.video_id == data.video_id,
+            )
+            .order_by(AssessmentResult.attempted_at.desc(), AssessmentResult.id.desc())
+            .limit(1)
+        )
+        latest_attempt = existing_attempt.scalar_one_or_none()
+        if self._attempt_blocks_assessment(history, latest_attempt):
+            detail = (
+                "Please rewatch the training video to unlock another assessment attempt."
+                if latest_attempt and latest_attempt.result == "Fail"
+                else "Assessment has already been passed for this course."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=detail,
+            )
+
         # 2. Count attempt number
-        attempt_result = await db.execute(
+        attempt_count_result = await db.execute(
             select(func.count()).where(
                 AssessmentResult.user_id == user_id,
                 AssessmentResult.video_id == data.video_id,
             )
         )
-        attempt_number = (attempt_result.scalar() or 0) + 1
+        attempt_number = int(attempt_count_result.scalar() or 0) + 1
 
         # 3. Score the answers
         correct = 0
@@ -141,6 +229,37 @@ class AssessmentService:
             attempt_number=attempt_number,
         )
         db.add(assessment_result)
+
+        user_result = await db.execute(
+            select(UserMaster).where(
+                UserMaster.user_id == user_id,
+                UserMaster.company_id == company_id,
+            )
+        )
+        user = user_result.scalar_one_or_none()
+        video_result = await db.execute(
+            select(VideoMaster).where(
+                VideoMaster.video_id == data.video_id,
+                VideoMaster.company_id == company_id,
+            )
+        )
+        video = video_result.scalar_one_or_none()
+        watcher_ids = await notification_service.course_watcher_ids(
+            db,
+            company_id=company_id,
+            video_id=data.video_id,
+            employee_department=user.department if user else None,
+        )
+        await notification_service.create_for_user_ids(
+            db,
+            user_ids=watcher_ids,
+            company_id=company_id,
+            title=f"Assessment {result.lower()}",
+            message=(
+                f"{user.first_name if user else 'An employee'} scored {score:.1f}%"
+                f" on {video.title if video else 'assigned training'}."
+            ),
+        )
         await db.commit()
 
         response = {
@@ -163,8 +282,16 @@ class AssessmentService:
                 "Your certificate is being generated and will be emailed to you."
             )
         else:
+            history.watched_seconds = 0
+            history.completion_percent = 0
+            history.furthest_position = 0
+            history.last_watched_position = 0
+            history.status = "In Progress"
+            history.completed_at = None
+            await db.commit()
             response["message"] = (
-                f"Score: {score:.1f}%. " f"You need {passing_score}% to pass. Please retry."
+                f"Score: {score:.1f}%. "
+                f"You need {passing_score}% to pass. Please rewatch the training video to unlock another attempt."
             )
 
         return response

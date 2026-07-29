@@ -15,10 +15,19 @@ hr_service = HRService()
 @router.get("/employees")
 async def list_assignable_employees(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("training.assign")),
+    current_user=Depends(require_permission("users.manage")),
 ):
     """List active employees and departments available for training assignment."""
     return await hr_service.list_assignable_employees(db, current_user.company_id)
+
+
+@router.get("/employees/summary")
+async def employee_summary(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("users.manage")),
+):
+    """Employee-only HR dashboard summary."""
+    return await hr_service.get_employee_summary(db, current_user.company_id)
 
 
 @router.post("/employees/bulk-upload")
@@ -26,7 +35,7 @@ async def bulk_upload_employees(
     file: UploadFile = File(...),
     request: Request = None,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("training.assign")),
+    current_user=Depends(require_permission("users.manage")),
 ):
     """
     Upload Excel or CSV file to create employees in bulk.
@@ -95,13 +104,14 @@ async def compliance_dashboard(
 @router.get("/reports/employees")
 async def download_employee_report(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
     """
     Download employee training report as Excel file.
     Contains all employees with their training status and completion %.
     """
-    excel_bytes = await hr_service.generate_employee_report(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    excel_bytes = await hr_service.generate_employee_report(db, company_id)
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -112,10 +122,11 @@ async def download_employee_report(
 @router.get("/reports/departments")
 async def download_department_report(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
     """Download department compliance report as Excel file."""
-    excel_bytes = await hr_service.generate_department_report(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    excel_bytes = await hr_service.generate_department_report(db, company_id)
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -126,10 +137,11 @@ async def download_department_report(
 @router.get("/reports/certificates")
 async def download_certificate_report(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
     """Download issued certificate report as Excel file."""
-    excel_bytes = await hr_service.generate_certificate_report(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    excel_bytes = await hr_service.generate_certificate_report(db, company_id)
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -140,9 +152,10 @@ async def download_certificate_report(
 @router.get("/reports/employees.csv")
 async def download_employee_report_csv(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
-    csv_bytes = await hr_service.generate_employee_report_csv(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    csv_bytes = await hr_service.generate_employee_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
         media_type="text/csv",
@@ -153,9 +166,10 @@ async def download_employee_report_csv(
 @router.get("/reports/departments.csv")
 async def download_department_report_csv(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
-    csv_bytes = await hr_service.generate_department_report_csv(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    csv_bytes = await hr_service.generate_department_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
         media_type="text/csv",
@@ -166,9 +180,10 @@ async def download_department_report_csv(
 @router.get("/reports/certificates.csv")
 async def download_certificate_report_csv(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
-    csv_bytes = await hr_service.generate_certificate_report_csv(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    csv_bytes = await hr_service.generate_certificate_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
         media_type="text/csv",
@@ -179,9 +194,10 @@ async def download_certificate_report_csv(
 @router.get("/reports/employees.pdf")
 async def download_employee_report_pdf(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
-    pdf_bytes = await hr_service.generate_employee_report_pdf(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    pdf_bytes = await hr_service.generate_employee_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -192,9 +208,10 @@ async def download_employee_report_pdf(
 @router.get("/reports/departments.pdf")
 async def download_department_report_pdf(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
-    pdf_bytes = await hr_service.generate_department_report_pdf(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    pdf_bytes = await hr_service.generate_department_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -205,9 +222,10 @@ async def download_department_report_pdf(
 @router.get("/reports/certificates.pdf")
 async def download_certificate_report_pdf(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_permission("users.manage")),
 ):
-    pdf_bytes = await hr_service.generate_certificate_report_pdf(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    pdf_bytes = await hr_service.generate_certificate_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

@@ -2,7 +2,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -22,6 +22,26 @@ LOCKOUT_MINUTES = 15
 
 
 class AuthService:
+    async def _permission_keys_for_role(self, db: AsyncSession, role_id: int) -> list[str]:
+        if role_id == 1:
+            result = await db.execute(
+                text("SELECT permission_key FROM permission_master ORDER BY permission_key")
+            )
+        else:
+            result = await db.execute(
+                text(
+                    """
+                    SELECT pm.permission_key
+                    FROM role_permission rp
+                    JOIN permission_master pm ON pm.permission_id = rp.permission_id
+                    WHERE rp.role_id = :role_id
+                    ORDER BY pm.permission_key
+                    """
+                ),
+                {"role_id": role_id},
+            )
+        return [row.permission_key for row in result]
+
     async def signup(self, db: AsyncSession, data: SignupRequest) -> dict:
         # Check duplicate email
         result = await db.execute(select(UserMaster).where(UserMaster.email == data.email.lower()))
@@ -192,6 +212,7 @@ class AuthService:
             "user_id": user.user_id,
             "role_id": user.role_id,
             "company_id": user.company_id,
+            "permissions": await self._permission_keys_for_role(db, user.role_id),
         }
 
     async def _log_attempt(self, db, user_id, email, ip, success):
@@ -254,6 +275,7 @@ class AuthService:
             "user_id": user.user_id,
             "role_id": user.role_id,
             "company_id": user.company_id,
+            "permissions": await self._permission_keys_for_role(db, user.role_id),
         }
 
     async def _increment_lockout(self, db, user_id, lockout):

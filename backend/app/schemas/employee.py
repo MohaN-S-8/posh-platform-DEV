@@ -17,6 +17,9 @@ class EmployeeCourseResponse(BaseModel):
     completion_percent: float
     resume_position: int
     assessment_unlocked: bool
+    assessment_attempted: bool = False
+    assessment_result: Optional[str] = None
+    assessment_score: Optional[float] = None
     completed_at: Optional[datetime] = None
 
 

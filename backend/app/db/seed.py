@@ -27,7 +27,8 @@ async def seed():
                 INSERT INTO role_master (role_id, role_name)
                 VALUES
                     (1, 'Super Admin'),
-                    (2, 'Company Admin'),
+                    (2, 'Admin'),
+                    (5, 'Client / Management'),
                     (3, 'HR / IC'),
                     (4, 'Employee')
                 ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)
@@ -86,7 +87,7 @@ async def seed():
                 DELETE rp FROM role_permission rp
                 JOIN permission_master pm ON pm.permission_id = rp.permission_id
                 WHERE
-                    (rp.role_id = 3 AND pm.permission_key = 'videos.manage')
+                    (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','videos.upload','reports.view'))
                     OR rp.role_id = 5
             """
             )
@@ -98,8 +99,10 @@ async def seed():
                 SELECT 1, permission_id FROM permission_master
                 UNION SELECT 2, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage','videos.manage','certificates.manage','reports.view','training.assign')
+                UNION SELECT 5, permission_id FROM permission_master
+                WHERE permission_key IN ('users.manage')
                 UNION SELECT 3, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','videos.upload','reports.view','training.assign')
+                WHERE permission_key IN ('users.manage','training.assign')
                 UNION SELECT 4, permission_id FROM permission_master
                 WHERE permission_key IN ('courses.watch')
             """

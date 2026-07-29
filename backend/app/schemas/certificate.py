@@ -23,6 +23,7 @@ class CertificateTemplateResponse(BaseModel):
     font_name: str
     color_code: str
     status: str
+    template_file_path: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "../../api/auth";
 
 export function OTPPage() {
@@ -140,10 +140,7 @@ export function OTPPage() {
         </form>
 
         <p style={{ marginTop: "20px", fontSize: "14px", color: "#666" }}>
-          Didn`&#39;t receive the code?{" "}
-          <Link to="/signup" style={{ color: "#1a3c5e" }}>
-            Go back to signup
-          </Link>
+          Didn`&#39;t receive the code? Contact your administrator.
         </p>
       </div>
     </div>

@@ -17,16 +17,8 @@ const loginSchema = z.object({
     .trim()
     .toLowerCase()
     .min(1, "Email is required")
-    .email("Invalid email format")
-    .max(25, "Email must be at most 25 characters"),
-  password: z
-    .string()
-    .min(8, "Minimum 8 characters")
-    .max(15, "Maximum 15 characters")
-    .regex(/[A-Z]/, "Must contain uppercase letter")
-    .regex(/[a-z]/, "Must contain lowercase letter")
-    .regex(/[0-9]/, "Must contain a number")
-    .regex(/[!@#$%^&*(),.?":{}|<>]/, "Must contain special character"),
+    .email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 const labelStyle = {
@@ -70,7 +62,7 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm({
     resolver: zodResolver(loginSchema),
     mode: "onChange",
@@ -81,13 +73,14 @@ export function LoginPage() {
     setError("");
     try {
       const res = await authApi.login(data);
-      const { access_token, user_id, role_id, company_id } = res.data;
-      setAuth({ user_id, role_id, company_id }, access_token);
+      const { access_token, user_id, role_id, company_id, permissions } = res.data;
+      setAuth({ user_id, role_id, company_id, permissions: permissions || [] }, access_token);
 
-      if (role_id === 1 || role_id === 2) navigate("/admin");
-      else if (role_id === 3) navigate("/hr");
-      else if (role_id === 4) navigate("/employee");
-      else navigate("/unauthorized");
+      if ([1, 2, 3, 4, 5].includes(role_id)) {
+        navigate("/dashboard");
+      } else {
+        navigate("/unauthorized");
+      }
     } catch (err) {
       if (err.response?.status === 423) {
         setError(apiErrorMessage(err, "Account locked. Try again later."));
@@ -96,7 +89,7 @@ export function LoginPage() {
           apiErrorMessage(err, "Your account is inactive. Contact your administrator."),
         );
       } else {
-        setError(apiErrorMessage(err, "Invalid email or password."));
+        setError("Invalid email or password.");
       }
     } finally {
       setLoading(false);
@@ -116,51 +109,25 @@ export function LoginPage() {
   // };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f5f7fa",
-        padding: "20px",
-      }}
-    >
-      <div
-        style={{
-          background: "white",
-          padding: "40px",
-          borderRadius: "12px",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-          width: "100%",
-          maxWidth: "420px",
-        }}
-      >
-        <h1
-          style={{ color: "#1a3c5e", marginBottom: "8px", textAlign: "center" }}
-        >
-          POSH Training Platform
-        </h1>
-        <p style={{ color: "#666", textAlign: "center", marginBottom: "16px" }}>
-          Sign in to your account
-        </p>
+    <div className="auth-page">
+      <Link to="/" className="auth-brand" aria-label="POSH platform home">
+        <span className="auth-brand-mark">P</span>
+        <span>
+          <strong>POSH</strong>
+          <small>Training Platform</small>
+        </span>
+      </Link>
+
+      <section className="auth-card auth-card-sm">
+        <div className="auth-card-header">
+          <p className="auth-eyebrow">Secure access</p>
+          <h1>Welcome back</h1>
+          <p>Sign in to manage POSH training, compliance, and certificates.</p>
+        </div>
 
         {showDevCredentials && (
-          <div
-            style={{
-              background: "#eef4f8",
-              border: "1px solid #cdd9e2",
-              borderRadius: "8px",
-              padding: "12px 14px",
-              marginBottom: "24px",
-              fontSize: "13px",
-              color: "#17324d",
-              lineHeight: 1.5,
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: "4px" }}>
-              Default development logins
-            </div>
+          <div className="auth-dev-box">
+            <div>Default development logins</div>
             <div>Admin: admin@posh.com / Admin@1234</div>
             <div>HR: hr@posh.com / Admin@1234</div>
           </div>
@@ -181,13 +148,7 @@ export function LoginPage() {
               {...register("email")}
               style={{
                 ...authInputStyle(!!errors.email),
-                width: "100%",
-                height: "44px",
-                display: "block",
-                backgroundColor: "#ffffff",
-                border: `1.5px solid ${errors.email ? "#e74c3c" : "#cfd7df"}`,
-                borderRadius: "6px",
-                boxSizing: "border-box",
+                borderRadius: "8px",
               }}
             />
             {errors.email && (
@@ -215,6 +176,7 @@ export function LoginPage() {
                 style={{
                   ...authInputStyle(!!errors.password),
                   paddingRight: "46px",
+                  borderRadius: "8px",
                 }}
               />
               <button
@@ -235,37 +197,15 @@ export function LoginPage() {
           </div>
 
           {error && (
-            <div
-              role="alert"
-              style={{
-                background: "#fdf0f0",
-                border: "1px solid #e74c3c",
-                borderRadius: "6px",
-                padding: "10px 14px",
-                color: "#e74c3c",
-                fontSize: "14px",
-                marginBottom: "16px",
-              }}
-            >
+            <div role="alert" className="auth-error">
               {error}
             </div>
           )}
 
           <button
             type="submit"
-            disabled={!isValid || loading}
-            style={{
-              width: "100%",
-              padding: "12px",
-              background: !isValid || loading ? "#93b8d4" : "#1a3c5e",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "16px",
-              fontWeight: 600,
-              cursor: !isValid || loading ? "not-allowed" : "pointer",
-              transition: "background 0.2s",
-            }}
+            disabled={loading}
+            className="auth-submit-btn"
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>
@@ -291,20 +231,10 @@ export function LoginPage() {
           Sign in with Microsoft Entra
         </button> */}
 
-        <div style={{ textAlign: "center", marginTop: "20px" }}>
-          <Link
-            to="/forgot-password"
-            style={{ color: "#1a3c5e", fontSize: "14px" }}
-          >
-            Forgot password?
-          </Link>
-        </div>
-        <div style={{ textAlign: "center", marginTop: "12px" }}>
-          <span style={{ fontSize: "14px", color: "#666" }}>
-            Don&apos;t have an account?{" "}
-            <Link to="/signup" style={{ color: "#1a3c5e", fontWeight: 600 }}>
-              Sign up
-            </Link>
+        <div className="auth-footer-links">
+          <Link to="/forgot-password">Forgot password?</Link>
+          <span>
+            New here? <Link to="/signup">Create account</Link>
           </span>
         </div>
         <LoadingOverlay
@@ -312,7 +242,7 @@ export function LoginPage() {
           title="Signing in"
           message="Checking your account and opening your dashboard."
         />
-      </div>
+      </section>
     </div>
   );
 }

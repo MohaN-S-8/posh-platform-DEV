@@ -1,9 +1,8 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
+import { PortalShell } from "../../components/PortalShell";
 
 export function BulkUploadPage() {
-  const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -45,26 +44,14 @@ export function BulkUploadPage() {
     a.href = url;
     a.download = "employee_template.csv";
     a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f5f7fa", minHeight: "100vh" }}>
-      <button
-        onClick={() => navigate("/hr")}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#1a3c5e",
-          cursor: "pointer",
-          marginBottom: "16px",
-        }}
-      >
-        ← Back to HR Dashboard
-      </button>
-      <h1 style={{ color: "#1a3c5e", marginBottom: "24px" }}>
-        Bulk Employee Upload
-      </h1>
-
+    <PortalShell
+      title="Employee Upload"
+      subtitle="Import employee records with Excel or CSV validation."
+    >
       <div
         style={{
           background: "white",
@@ -80,6 +67,7 @@ export function BulkUploadPage() {
           Required columns:{" "}
           <code>employee_id, first_name, email, mobile</code>
         </p>
+
         <button
           onClick={downloadTemplate}
           style={{
@@ -93,7 +81,7 @@ export function BulkUploadPage() {
             marginBottom: "20px",
           }}
         >
-          ⬇ Download Template CSV
+          Download Template CSV
         </button>
 
         <form onSubmit={handleUpload}>
@@ -250,6 +238,6 @@ export function BulkUploadPage() {
           )}
         </div>
       )}
-    </div>
+    </PortalShell>
   );
 }

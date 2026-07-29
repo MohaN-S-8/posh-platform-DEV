@@ -30,6 +30,7 @@ pandas==2.2.3
 
 # PDF and QR
 reportlab==4.2.5
+pypdf==5.1.0
 qrcode[pil]==8.0
 
 # Email

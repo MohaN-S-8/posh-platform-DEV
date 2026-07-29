@@ -8,6 +8,15 @@ from app.models.video import VideoMaster
 
 
 class EmployeeService:
+    def _assessment_unlocked(self, status: str, history, assessment) -> bool:
+        if status != "Completed":
+            return False
+        if not assessment:
+            return True
+        if assessment.result == "Pass":
+            return False
+        return bool(history and float(history.completion_percent or 0) >= 95)
+
     async def list_courses(self, db: AsyncSession, user_id: int, company_id: int) -> list[dict]:
         user_result = await db.execute(
             select(UserMaster).where(
@@ -53,6 +62,16 @@ class EmployeeService:
             seen_video_ids.add(video.video_id)
             status = history.status if history else "Not Started"
             completion_percent = float(history.completion_percent or 0) if history else 0.0
+            assessment_result = await db.execute(
+                select(AssessmentResult)
+                .where(
+                    AssessmentResult.user_id == user_id,
+                    AssessmentResult.video_id == video.video_id,
+                )
+                .order_by(AssessmentResult.attempted_at.desc(), AssessmentResult.id.desc())
+                .limit(1)
+            )
+            assessment = assessment_result.scalar_one_or_none()
             courses.append(
                 {
                     "assignment_id": assignment.id,
@@ -66,7 +85,14 @@ class EmployeeService:
                     "status": status,
                     "completion_percent": completion_percent,
                     "resume_position": history.last_watched_position if history else 0,
-                    "assessment_unlocked": status == "Completed",
+                    "assessment_unlocked": self._assessment_unlocked(
+                        status,
+                        history,
+                        assessment,
+                    ),
+                    "assessment_attempted": assessment is not None,
+                    "assessment_result": assessment.result if assessment else None,
+                    "assessment_score": float(assessment.score) if assessment else None,
                     "completed_at": history.completed_at if history else None,
                 }
             )

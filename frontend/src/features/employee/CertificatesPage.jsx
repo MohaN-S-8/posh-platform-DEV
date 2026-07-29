@@ -2,12 +2,11 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import DownloadIcon from "@mui/icons-material/Download";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 export function CertificatesPage() {
-  const navigate = useNavigate();
   const [certificates, setCertificates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(null);
@@ -49,30 +48,10 @@ export function CertificatesPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button
-        type="button"
-        onClick={() => navigate("/employee")}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#17324d",
-          cursor: "pointer",
-          marginBottom: "16px",
-          fontWeight: 700,
-        }}
-      >
-        Back to Dashboard
-      </button>
-
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-          My Certificates
-        </h1>
-        <p style={{ color: "#64748b", margin: "6px 0 0" }}>
-          Download valid certificates and verify certificate numbers.
-        </p>
-      </div>
+    <PortalShell
+      title="Assessment & Certificate"
+      subtitle="Download valid certificates and verify certificate numbers."
+    >
 
       {error && (
         <div
@@ -90,35 +69,24 @@ export function CertificatesPage() {
       )}
 
       {!loading && certificates.length === 0 ? (
-        <div
-          style={{
-            background: "white",
-            borderRadius: "8px",
-            padding: "40px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-            border: "1px solid #e7edf3",
-            textAlign: "center",
-          }}
-        >
-          <BadgeIcon style={{ fontSize: "46px", color: "#17324d" }} />
-          <h2 style={{ color: "#17324d", marginBottom: "8px" }}>
+        <div className="portal-card" style={{ padding: "40px", textAlign: "center" }}>
+          <BadgeIcon style={{ fontSize: "46px", color: "var(--portal-purple)" }} />
+          <h2 style={{ marginBottom: "8px" }}>
             No certificates yet
           </h2>
-          <p style={{ color: "#64748b", margin: 0 }}>
+          <p style={{ margin: 0 }}>
             Complete a training video and pass the assessment to earn your certificate.
           </p>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: "16px" }}>
+        <>
+          <div className="portal-section-title">Issued Certificates</div>
+          <div style={{ display: "grid", gap: "16px" }}>
           {certificates.map((cert) => (
             <div
               key={cert.certificate_id}
+              className="portal-card"
               style={{
-                background: "white",
-                borderRadius: "8px",
-                padding: "20px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                border: "1px solid #e7edf3",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -127,13 +95,13 @@ export function CertificatesPage() {
               }}
             >
               <div>
-                <h2 style={{ color: "#17324d", margin: "0 0 6px", fontSize: "18px" }}>
+                <h2 style={{ margin: "0 0 6px", fontSize: "18px" }}>
                   {cert.course_name}
                 </h2>
-                <p style={{ color: "#64748b", margin: "0 0 4px", fontSize: "13px" }}>
+                <p style={{ margin: "0 0 4px", fontSize: "13px" }}>
                   Certificate ID: <strong>{cert.certificate_number}</strong>
                 </p>
-                <p style={{ color: "#64748b", margin: 0, fontSize: "13px" }}>
+                <p style={{ color: "var(--portal-muted)", margin: 0, fontSize: "13px" }}>
                   Completed: {cert.completion_date || "-"} | Issued: {cert.issue_date || "-"} |{" "}
                   <strong style={{ color: cert.status === "Valid" ? "#1f7a4d" : "#c0392b" }}>
                     {cert.status}
@@ -151,10 +119,10 @@ export function CertificatesPage() {
                   }
                   style={{
                     padding: "9px 14px",
-                    background: "#f0f4ff",
-                    color: "#17324d",
-                    border: "1px solid #cdd9e2",
-                    borderRadius: "6px",
+                    background: "#f1eafb",
+                    color: "var(--portal-purple)",
+                    border: "1px solid #ddcbf3",
+                    borderRadius: "8px",
                     cursor: "pointer",
                     fontWeight: 700,
                     display: "inline-flex",
@@ -171,10 +139,13 @@ export function CertificatesPage() {
                   disabled={downloading === cert.certificate_id}
                   style={{
                     padding: "9px 14px",
-                    background: downloading === cert.certificate_id ? "#93a4b7" : "#17324d",
+                    background:
+                      downloading === cert.certificate_id
+                        ? "#c8b7dc"
+                        : "var(--portal-pink)",
                     color: "white",
                     border: "none",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     cursor: downloading === cert.certificate_id ? "not-allowed" : "pointer",
                     fontWeight: 700,
                     display: "inline-flex",
@@ -188,7 +159,8 @@ export function CertificatesPage() {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       <LoadingOverlay
@@ -200,6 +172,6 @@ export function CertificatesPage() {
             : "Fetching your issued certificates."
         }
       />
-    </div>
+    </PortalShell>
   );
 }

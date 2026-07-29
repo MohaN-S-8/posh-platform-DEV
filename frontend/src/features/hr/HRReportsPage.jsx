@@ -3,9 +3,9 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import DownloadIcon from "@mui/icons-material/Download";
 import GroupsIcon from "@mui/icons-material/Groups";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 const reports = [
   {
@@ -92,7 +92,6 @@ const reports = [
 ];
 
 export function HRReportsPage() {
-  const navigate = useNavigate();
   const [downloading, setDownloading] = useState("");
   const [error, setError] = useState("");
 
@@ -116,30 +115,10 @@ export function HRReportsPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button
-        type="button"
-        onClick={() => navigate("/hr")}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#17324d",
-          cursor: "pointer",
-          marginBottom: "16px",
-          fontWeight: 700,
-        }}
-      >
-        Back to HR Dashboard
-      </button>
-
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-          HR Reports
-        </h1>
-        <p style={{ color: "#64748b", margin: "6px 0 0" }}>
-          Download audit-ready reports for employees, departments, and certificates.
-        </p>
-      </div>
+    <PortalShell
+      title="HR Reports"
+      subtitle="Download employee, department, and certificate reports for your company only."
+    >
 
       {error && (
         <div
@@ -156,13 +135,8 @@ export function HRReportsPage() {
         </div>
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: "16px",
-        }}
-      >
+      <div className="portal-section-title">Available Downloads</div>
+      <div className="portal-auto-grid">
         {reports.map((report) => {
           const available = Boolean(report.endpoint);
           return (
@@ -171,17 +145,8 @@ export function HRReportsPage() {
               type="button"
               disabled={!available || downloading === report.title}
               onClick={() => downloadReport(report)}
-              style={{
-                background: "white",
-                borderRadius: "8px",
-                padding: "20px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                border: "1px solid #e7edf3",
-                minHeight: "170px",
-                textAlign: "left",
-                cursor: available ? "pointer" : "not-allowed",
-                opacity: available ? 1 : 0.76,
-              }}
+              className="portal-card portal-tile"
+              style={{ cursor: available ? "pointer" : "not-allowed", opacity: available ? 1 : 0.76 }}
             >
               <div
                 style={{
@@ -192,26 +157,15 @@ export function HRReportsPage() {
                   marginBottom: "14px",
                 }}
               >
-                <span style={{ color: "#17324d", display: "flex" }}>{report.icon}</span>
+                  <span style={{ color: "#4A2E83", display: "flex" }}>{report.icon}</span>
                 <span
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 800,
-                    color: available ? "#1f7a4d" : "#64748b",
-                    background: available ? "#e8f5e9" : "#eef2f6",
-                    borderRadius: "999px",
-                    padding: "4px 9px",
-                  }}
+                  className={`portal-badge ${available ? "portal-badge-green" : "portal-badge-purple"}`}
                 >
                   {report.status}
                 </span>
               </div>
-              <h2 style={{ color: "#17324d", margin: "0 0 8px", fontSize: "17px" }}>
-                {report.title}
-              </h2>
-              <p style={{ color: "#64748b", margin: "0 0 16px", fontSize: "13px", lineHeight: 1.5 }}>
-                {report.description}
-              </p>
+              <h2 style={{ fontSize: "14.5px" }}>{report.title}</h2>
+              <p style={{ marginBottom: "16px" }}>{report.description}</p>
               {available && (
                 <span
                   style={{
@@ -237,6 +191,6 @@ export function HRReportsPage() {
         title="Preparing report"
         message={downloading ? `Downloading ${downloading}.` : ""}
       />
-    </div>
+    </PortalShell>
   );
 }

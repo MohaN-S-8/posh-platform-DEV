@@ -22,9 +22,10 @@ import { VideoListPage } from "./features/admin/VideoListPage";
 import { AdminAuditLogPage } from "./features/admin/AdminAuditLogPage";
 import { AdminAnalyticsPage } from "./features/admin/AdminAnalyticsPage";
 import { AdminReportsPage } from "./features/admin/AdminReportsPage";
-import { AdminSettingsPage } from "./features/admin/AdminSettingsPage";
 import { CertificateTemplatePage } from "./features/admin/CertificateTemplatePage";
 import { CertificateVerifyPage } from "./features/certificates/CertificateVerifyPage";
+import { LandingPage } from "./features/landing/LandingPage";
+import { PoshServicePage } from "./features/landing/PoshServicePage";
 
 // HR portal
 import { HRDashboard } from "./features/hr/HRDashboard";
@@ -41,12 +42,17 @@ import { AssessmentPage } from "./features/employee/AssessmentPage";
 import { CertificatesPage } from "./features/employee/CertificatesPage";
 import { TrainingHistoryPage } from "./features/employee/TrainingHistoryPage";
 
+// Home Stats Page
+import { StatsHomePage } from "./features/dashboard/StatsHomePage";
+
 function App() {
   return (
     <BrowserRouter>
       <SessionTimeout />
       <Routes>
         {/* Public routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/services/posh-compliance" element={<PoshServicePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-otp" element={<OTPPage />} />
@@ -57,7 +63,16 @@ function App() {
           path="/certificates/verify/:certificateNumber"
           element={<CertificateVerifyPage />}
         />
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]}>
+                <StatsHomePage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/change-password"
           element={
@@ -102,7 +117,7 @@ function App() {
           path="/admin"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[1, 2, 5]}>
                 <AdminDashboard />
               </RoleRoute>
             </ProtectedRoute>
@@ -122,7 +137,7 @@ function App() {
           path="/admin/users"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[1, 2, 5]} requiredPermission="users.manage">
                 <UserListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -132,7 +147,7 @@ function App() {
           path="/admin/videos"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="videos.manage">
                 <VideoListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -142,7 +157,7 @@ function App() {
           path="/admin/certificates"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="certificates.manage">
                 <CertificateTemplatePage />
               </RoleRoute>
             </ProtectedRoute>
@@ -152,7 +167,7 @@ function App() {
           path="/admin/audit-logs"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
                 <AdminAuditLogPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -162,7 +177,7 @@ function App() {
           path="/admin/analytics"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
                 <AdminAnalyticsPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -172,23 +187,12 @@ function App() {
           path="/admin/reports"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
                 <AdminReportsPage />
               </RoleRoute>
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/admin/settings"
-          element={
-            <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
-                <AdminSettingsPage />
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-
         {/* HR / IC portal */}
         <Route
           path="/hr"
@@ -204,7 +208,7 @@ function App() {
           path="/hr/upload"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[1, 2, 3]} requiredPermission="users.manage">
                 <BulkUploadPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -214,7 +218,7 @@ function App() {
           path="/hr/users"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[3]} requiredPermission="users.manage">
                 <UserListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -224,7 +228,7 @@ function App() {
           path="/hr/assign"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[1, 2, 3]} requiredPermission="training.assign">
                 <TrainingAssignPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -234,7 +238,7 @@ function App() {
           path="/hr/videos"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="videos.manage">
                 <VideoListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -244,7 +248,7 @@ function App() {
           path="/hr/compliance"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
                 <CompliancePage />
               </RoleRoute>
             </ProtectedRoute>
@@ -254,7 +258,7 @@ function App() {
           path="/hr/reports"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]}>
+              <RoleRoute allowedRoles={[1, 2, 3]} requiredPermission="reports.view">
                 <HRReportsPage />
               </RoleRoute>
             </ProtectedRoute>

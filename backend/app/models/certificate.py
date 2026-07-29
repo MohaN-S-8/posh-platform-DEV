@@ -24,6 +24,7 @@ class CertificateTemplate(Base):
     template_id = Column(Integer, primary_key=True, autoincrement=True)
     template_name = Column(String(100))
     logo_path = Column(String(255))  # path in MinIO
+    template_file_path = Column(String(255))  # uploaded ready-made template file
     font_name = Column(String(50), default="Helvetica")
     signature_path = Column(String(255))  # path in MinIO
     color_code = Column(String(20), default="#1a3c5e")

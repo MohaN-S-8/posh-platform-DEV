@@ -20,6 +20,7 @@ from app.models.training import CourseAssignment, TrainingHistory
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
 from app.schemas.hr import TrainingAssignRequest
+from app.services.notification_service import notification_service
 
 REQUIRED_COLUMNS = {"employee_id", "first_name", "email", "mobile"}
 
@@ -52,6 +53,35 @@ class HRService:
                 for employee in employees
             ],
             "departments": departments,
+        }
+
+    async def get_employee_summary(self, db: AsyncSession, company_id: int) -> dict:
+        total_result = await db.execute(
+            select(func.count()).where(
+                UserMaster.company_id == company_id,
+                UserMaster.status == "Active",
+                UserMaster.is_deleted == "N",
+                UserMaster.role_id == 4,
+            )
+        )
+        department_result = await db.execute(
+            select(UserMaster.department, func.count(UserMaster.user_id).label("total"))
+            .where(
+                UserMaster.company_id == company_id,
+                UserMaster.status == "Active",
+                UserMaster.is_deleted == "N",
+                UserMaster.role_id == 4,
+            )
+            .group_by(UserMaster.department)
+            .order_by(UserMaster.department)
+        )
+        departments = [
+            {"department": row.department or "Unassigned", "total": row.total}
+            for row in department_result
+        ]
+        return {
+            "total_employees": total_result.scalar() or 0,
+            "department_breakdown": departments,
         }
 
     async def bulk_upload_employees(
@@ -220,7 +250,8 @@ class HRService:
                 VideoMaster.status == "Published",
             )
         )
-        if not video_result.scalar_one_or_none():
+        video = video_result.scalar_one_or_none()
+        if not video:
             raise HTTPException(404, "Published video not found for this company.")
 
         if data.assign_type == "Individual":
@@ -260,10 +291,24 @@ class HRService:
                 passing_score=data.passing_score,
             )
             db.add(assignment)
+            recipient_ids = await notification_service.assignment_recipient_ids(
+                db,
+                company_id=company_id,
+                assign_type="Individual",
+                assigned_to_user_id=data.assigned_to_user_id,
+            )
+            notifications_created = await notification_service.create_for_user_ids(
+                db,
+                user_ids=recipient_ids,
+                company_id=company_id,
+                title="Training assigned",
+                message=f"{video.title} has been assigned to you. Due in {data.due_days} day(s).",
+            )
             await db.commit()
             return {
                 "message": "Course assigned to employee successfully.",
                 "assignments_created": 1,
+                "notifications_created": notifications_created,
             }
 
         elif data.assign_type == "Department":
@@ -304,10 +349,24 @@ class HRService:
                 passing_score=data.passing_score,
             )
             db.add(assignment)
+            recipient_ids = await notification_service.assignment_recipient_ids(
+                db,
+                company_id=company_id,
+                assign_type="Department",
+                assigned_to_department=data.assigned_to_department,
+            )
+            notifications_created = await notification_service.create_for_user_ids(
+                db,
+                user_ids=recipient_ids,
+                company_id=company_id,
+                title="Training assigned",
+                message=f"{video.title} has been assigned to your department. Due in {data.due_days} day(s).",
+            )
             await db.commit()
             return {
                 "message": f"Course assigned to {data.assigned_to_department} department.",
                 "assignments_created": 1,
+                "notifications_created": notifications_created,
             }
 
         elif data.assign_type == "Company-Wide":
@@ -330,22 +389,43 @@ class HRService:
                 passing_score=data.passing_score,
             )
             db.add(assignment)
+            recipient_ids = await notification_service.assignment_recipient_ids(
+                db,
+                company_id=company_id,
+                assign_type="Company-Wide",
+            )
+            notifications_created = await notification_service.create_for_user_ids(
+                db,
+                user_ids=recipient_ids,
+                company_id=company_id,
+                title="Training assigned",
+                message=f"{video.title} has been assigned company-wide. Due in {data.due_days} day(s).",
+            )
             await db.commit()
             return {
                 "message": "Course assigned to all employees company-wide.",
                 "assignments_created": 1,
+                "notifications_created": notifications_created,
             }
 
         else:
             raise HTTPException(400, "assign_type must be Individual, Department, or Company-Wide")
 
-    async def get_compliance_dashboard(self, db: AsyncSession, company_id: int) -> dict:
+    async def get_compliance_dashboard(self, db: AsyncSession, company_id: Optional[int]) -> dict:
         """Compliance overview: how many employees completed training."""
+
+        company_filter = [] if company_id is None else [UserMaster.company_id == company_id]
+        history_company_filter = (
+            [] if company_id is None else [TrainingHistory.company_id == company_id]
+        )
+        assignment_company_filter = (
+            [] if company_id is None else [CourseAssignment.company_id == company_id]
+        )
 
         # Total active employees
         total_result = await db.execute(
             select(func.count()).where(
-                UserMaster.company_id == company_id,
+                *company_filter,
                 UserMaster.status == "Active",
                 UserMaster.is_deleted == "N",
                 UserMaster.role_id == 4,  # Employee role only
@@ -356,7 +436,7 @@ class HRService:
         # Completed
         completed_result = await db.execute(
             select(func.count(TrainingHistory.user_id.distinct())).where(
-                TrainingHistory.company_id == company_id,
+                *history_company_filter,
                 TrainingHistory.status == "Completed",
             )
         )
@@ -365,7 +445,7 @@ class HRService:
         # In Progress
         in_progress_result = await db.execute(
             select(func.count(TrainingHistory.user_id.distinct())).where(
-                TrainingHistory.company_id == company_id,
+                *history_company_filter,
                 TrainingHistory.status == "In Progress",
             )
         )
@@ -377,31 +457,37 @@ class HRService:
         # Department breakdown
         dept_result = await db.execute(
             select(
+                UserMaster.company_id,
+                CompanyMaster.company_name,
                 UserMaster.department,
                 func.count(UserMaster.user_id).label("total"),
             )
+            .join(CompanyMaster, CompanyMaster.company_id == UserMaster.company_id)
             .where(
-                UserMaster.company_id == company_id,
+                *company_filter,
                 UserMaster.status == "Active",
+                UserMaster.is_deleted == "N",
                 UserMaster.role_id == 4,
             )
-            .group_by(UserMaster.department)
+            .group_by(UserMaster.company_id, CompanyMaster.company_name, UserMaster.department)
         )
         departments = []
         for row in dept_result:
             department_name = row.department or "Unassigned"
+            row_company_filter = [UserMaster.company_id == row.company_id]
+            row_history_company_filter = [TrainingHistory.company_id == row.company_id]
             completed_dept_result = await db.execute(
                 select(func.count(UserMaster.user_id.distinct()))
                 .join(
                     TrainingHistory,
                     and_(
                         TrainingHistory.user_id == UserMaster.user_id,
-                        TrainingHistory.company_id == company_id,
+                        *row_history_company_filter,
                         TrainingHistory.status == "Completed",
                     ),
                 )
                 .where(
-                    UserMaster.company_id == company_id,
+                    *row_company_filter,
                     UserMaster.status == "Active",
                     UserMaster.role_id == 4,
                     UserMaster.is_deleted == "N",
@@ -414,6 +500,7 @@ class HRService:
             )
             departments.append(
                 {
+                    "company": row.company_name,
                     "department": department_name,
                     "total": row.total,
                     "completed": department_completed,
@@ -437,11 +524,12 @@ class HRService:
                         ),
                         CourseAssignment.assign_type == "Company-Wide",
                     ),
-                    CourseAssignment.company_id == company_id,
+                    *assignment_company_filter,
                 ),
             )
             .where(
-                UserMaster.company_id == company_id,
+                *company_filter,
+                UserMaster.role_id == 4,
                 CourseAssignment.due_date < now,
             )
             .limit(50)
@@ -465,11 +553,13 @@ class HRService:
             "overdue_employees": overdue,
         }
 
-    async def generate_employee_report(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_employee_report(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
         """Generate an Excel report of employee training status."""
 
+        company_filter = [] if company_id is None else [UserMaster.company_id == company_id]
         result = await db.execute(
             select(
+                CompanyMaster.company_name,
                 UserMaster.employee_id,
                 UserMaster.first_name,
                 UserMaster.last_name,
@@ -479,9 +569,11 @@ class HRService:
                 TrainingHistory.completion_percent,
                 TrainingHistory.completed_at,
             )
+            .join(CompanyMaster, CompanyMaster.company_id == UserMaster.company_id)
             .outerjoin(TrainingHistory, TrainingHistory.user_id == UserMaster.user_id)
             .where(
-                UserMaster.company_id == company_id,
+                *company_filter,
+                UserMaster.role_id == 4,
                 UserMaster.is_deleted == "N",
             )
         )
@@ -490,6 +582,7 @@ class HRService:
         # Build DataFrame
         data = [
             {
+                "Company": row.company_name,
                 "Employee ID": row.employee_id,
                 "First Name": row.first_name,
                 "Last Name": row.last_name or "",
@@ -518,13 +611,14 @@ class HRService:
         output.seek(0)
         return output.read()
 
-    async def generate_department_report(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_department_report(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
         """Generate an Excel report with department-level compliance."""
 
         dashboard = await self.get_compliance_dashboard(db, company_id)
         df = pd.DataFrame(
             [
                 {
+                    "Company": row["company"],
                     "Department": row["department"],
                     "Total Employees": row["total"],
                     "Completed": row["completed"],
@@ -546,11 +640,13 @@ class HRService:
         output.seek(0)
         return output.read()
 
-    async def generate_certificate_report(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_certificate_report(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
         """Generate an Excel report of issued certificates."""
 
+        certificate_filter = [] if company_id is None else [Certificate.company_id == company_id]
         result = await db.execute(
             select(
+                CompanyMaster.company_name,
                 Certificate.certificate_number,
                 Certificate.course_name,
                 Certificate.issue_date,
@@ -563,12 +659,18 @@ class HRService:
                 UserMaster.department,
             )
             .join(UserMaster, UserMaster.user_id == Certificate.user_id)
-            .where(Certificate.company_id == company_id)
+            .join(CompanyMaster, CompanyMaster.company_id == Certificate.company_id)
+            .where(
+                *certificate_filter,
+                UserMaster.role_id == 4,
+                UserMaster.is_deleted == "N",
+            )
             .order_by(Certificate.issue_date.desc(), Certificate.certificate_id.desc())
         )
         rows = result.all()
         data = [
             {
+                "Company": row.company_name,
                 "Certificate Number": row.certificate_number,
                 "Employee ID": row.employee_id,
                 "Employee Name": f"{row.first_name} {row.last_name or ''}".strip(),
@@ -639,27 +741,33 @@ class HRService:
     async def _read_excel_report(self, report_bytes: bytes) -> pd.DataFrame:
         return pd.read_excel(io.BytesIO(report_bytes))
 
-    async def generate_employee_report_csv(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_employee_report_csv(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
         df = await self._read_excel_report(await self.generate_employee_report(db, company_id))
         return self._dataframe_to_csv(df)
 
-    async def generate_department_report_csv(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_department_report_csv(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
         df = await self._read_excel_report(await self.generate_department_report(db, company_id))
         return self._dataframe_to_csv(df)
 
-    async def generate_certificate_report_csv(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_certificate_report_csv(
+        self, db: AsyncSession, company_id: Optional[int]
+    ) -> bytes:
         df = await self._read_excel_report(await self.generate_certificate_report(db, company_id))
         return self._dataframe_to_csv(df)
 
-    async def generate_employee_report_pdf(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_employee_report_pdf(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
         df = await self._read_excel_report(await self.generate_employee_report(db, company_id))
         return self._dataframe_to_pdf(df, "Employee Training Report")
 
-    async def generate_department_report_pdf(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_department_report_pdf(
+        self, db: AsyncSession, company_id: Optional[int]
+    ) -> bytes:
         df = await self._read_excel_report(await self.generate_department_report(db, company_id))
         return self._dataframe_to_pdf(df, "Department Compliance Report")
 
-    async def generate_certificate_report_pdf(self, db: AsyncSession, company_id: int) -> bytes:
+    async def generate_certificate_report_pdf(
+        self, db: AsyncSession, company_id: Optional[int]
+    ) -> bytes:
         df = await self._read_excel_report(await self.generate_certificate_report(db, company_id))
         return self._dataframe_to_pdf(df, "Certificate Report")
 

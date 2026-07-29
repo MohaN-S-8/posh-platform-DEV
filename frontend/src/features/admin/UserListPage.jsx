@@ -1,22 +1,25 @@
 import AddIcon from "@mui/icons-material/Add";
 import KeyIcon from "@mui/icons-material/Key";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
 
 const ROLES = {
   1: "Super Admin",
-  2: "Company Admin",
+  2: "Admin",
+  5: "Client / Management",
   3: "HR / IC",
   4: "Employee",
 };
 
 const ROLE_CREATE_FLOW = {
   1: [2],
-  2: [3],
+  2: [5],
+  5: [3],
   3: [4],
 };
 
@@ -48,7 +51,6 @@ const initialForm = {
 };
 
 export function UserListPage() {
-  const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
   const [users, setUsers] = useState([]);
@@ -56,7 +58,10 @@ export function UserListPage() {
   const [form, setForm] = useState(initialForm);
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState(initialForm);
-  const [passwordForm, setPasswordForm] = useState({ userId: "", password: "" });
+  const [passwordForm, setPasswordForm] = useState({
+    userId: "",
+    password: "",
+  });
   const [showCreate, setShowCreate] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -65,7 +70,6 @@ export function UserListPage() {
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
   const isHrRoute = location.pathname.startsWith("/hr/");
-  const dashboardPath = isHrRoute ? "/hr" : "/admin";
   const pageTitle = isHrRoute ? "Employee Management" : "User Management";
 
   const loadData = useCallback(async () => {
@@ -74,14 +78,17 @@ export function UserListPage() {
     try {
       const userReq = apiClient.get("/users/");
       const companyReq =
-        user?.role_id === 1 ? apiClient.get("/companies/") : Promise.resolve({ data: [] });
+        user?.role_id === 1
+          ? apiClient.get("/companies/")
+          : Promise.resolve({ data: [] });
       const [userRes, companyRes] = await Promise.all([userReq, companyReq]);
       setUsers(userRes.data || []);
       setCompanies(companyRes.data || []);
       setForm((current) => ({
         ...current,
         role_id: defaultRoleFor(user),
-        company_id: user?.role_id === 1 ? current.company_id : user?.company_id || "",
+        company_id:
+          user?.role_id === 1 ? current.company_id : user?.company_id || "",
       }));
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to load users."));
@@ -125,7 +132,9 @@ export function UserListPage() {
         ...form,
         email: form.email.trim().toLowerCase(),
         role_id: Number(form.role_id),
-        company_id: Number(user?.role_id === 1 ? form.company_id : user.company_id),
+        company_id: Number(
+          user?.role_id === 1 ? form.company_id : user.company_id,
+        ),
       };
       await apiClient.post("/users/", payload);
       setSuccess("User created successfully. Temporary password was emailed.");
@@ -209,7 +218,9 @@ export function UserListPage() {
     setError("");
     setSuccess("");
     try {
-      await apiClient.patch(`/users/${target.user_id}/status?status=${newStatus}`);
+      await apiClient.patch(
+        `/users/${target.user_id}/status?status=${newStatus}`,
+      );
       setSuccess(`User ${newStatus.toLowerCase()} successfully.`);
       await loadData();
     } catch (err) {
@@ -234,36 +245,20 @@ export function UserListPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
+    <PortalShell
+      title={pageTitle}
+      subtitle="Manage user accounts, roles, and access credentials."
+    >
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           alignItems: "center",
           gap: "16px",
           flexWrap: "wrap",
           marginBottom: "24px",
         }}
       >
-        <div>
-          <button
-            type="button"
-            onClick={() => navigate(dashboardPath)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#17324d",
-              cursor: "pointer",
-              marginBottom: "8px",
-              fontWeight: 700,
-            }}
-          >
-            Back to Dashboard
-          </button>
-          <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-            {pageTitle}
-          </h1>
-        </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <input
             placeholder="Search users"
@@ -312,7 +307,9 @@ export function UserListPage() {
                   pattern={field === "mobile" ? "\\d{10}" : undefined}
                   maxLength={field === "mobile" ? 10 : undefined}
                   value={form[field]}
-                  onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, [field]: e.target.value })
+                  }
                   style={inputStyle}
                 />
               </label>
@@ -321,7 +318,9 @@ export function UserListPage() {
               Role
               <select
                 value={form.role_id}
-                onChange={(e) => setForm({ ...form, role_id: Number(e.target.value) })}
+                onChange={(e) =>
+                  setForm({ ...form, role_id: Number(e.target.value) })
+                }
                 style={inputStyle}
               >
                 {roleOptions.map((role) => (
@@ -337,7 +336,9 @@ export function UserListPage() {
                 <select
                   required
                   value={form.company_id}
-                  onChange={(e) => setForm({ ...form, company_id: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, company_id: e.target.value })
+                  }
                   style={inputStyle}
                 >
                   <option value="">Select company</option>
@@ -371,9 +372,10 @@ export function UserListPage() {
                 style={inputStyle}
               >
                 <option value="">Select user</option>
-                {users.map((target) => (
+                {users.filter(canManageUser).map((target) => (
                   <option key={target.user_id} value={target.user_id}>
-                    {target.first_name} {target.last_name || ""} - {target.email}
+                    {target.first_name} {target.last_name || ""} -{" "}
+                    {target.email}
                   </option>
                 ))}
               </select>
@@ -415,12 +417,20 @@ export function UserListPage() {
               <label key={field} style={labelStyle}>
                 {label}
                 <input
-                  required={["employee_id", "first_name", "last_name", "email", "mobile"].includes(field)}
+                  required={[
+                    "employee_id",
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "mobile",
+                  ].includes(field)}
                   type={field === "email" ? "email" : "text"}
                   pattern={field === "mobile" ? "\\d{10}" : undefined}
                   maxLength={field === "mobile" ? 10 : undefined}
                   value={editForm[field]}
-                  onChange={(e) => setEditForm({ ...editForm, [field]: e.target.value })}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, [field]: e.target.value })
+                  }
                   style={inputStyle}
                 />
               </label>
@@ -458,16 +468,28 @@ export function UserListPage() {
       )}
 
       <div style={tableWrapStyle}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "860px" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            minWidth: "860px",
+          }}
+        >
           <thead>
             <tr style={{ background: "#17324d", color: "white" }}>
-              {["Employee ID", "Name", "Email", "Department", "Role", "Status", "Actions"].map(
-                (h) => (
-                  <th key={h} style={thStyle}>
-                    {h}
-                  </th>
-                ),
-              )}
+              {[
+                "Employee ID",
+                "Name",
+                "Email",
+                "Department",
+                "Role",
+                "Status",
+                "Actions",
+              ].map((h) => (
+                <th key={h} style={thStyle}>
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -479,7 +501,10 @@ export function UserListPage() {
               </tr>
             ) : (
               filtered.map((target) => (
-                <tr key={target.user_id} style={{ borderBottom: "1px solid #eef2f6" }}>
+                <tr
+                  key={target.user_id}
+                  style={{ borderBottom: "1px solid #eef2f6" }}
+                >
                   <td style={tdStyle}>{target.employee_id}</td>
                   <td style={{ ...tdStyle, color: "#17324d", fontWeight: 700 }}>
                     {target.first_name} {target.last_name || ""}
@@ -488,7 +513,14 @@ export function UserListPage() {
                   <td style={tdStyle}>{target.department || "-"}</td>
                   <td style={tdStyle}>{ROLES[target.role_id] || "Unknown"}</td>
                   <td style={tdStyle}>{target.status}</td>
-                  <td style={{ ...tdStyle, display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
                     {canManageUser(target) ? (
                       <>
                         <button
@@ -503,12 +535,17 @@ export function UserListPage() {
                           onClick={() => toggleStatus(target)}
                           style={secondaryButtonStyle}
                         >
-                          {target.status === "Active" ? "Deactivate" : "Activate"}
+                          {target.status === "Active"
+                            ? "Deactivate"
+                            : "Activate"}
                         </button>
                         <button
                           type="button"
                           onClick={() => {
-                            setPasswordForm({ userId: String(target.user_id), password: "" });
+                            setPasswordForm({
+                              userId: String(target.user_id),
+                              password: "",
+                            });
                             setShowPassword(true);
                           }}
                           style={secondaryButtonStyle}
@@ -538,9 +575,11 @@ export function UserListPage() {
       <LoadingOverlay
         show={loading || saving}
         title={saving ? "Saving user" : "Loading users"}
-        message={saving ? "Applying user management changes." : "Fetching user list."}
+        message={
+          saving ? "Applying user management changes." : "Fetching user list."
+        }
       />
-    </div>
+    </PortalShell>
   );
 }
 

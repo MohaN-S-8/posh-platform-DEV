@@ -124,6 +124,28 @@ async def upload_certificate_template_asset(
     return template
 
 
+@router.delete("/templates/{template_id}")
+async def delete_certificate_template(
+    template_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("certificates.manage")),
+):
+    """Admin: delete a template and detach issued certificates from it."""
+    result = await cert_service.delete_template(db, template_id, current_user.company_id)
+    await write_audit_log(
+        db,
+        user_id=current_user.user_id,
+        company_id=current_user.company_id,
+        action="CERTIFICATE_TEMPLATE_DELETED",
+        table_name="certificate_template",
+        record_id=template_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return result
+
+
 @router.get("/my")
 async def my_certificates(
     db: AsyncSession = Depends(get_db),

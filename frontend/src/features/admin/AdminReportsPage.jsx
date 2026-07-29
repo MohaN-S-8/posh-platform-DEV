@@ -1,9 +1,9 @@
 import DownloadIcon from "@mui/icons-material/Download";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
 
 const reports = [
   {
@@ -72,7 +72,6 @@ const reports = [
 ];
 
 export function AdminReportsPage() {
-  const navigate = useNavigate();
   const [downloading, setDownloading] = useState("");
   const [error, setError] = useState("");
 
@@ -96,26 +95,15 @@ export function AdminReportsPage() {
   };
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
-      <button type="button" onClick={() => navigate("/admin")} style={backButtonStyle}>
-        Back to Dashboard
-      </button>
-      <h1 style={{ color: "#17324d", margin: "0 0 6px", fontSize: "30px" }}>
-        Admin Reports
-      </h1>
-      <p style={{ color: "#64748b", margin: "0 0 24px" }}>
-        Download audit and compliance reports currently backed by the HR report APIs.
-      </p>
+    <PortalShell
+      title="Admin Reports"
+      subtitle="Super Admin downloads all employee records; Admin downloads employee records for the same company."
+    >
 
       {error && <div style={errorStyle}>{error}</div>}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: "16px",
-        }}
-      >
+      <div className="portal-section-title">Available Downloads</div>
+      <div className="portal-auto-grid">
         {reports.map((report) => {
           const available = Boolean(report.endpoint);
           return (
@@ -124,36 +112,18 @@ export function AdminReportsPage() {
               type="button"
               disabled={!available || downloading === report.title}
               onClick={() => downloadReport(report)}
-              style={{
-                background: "white",
-                borderRadius: "8px",
-                padding: "20px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                border: "1px solid #e7edf3",
-                textAlign: "left",
-                minHeight: "160px",
-                cursor: available ? "pointer" : "not-allowed",
-                opacity: available ? 1 : 0.76,
-              }}
+              className="portal-card portal-tile"
+              style={{ cursor: available ? "pointer" : "not-allowed", opacity: available ? 1 : 0.76 }}
             >
               <span
-                style={{
-                  color: available ? "#1f7a4d" : "#64748b",
-                  background: available ? "#e8f5e9" : "#eef2f6",
-                  borderRadius: "999px",
-                  padding: "4px 9px",
-                  fontSize: "11px",
-                  fontWeight: 800,
-                }}
+                className={`portal-badge ${available ? "portal-badge-green" : "portal-badge-purple"}`}
               >
                 {report.status}
               </span>
-              <h2 style={{ color: "#17324d", fontSize: "17px", margin: "16px 0 8px" }}>
+              <h2 style={{ fontSize: "14.5px", marginTop: "16px" }}>
                 {report.title}
               </h2>
-              <p style={{ color: "#64748b", margin: "0 0 14px", fontSize: "13px" }}>
-                {report.description}
-              </p>
+              <p style={{ marginBottom: "14px" }}>{report.description}</p>
               {available && (
                 <span
                   style={{
@@ -178,18 +148,9 @@ export function AdminReportsPage() {
         title="Preparing report"
         message={downloading ? `Downloading ${downloading}.` : ""}
       />
-    </div>
+    </PortalShell>
   );
 }
-
-const backButtonStyle = {
-  background: "none",
-  border: "none",
-  color: "#17324d",
-  cursor: "pointer",
-  marginBottom: "16px",
-  fontWeight: 700,
-};
 
 const errorStyle = {
   background: "#fff7f6",

@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class SignupRequest(BaseModel):
@@ -148,3 +148,4 @@ class TokenResponse(BaseModel):
     user_id: int
     role_id: int
     company_id: int
+    permissions: list[str] = Field(default_factory=list)
