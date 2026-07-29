@@ -504,9 +504,8 @@ class VideoService:
 
         # Mark as completed when >= 95% watched or player reaches the end.
         completed_now = (
-            (history.completion_percent >= 95 or reached_end)
-            and history.status != "Completed"
-        )
+            history.completion_percent >= 95 or reached_end
+        ) and history.status != "Completed"
         if completed_now:
             history.status = "Completed"
             from datetime import datetime, timezone

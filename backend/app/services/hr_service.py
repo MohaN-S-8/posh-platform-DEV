@@ -611,7 +611,9 @@ class HRService:
         output.seek(0)
         return output.read()
 
-    async def generate_department_report(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
+    async def generate_department_report(
+        self, db: AsyncSession, company_id: Optional[int]
+    ) -> bytes:
         """Generate an Excel report with department-level compliance."""
 
         dashboard = await self.get_compliance_dashboard(db, company_id)
@@ -640,7 +642,9 @@ class HRService:
         output.seek(0)
         return output.read()
 
-    async def generate_certificate_report(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
+    async def generate_certificate_report(
+        self, db: AsyncSession, company_id: Optional[int]
+    ) -> bytes:
         """Generate an Excel report of issued certificates."""
 
         certificate_filter = [] if company_id is None else [Certificate.company_id == company_id]
@@ -741,11 +745,15 @@ class HRService:
     async def _read_excel_report(self, report_bytes: bytes) -> pd.DataFrame:
         return pd.read_excel(io.BytesIO(report_bytes))
 
-    async def generate_employee_report_csv(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
+    async def generate_employee_report_csv(
+        self, db: AsyncSession, company_id: Optional[int]
+    ) -> bytes:
         df = await self._read_excel_report(await self.generate_employee_report(db, company_id))
         return self._dataframe_to_csv(df)
 
-    async def generate_department_report_csv(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
+    async def generate_department_report_csv(
+        self, db: AsyncSession, company_id: Optional[int]
+    ) -> bytes:
         df = await self._read_excel_report(await self.generate_department_report(db, company_id))
         return self._dataframe_to_csv(df)
 
@@ -755,7 +763,9 @@ class HRService:
         df = await self._read_excel_report(await self.generate_certificate_report(db, company_id))
         return self._dataframe_to_csv(df)
 
-    async def generate_employee_report_pdf(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
+    async def generate_employee_report_pdf(
+        self, db: AsyncSession, company_id: Optional[int]
+    ) -> bytes:
         df = await self._read_excel_report(await self.generate_employee_report(db, company_id))
         return self._dataframe_to_pdf(df, "Employee Training Report")
 

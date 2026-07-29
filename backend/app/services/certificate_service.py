@@ -6,14 +6,14 @@ from typing import Optional
 
 import qrcode
 from fastapi import HTTPException, status
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer
-from pypdf import PdfReader, PdfWriter
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -648,9 +648,7 @@ class CertificateService:
             .limit(1)
         )
         replacement_template = replacement_result.scalar_one_or_none()
-        replacement_template_id = (
-            replacement_template.template_id if replacement_template else None
-        )
+        replacement_template_id = replacement_template.template_id if replacement_template else None
 
         regenerated_count = 0
         if replacement_template:
@@ -697,7 +695,11 @@ class CertificateService:
             )
         )
         await db.commit()
-        for object_key in [template.logo_path, template.signature_path, template.template_file_path]:
+        for object_key in [
+            template.logo_path,
+            template.signature_path,
+            template.template_file_path,
+        ]:
             if object_key:
                 try:
                     delete_file(CERT_BUCKET, object_key)
