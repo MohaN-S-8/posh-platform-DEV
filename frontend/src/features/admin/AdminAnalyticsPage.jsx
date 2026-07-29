@@ -153,15 +153,15 @@ export function AdminAnalyticsPage() {
   );
 }
 
-const backButtonStyle = {
-  background: "none",
-  border: "none",
-  color: "#17324d",
-  cursor: "pointer",
-  marginBottom: "16px",
-  padding: 0,
-  fontWeight: 700,
-};
+// const backButtonStyle = {
+//   background: "none",
+//   border: "none",
+//   color: "#17324d",
+//   cursor: "pointer",
+//   marginBottom: "16px",
+//   padding: 0,
+//   fontWeight: 700,
+// };
 
 const gridStyle = {
   display: "grid",

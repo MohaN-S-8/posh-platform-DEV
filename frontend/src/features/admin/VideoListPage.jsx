@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+// import { useLocation, useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
@@ -7,8 +7,8 @@ import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
 
 export function VideoListPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  // const navigate = useNavigate();
+  // const location = useLocation();
   const { user } = useAuthStore();
   const fileInputRef = useRef(null);
   const [videos, setVideos] = useState([]);
@@ -37,9 +37,9 @@ export function VideoListPage() {
     quality_label: "720p",
     transcript_text: "",
   });
-  const isHrRoute = location.pathname.startsWith("/hr/");
+  // const isHrRoute = location.pathname.startsWith("/hr/");
   const canManageVideos = [1, 2].includes(user?.role_id);
-  const dashboardPath = isHrRoute ? "/hr" : "/admin";
+  // const dashboardPath = isHrRoute ? "/hr" : "/admin";
   const pageTitle = canManageVideos ? "Video Management" : "Video Upload";
 
   const fetchVideos = async ({ showLoading = true } = {}) => {

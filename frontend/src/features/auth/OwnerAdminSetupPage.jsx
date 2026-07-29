@@ -163,15 +163,15 @@ const primaryButtonStyle = {
   fontWeight: 700,
 };
 
-const linkButtonStyle = {
-  background: "none",
-  border: "none",
-  color: "#17324d",
-  cursor: "pointer",
-  marginBottom: "16px",
-  padding: 0,
-  fontWeight: 700,
-};
+// const linkButtonStyle = {
+//   background: "none",
+//   border: "none",
+//   color: "#17324d",
+//   cursor: "pointer",
+//   marginBottom: "16px",
+//   padding: 0,
+//   fontWeight: 700,
+// };
 
 const errorStyle = {
   background: "#fff7f6",

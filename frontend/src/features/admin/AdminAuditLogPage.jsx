@@ -107,14 +107,14 @@ export function AdminAuditLogPage() {
   );
 }
 
-const backButtonStyle = {
-  background: "none",
-  border: "none",
-  color: "#17324d",
-  cursor: "pointer",
-  marginBottom: "16px",
-  fontWeight: 700,
-};
+// const backButtonStyle = {
+//   background: "none",
+//   border: "none",
+//   color: "#17324d",
+//   cursor: "pointer",
+//   marginBottom: "16px",
+//   fontWeight: 700,
+// };
 
 const tableWrapStyle = {
   background: "white",

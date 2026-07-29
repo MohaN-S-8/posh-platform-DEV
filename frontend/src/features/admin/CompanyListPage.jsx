@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
@@ -37,7 +37,7 @@ const fields = [
 ];
 
 export function CompanyListPage() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -356,13 +356,13 @@ export function CompanyListPage() {
   );
 }
 
-const headerStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "16px",
-  marginBottom: "24px",
-};
+// const headerStyle = {
+//   display: "flex",
+//   justifyContent: "space-between",
+//   alignItems: "center",
+//   gap: "16px",
+//   marginBottom: "24px",
+// };
 
 const panelStyle = {
   background: "white",
@@ -438,15 +438,15 @@ const secondaryButtonStyle = {
   fontWeight: 700,
 };
 
-const linkButtonStyle = {
-  background: "none",
-  border: "none",
-  color: "#1a3c5e",
-  cursor: "pointer",
-  marginBottom: "8px",
-  padding: 0,
-  fontWeight: 700,
-};
+// const linkButtonStyle = {
+//   background: "none",
+//   border: "none",
+//   color: "#1a3c5e",
+//   cursor: "pointer",
+//   marginBottom: "8px",
+//   padding: 0,
+//   fontWeight: 700,
+// };
 
 const tableWrapStyle = {
   background: "white",
