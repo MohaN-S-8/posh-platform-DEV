@@ -21,11 +21,15 @@ import { UserListPage } from "./features/admin/UserListPage";
 import { VideoListPage } from "./features/admin/VideoListPage";
 import { AdminAuditLogPage } from "./features/admin/AdminAuditLogPage";
 import { AdminAnalyticsPage } from "./features/admin/AdminAnalyticsPage";
+import { AdminConcernsPage } from "./features/admin/AdminConcernsPage";
+import { AdminConfigPage } from "./features/admin/AdminConfigPage";
 import { AdminReportsPage } from "./features/admin/AdminReportsPage";
+import { AssignedWorkOrdersPage } from "./features/admin/AssignedWorkOrdersPage";
 import { CertificateTemplatePage } from "./features/admin/CertificateTemplatePage";
 import { CertificateVerifyPage } from "./features/certificates/CertificateVerifyPage";
 import { LandingPage } from "./features/landing/LandingPage";
 import { PoshServicePage } from "./features/landing/PoshServicePage";
+import { PoshPolicyPage } from "./features/policy/PoshPolicyPage";
 
 // HR portal
 import { HRDashboard } from "./features/hr/HRDashboard";
@@ -69,6 +73,16 @@ function App() {
             <ProtectedRoute>
               <RoleRoute allowedRoles={[1, 2, 3, 4, 5]}>
                 <StatsHomePage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/posh-policy"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]}>
+                <PoshPolicyPage />
               </RoleRoute>
             </ProtectedRoute>
           }
@@ -127,7 +141,7 @@ function App() {
           path="/admin/companies"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1]}>
+              <RoleRoute allowedRoles={[1, 2]}>
                 <CompanyListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -179,6 +193,36 @@ function App() {
             <ProtectedRoute>
               <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
                 <AdminAnalyticsPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/config"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]}>
+                <AdminConfigPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/assigned-work-orders"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2, 3]}>
+                <AssignedWorkOrdersPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/concerns"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2]}>
+                <AdminConcernsPage />
               </RoleRoute>
             </ProtectedRoute>
           }

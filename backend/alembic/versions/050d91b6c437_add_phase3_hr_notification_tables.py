@@ -32,8 +32,18 @@ def upgrade() -> None:
         sa.Column("failed_rows", sa.Integer(), nullable=True),
         sa.Column("error_report_path", sa.String(length=255), nullable=True),
         sa.Column("status", sa.Enum("Processing", "Completed", "Failed"), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
-        sa.Column("updated_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["company_id"],
             ["company_master.company_id"],
@@ -52,7 +62,12 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=200), nullable=True),
         sa.Column("message", sa.String(length=500), nullable=True),
         sa.Column("is_read", sa.Boolean(), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["company_id"],
             ["company_master.company_id"],

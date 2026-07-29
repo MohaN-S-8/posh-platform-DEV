@@ -334,7 +334,10 @@ class AssessmentService:
                 )
             )
         await db.commit()
-        return {"message": "Assessment question created.", "question_id": question.question_id}
+        return {
+            "message": "Assessment question created.",
+            "question_id": question.question_id,
+        }
 
     async def delete_question(self, db: AsyncSession, question_id: int, company_id: int) -> dict:
         question_result = await db.execute(

@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
@@ -14,6 +15,28 @@ class UserCreate(BaseModel):
     role_id: int
     company_id: int
     employee_id: str
+    date_of_birth: Optional[date] = None
+    father_name: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    gender: Optional[str] = None
+    blood_group: Optional[str] = None
+    physically_challenged: Optional[str] = None
+    marital_status: Optional[str] = None
+    pan_number: Optional[str] = None
+    foreign_national: Optional[str] = None
+    joining_date: Optional[date] = None
+    employment_status: Optional[str] = None
+    employee_status: Optional[str] = None
+    resignation_date: Optional[date] = None
+    resignation_reason: Optional[str] = None
+    reporting_to: Optional[str] = None
+    branch_name: Optional[str] = None
+    branch_id: Optional[str] = None
+    transfer_date: Optional[date] = None
+    transfer_location: Optional[str] = None
+    transfer_branch_name: Optional[str] = None
+    transfer_branch_id: Optional[str] = None
+    ic_role: Optional[str] = None
 
     @field_validator("email")
     @classmethod
@@ -37,6 +60,28 @@ class UserUpdate(BaseModel):
     department: Optional[str] = None
     designation: Optional[str] = None
     role_id: Optional[int] = None
+    date_of_birth: Optional[date] = None
+    father_name: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    gender: Optional[str] = None
+    blood_group: Optional[str] = None
+    physically_challenged: Optional[str] = None
+    marital_status: Optional[str] = None
+    pan_number: Optional[str] = None
+    foreign_national: Optional[str] = None
+    joining_date: Optional[date] = None
+    employment_status: Optional[str] = None
+    employee_status: Optional[str] = None
+    resignation_date: Optional[date] = None
+    resignation_reason: Optional[str] = None
+    reporting_to: Optional[str] = None
+    branch_name: Optional[str] = None
+    branch_id: Optional[str] = None
+    transfer_date: Optional[date] = None
+    transfer_location: Optional[str] = None
+    transfer_branch_name: Optional[str] = None
+    transfer_branch_id: Optional[str] = None
+    ic_role: Optional[str] = None
 
     @field_validator("email")
     @classmethod
@@ -67,6 +112,28 @@ class UserResponse(BaseModel):
     designation: Optional[str]
     role_id: int
     status: str
+    date_of_birth: Optional[date] = None
+    father_name: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    gender: Optional[str] = None
+    blood_group: Optional[str] = None
+    physically_challenged: Optional[str] = None
+    marital_status: Optional[str] = None
+    pan_number: Optional[str] = None
+    foreign_national: Optional[str] = None
+    joining_date: Optional[date] = None
+    employment_status: Optional[str] = None
+    employee_status: Optional[str] = None
+    resignation_date: Optional[date] = None
+    resignation_reason: Optional[str] = None
+    reporting_to: Optional[str] = None
+    branch_name: Optional[str] = None
+    branch_id: Optional[str] = None
+    transfer_date: Optional[date] = None
+    transfer_location: Optional[str] = None
+    transfer_branch_name: Optional[str] = None
+    transfer_branch_id: Optional[str] = None
+    ic_role: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -2,6 +2,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import PolicyIcon from "@mui/icons-material/Policy";
 import ShieldIcon from "@mui/icons-material/Shield";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import heroImage from "../../assets/hero.png";
 
@@ -22,8 +23,36 @@ const values = [
 ];
 
 export function LandingPage() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowSplash(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <div className="landing-page">
+      {showSplash && (
+        <div className="landing-splash" role="status" aria-live="polite">
+          <div className="landing-splash-flight" aria-label="POSH loading">
+            {["P", "O", "S", "H"].map((letter) => (
+              <span
+                key={letter}
+                className={`landing-splash-letter landing-splash-letter-${letter.toLowerCase()}`}
+              >
+                <span className="landing-splash-trail" />
+                {letter}
+              </span>
+            ))}
+          </div>
+          <div className="landing-splash-united">...</div>
+          <div className="landing-splash-loader" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+      )}
       <header className="landing-nav">
         <Link to="/" className="landing-brand" aria-label="POSH platform home">
           <span className="landing-brand-mark">P</span>

@@ -22,9 +22,11 @@ ADMIN_ROLES = [1, 2]
 @router.get("/", response_model=list[CompanyResponse])
 async def list_companies(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1])),  # Super Admin only
+    current_user=Depends(require_roles(ADMIN_ROLES)),
 ):
-    """List all companies. Super Admin only."""
+    """List companies. Super Admin sees all; Corp Admin sees its company."""
+    if current_user.role_id == 2:
+        return [await company_service.get_by_id(db, current_user.company_id)]
     return await company_service.get_all(db)
 
 
@@ -32,10 +34,37 @@ async def list_companies(
 async def create_company(
     data: CompanyCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1])),  # Super Admin only
+    current_user=Depends(require_roles(ADMIN_ROLES)),
 ):
     """Create a new company."""
     return await company_service.create(db, data)
+
+
+@router.get("/assignable-users/")
+async def list_assignable_users(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles(ADMIN_ROLES)),
+):
+    """List admin employees who can be assigned work-order services."""
+    return await company_service.get_assignable_users(db)
+
+
+@router.get("/master-codes/")
+async def list_company_master_codes(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles(ADMIN_ROLES)),
+):
+    """Read state, city, and scope codes used by the company form."""
+    return await company_service.get_company_master_codes(db)
+
+
+@router.get("/assigned-work-orders/")
+async def list_assigned_work_orders(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles([1, 2, 3])),
+):
+    """List approved/pending work-order services assigned to the current admin/HR user."""
+    return await company_service.get_assigned_work_orders(db, current_user.user_id)
 
 
 @router.get("/{company_id}", response_model=CompanyResponse)
@@ -98,21 +127,35 @@ async def update_company_status(
     company_id: int,
     status: str,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1])),
+    current_user=Depends(require_roles(ADMIN_ROLES)),
 ):
     """Activate or deactivate a company."""
     if status not in ["Active", "Inactive"]:
         from fastapi import HTTPException
 
         raise HTTPException(400, "Status must be 'Active' or 'Inactive'")
+    if current_user.role_id == 2 and current_user.company_id != company_id:
+        raise HTTPException(403, "You do not have permission to update this company.")
     return await company_service.set_status(db, company_id, status)
+
+
+@router.patch("/{company_id}/approve")
+async def approve_company_work_order(
+    company_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles([1])),
+):
+    """Approve company work order. Super Admin/Main Admin only."""
+    return await company_service.approve(db, company_id)
 
 
 @router.delete("/{company_id}")
 async def delete_company(
     company_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1])),
+    current_user=Depends(require_roles(ADMIN_ROLES)),
 ):
     """Soft-delete a company."""
+    if current_user.role_id == 2 and current_user.company_id != company_id:
+        raise HTTPException(403, "You do not have permission to delete this company.")
     return await company_service.delete(db, company_id)

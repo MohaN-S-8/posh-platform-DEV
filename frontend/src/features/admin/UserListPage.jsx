@@ -10,7 +10,7 @@ import { useAuthStore } from "../../store/authStore";
 
 const ROLES = {
   1: "Super Admin",
-  2: "Admin",
+  2: "Corp Admin",
   5: "Client / Management",
   3: "HR / IC",
   4: "Employee",
@@ -25,6 +25,12 @@ const ROLE_CREATE_FLOW = {
 
 function defaultRoleFor(user) {
   return ROLE_CREATE_FLOW[user?.role_id]?.[0] || 4;
+}
+
+function cleanUserPayload(payload) {
+  return Object.fromEntries(
+    Object.entries(payload).map(([key, value]) => [key, value === "" ? null : value]),
+  );
 }
 
 const inputStyle = {
@@ -44,11 +50,68 @@ const initialForm = {
   last_name: "",
   email: "",
   mobile: "",
+  date_of_birth: "",
+  father_name: "",
+  emergency_contact: "",
+  gender: "",
+  blood_group: "",
+  physically_challenged: "",
+  marital_status: "",
+  pan_number: "",
+  foreign_national: "",
   department: "",
   designation: "",
+  joining_date: "",
+  employment_status: "",
+  employee_status: "",
+  resignation_date: "",
+  resignation_reason: "",
+  reporting_to: "",
+  branch_name: "",
+  branch_id: "",
+  transfer_date: "",
+  transfer_location: "",
+  transfer_branch_name: "",
+  transfer_branch_id: "",
+  ic_role: "",
   role_id: 4,
   company_id: "",
 };
+
+const personalFields = [
+  ["employee_id", "Employee ID"],
+  ["first_name", "First Name"],
+  ["last_name", "Last Name"],
+  ["date_of_birth", "Date of Birth", "date"],
+  ["father_name", "Father Name"],
+  ["mobile", "Contact Number"],
+  ["emergency_contact", "Emergency Contact"],
+  ["email", "Email", "email"],
+  ["gender", "Gender"],
+  ["blood_group", "Blood Group"],
+  ["physically_challenged", "Physically Challenged"],
+  ["marital_status", "Marital Status"],
+  ["pan_number", "PAN"],
+  ["foreign_national", "Foreign National"],
+];
+
+const employmentFields = [
+  ["joining_date", "Date of Joining", "date"],
+  ["designation", "Designation"],
+  ["department", "Department"],
+  ["transfer_location", "Location / City"],
+  ["employment_status", "Employment Status"],
+  ["employee_status", "Status of Employee"],
+  ["resignation_date", "Date of Resignation", "date"],
+  ["resignation_reason", "Reason for Resignation"],
+  ["reporting_to", "Reporting To"],
+  ["branch_name", "Branch Name"],
+  ["branch_id", "Branch ID"],
+  ["transfer_date", "Transfer Date", "date"],
+  ["transfer_branch_name", "Transfer Branch Name"],
+  ["transfer_branch_id", "Transfer Branch ID"],
+  ["ic_role", "IC Role"],
+];
 
 export function UserListPage() {
   const location = useLocation();
@@ -136,7 +199,7 @@ export function UserListPage() {
           user?.role_id === 1 ? form.company_id : user.company_id,
         ),
       };
-      await apiClient.post("/users/", payload);
+      await apiClient.post("/users/", cleanUserPayload(payload));
       setSuccess("User created successfully. Temporary password was emailed.");
       setForm({
         ...initialForm,
@@ -174,13 +237,12 @@ export function UserListPage() {
   const startEdit = (target) => {
     setEditingUser(target);
     setEditForm({
-      employee_id: target.employee_id || "",
-      first_name: target.first_name || "",
-      last_name: target.last_name || "",
-      email: target.email || "",
-      mobile: target.mobile || "",
-      department: target.department || "",
-      designation: target.designation || "",
+      ...initialForm,
+      ...target,
+      date_of_birth: target.date_of_birth || "",
+      joining_date: target.joining_date || "",
+      resignation_date: target.resignation_date || "",
+      transfer_date: target.transfer_date || "",
       role_id: target.role_id,
       company_id: target.company_id || "",
     });
@@ -193,16 +255,11 @@ export function UserListPage() {
     setError("");
     setSuccess("");
     try {
-      await apiClient.put(`/users/${editingUser.user_id}`, {
-        employee_id: editForm.employee_id,
-        first_name: editForm.first_name,
-        last_name: editForm.last_name,
+      await apiClient.put(`/users/${editingUser.user_id}`, cleanUserPayload({
+        ...editForm,
         email: editForm.email.trim().toLowerCase(),
-        mobile: editForm.mobile,
-        department: editForm.department,
-        designation: editForm.designation,
         role_id: Number(editForm.role_id),
-      });
+      }));
       setSuccess("User updated successfully.");
       setEditingUser(null);
       await loadData();
@@ -283,16 +340,9 @@ export function UserListPage() {
       {showCreate && (
         <form onSubmit={submitCreate} style={panelStyle}>
           <h2 style={panelTitleStyle}>Create User</h2>
+          <div style={sectionLabelStyle}>Personal Information</div>
           <div style={formGridStyle}>
-            {[
-              ["employee_id", "Employee ID"],
-              ["first_name", "First Name"],
-              ["last_name", "Last Name"],
-              ["email", "Email"],
-              ["mobile", "Mobile"],
-              ["department", "Department"],
-              ["designation", "Designation"],
-            ].map(([field, label]) => (
+            {personalFields.map(([field, label, type = "text"]) => (
               <label key={field} style={labelStyle}>
                 {label}
                 <input
@@ -303,10 +353,35 @@ export function UserListPage() {
                     "email",
                     "mobile",
                   ].includes(field)}
-                  type={field === "email" ? "email" : "text"}
+                  type={type}
                   pattern={field === "mobile" ? "\\d{10}" : undefined}
                   maxLength={field === "mobile" ? 10 : undefined}
                   value={form[field]}
+                  onChange={(e) =>
+                    setForm({ ...form, [field]: e.target.value })
+                  }
+                  style={inputStyle}
+                />
+              </label>
+            ))}
+          </div>
+          <div style={sectionLabelStyle}>Employment Details</div>
+          <div style={formGridStyle}>
+            {employmentFields.map(([field, label, type = "text"]) => (
+              <label key={field} style={labelStyle}>
+                {label}
+                <input
+                  required={[
+                    "joining_date",
+                    "designation",
+                    "department",
+                    "transfer_location",
+                    "employee_status",
+                    "branch_name",
+                    "branch_id",
+                  ].includes(field)}
+                  type={type}
+                  value={form[field] || ""}
                   onChange={(e) =>
                     setForm({ ...form, [field]: e.target.value })
                   }
@@ -404,16 +479,9 @@ export function UserListPage() {
       {editingUser && (
         <form onSubmit={submitEdit} style={panelStyle}>
           <h2 style={panelTitleStyle}>Edit User</h2>
+          <div style={sectionLabelStyle}>Personal Information</div>
           <div style={formGridStyle}>
-            {[
-              ["employee_id", "Employee ID"],
-              ["first_name", "First Name"],
-              ["last_name", "Last Name"],
-              ["email", "Email"],
-              ["mobile", "Mobile"],
-              ["department", "Department"],
-              ["designation", "Designation"],
-            ].map(([field, label]) => (
+            {personalFields.map(([field, label, type = "text"]) => (
               <label key={field} style={labelStyle}>
                 {label}
                 <input
@@ -424,10 +492,35 @@ export function UserListPage() {
                     "email",
                     "mobile",
                   ].includes(field)}
-                  type={field === "email" ? "email" : "text"}
+                  type={type}
                   pattern={field === "mobile" ? "\\d{10}" : undefined}
                   maxLength={field === "mobile" ? 10 : undefined}
                   value={editForm[field]}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, [field]: e.target.value })
+                  }
+                  style={inputStyle}
+                />
+              </label>
+            ))}
+          </div>
+          <div style={sectionLabelStyle}>Employment Details</div>
+          <div style={formGridStyle}>
+            {employmentFields.map(([field, label, type = "text"]) => (
+              <label key={field} style={labelStyle}>
+                {label}
+                <input
+                  required={[
+                    "joining_date",
+                    "designation",
+                    "department",
+                    "transfer_location",
+                    "employee_status",
+                    "branch_name",
+                    "branch_id",
+                  ].includes(field)}
+                  type={type}
+                  value={editForm[field] || ""}
                   onChange={(e) =>
                     setEditForm({ ...editForm, [field]: e.target.value })
                   }
@@ -596,6 +689,14 @@ const panelTitleStyle = {
   color: "#17324d",
   margin: "0 0 16px",
   fontSize: "20px",
+};
+
+const sectionLabelStyle = {
+  color: "#4A2E83",
+  fontSize: "12px",
+  fontWeight: 900,
+  margin: "8px 0 12px",
+  textTransform: "uppercase",
 };
 
 const formGridStyle = {

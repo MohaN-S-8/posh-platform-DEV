@@ -87,7 +87,11 @@ class UserService:
         return user
 
     async def update(
-        self, db: AsyncSession, user_id: int, data: UserUpdate, company_id: Optional[int] = None
+        self,
+        db: AsyncSession,
+        user_id: int,
+        data: UserUpdate,
+        company_id: Optional[int] = None,
     ) -> UserMaster:
         user = await self.get_by_id(db, user_id, company_id)
         update_data = data.model_dump(exclude_unset=True)
@@ -128,7 +132,11 @@ class UserService:
         return user
 
     async def set_status(
-        self, db: AsyncSession, user_id: int, new_status: str, company_id: Optional[int] = None
+        self,
+        db: AsyncSession,
+        user_id: int,
+        new_status: str,
+        company_id: Optional[int] = None,
     ) -> UserMaster:
         user = await self.get_by_id(db, user_id, company_id)
         user.status = new_status
@@ -136,7 +144,11 @@ class UserService:
         return user
 
     async def reset_password(
-        self, db: AsyncSession, user_id: int, new_password: str, company_id: Optional[int] = None
+        self,
+        db: AsyncSession,
+        user_id: int,
+        new_password: str,
+        company_id: Optional[int] = None,
     ) -> dict:
         user = await self.get_by_id(db, user_id, company_id)
         user.password_hash = hash_password(new_password)

@@ -22,7 +22,13 @@ from app.services.notification_service import notification_service
 
 ALLOWED_MIME_TYPES = {"video/mp4", "video/x-msvideo", "video/quicktime"}
 ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov"}
-ALLOWED_AUDIO_MIME_TYPES = {"audio/mpeg", "audio/mp4", "audio/wav", "audio/x-wav", "audio/aac"}
+ALLOWED_AUDIO_MIME_TYPES = {
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/aac",
+}
 ALLOWED_SUBTITLE_MIME_TYPES = {"text/vtt", "text/plain", "application/octet-stream"}
 MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB
 
@@ -115,7 +121,12 @@ class VideoService:
             transcript_body = transcript_text.strip()
             if not transcript_body.startswith("WEBVTT"):
                 transcript_body = f"WEBVTT\n\n00:00:00.000 --> 99:59:59.000\n{transcript_body}"
-            upload_file(transcript_body.encode("utf-8"), VIDEO_BUCKET, transcript_key, "text/vtt")
+            upload_file(
+                transcript_body.encode("utf-8"),
+                VIDEO_BUCKET,
+                transcript_key,
+                "text/vtt",
+            )
             await db.execute(
                 text(
                     """
@@ -172,7 +183,10 @@ class VideoService:
             },
         )
         await db.commit()
-        return {"message": f"{quality_label} quality uploaded.", "quality_label": quality_label}
+        return {
+            "message": f"{quality_label} quality uploaded.",
+            "quality_label": quality_label,
+        }
 
     async def upload_language_track(
         self,

@@ -87,7 +87,8 @@ class CertificateService:
                 CertificateTemplate.status == "Active",
             )
             .order_by(
-                CertificateTemplate.updated_date.desc(), CertificateTemplate.template_id.desc()
+                CertificateTemplate.updated_date.desc(),
+                CertificateTemplate.template_id.desc(),
             )
             .limit(1)
         )
@@ -610,7 +611,10 @@ class CertificateService:
         extension = (file.filename or f"{asset_type}.png").split(".")[-1].lower()
         object_key = f"certificate-templates/{company_id}/{template_id}/{asset_type}.{extension}"
         upload_file(
-            file_bytes, CERT_BUCKET, object_key, file.content_type or "application/octet-stream"
+            file_bytes,
+            CERT_BUCKET,
+            object_key,
+            file.content_type or "application/octet-stream",
         )
 
         if asset_type == "logo":

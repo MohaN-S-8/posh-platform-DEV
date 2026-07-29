@@ -31,7 +31,12 @@ def upgrade() -> None:
         sa.Column("in_progress", sa.Integer(), nullable=True),
         sa.Column("not_started", sa.Integer(), nullable=True),
         sa.Column("compliance_rate", sa.Numeric(precision=5, scale=2), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["company_id"],
             ["company_master.company_id"],
@@ -48,8 +53,18 @@ def upgrade() -> None:
         sa.Column("color_code", sa.String(length=20), nullable=True),
         sa.Column("company_id", sa.Integer(), nullable=True),
         sa.Column("status", sa.Enum("Active", "Inactive"), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
-        sa.Column("updated_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["company_id"],
             ["company_master.company_id"],
@@ -69,8 +84,18 @@ def upgrade() -> None:
         sa.Column("qr_code_path", sa.String(length=255), nullable=True),
         sa.Column("pdf_path", sa.String(length=255), nullable=True),
         sa.Column("status", sa.Enum("Valid", "Revoked"), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
-        sa.Column("updated_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["company_id"],
             ["company_master.company_id"],

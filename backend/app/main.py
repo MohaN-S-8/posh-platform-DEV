@@ -7,14 +7,17 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.api.v1.admin import router as admin_router
+from app.api.v1.admin_config import router as admin_config_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.assessments import router as assessments_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.certificates import router as certificates_router
 from app.api.v1.company import router as company_router
+from app.api.v1.concerns import router as concerns_router
 from app.api.v1.employee import router as employee_router
 from app.api.v1.hr import router as hr_router
 from app.api.v1.notifications import router as notifications_router
+from app.api.v1.policy import router as policy_router
 from app.api.v1.users import router as users_router
 from app.api.v1.videos import router as videos_router
 from app.core.config import settings
@@ -38,6 +41,7 @@ if settings.APP_ENV.lower() == "production":
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(company_router, prefix="/api/v1")
+app.include_router(concerns_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(videos_router, prefix="/api/v1")
 app.include_router(assessments_router, prefix="/api/v1")
@@ -45,8 +49,10 @@ app.include_router(hr_router, prefix="/api/v1")
 app.include_router(certificates_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(admin_config_router, prefix="/api/v1")
 app.include_router(employee_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
+app.include_router(policy_router, prefix="/api/v1")
 
 
 @app.on_event("startup")
@@ -119,6 +125,113 @@ async def run_seed_on_startup():
         await db.execute(
             text(
                 """
+                CREATE TABLE IF NOT EXISTS concerns (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    company_id INT NOT NULL,
+                    category VARCHAR(100) NOT NULL,
+                    message TEXT NOT NULL,
+                    status ENUM('Open', 'Reviewed', 'Closed') DEFAULT 'Open',
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX ix_concerns_company_created (company_id, created_date),
+                    INDEX ix_concerns_user (user_id)
+                )
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS posh_policy (
+                    policy_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    company_id INT NULL UNIQUE,
+                    title VARCHAR(200),
+                    overview TEXT,
+                    version VARCHAR(50),
+                    approved_date VARCHAR(50),
+                    document_path VARCHAR(500) NULL,
+                    document_name VARCHAR(255) NULL,
+                    harassment_types_json TEXT,
+                    committee_members_json TEXT,
+                    rights_json TEXT,
+                    faqs_json TEXT,
+                    updated_by BIGINT NULL,
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS posh_master_codes (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    category VARCHAR(80) NOT NULL,
+                    name VARCHAR(150) NOT NULL,
+                    code VARCHAR(80) NOT NULL,
+                    description VARCHAR(255) NULL,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_posh_master_code (category, code)
+                )
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS posh_offices (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    office_name VARCHAR(150) NOT NULL UNIQUE,
+                    office_address TEXT NOT NULL,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS posh_role_access (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    role_label VARCHAR(100) NOT NULL,
+                    access_item VARCHAR(150) NOT NULL,
+                    access_status VARCHAR(80) DEFAULT 'Access enabled',
+                    is_allowed BOOLEAN DEFAULT TRUE,
+                    display_order INT DEFAULT 1,
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_posh_role_access (role_label, access_item)
+                )
+                """
+            )
+        )
+        for column_name, column_sql in [
+            ("document_path", "ADD COLUMN document_path VARCHAR(500) NULL"),
+            ("document_name", "ADD COLUMN document_name VARCHAR(255) NULL"),
+        ]:
+            policy_column_result = await db.execute(
+                text(
+                    """
+                    SELECT COUNT(*) AS column_count
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                      AND table_name = 'posh_policy'
+                      AND column_name = :column_name
+                    """
+                ),
+                {"column_name": column_name},
+            )
+            if policy_column_result.scalar_one() == 0:
+                await db.execute(text(f"ALTER TABLE posh_policy {column_sql}"))
+        await db.execute(
+            text(
+                """
                 CREATE TABLE IF NOT EXISTS video_quality (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
                     video_id INT NOT NULL,
@@ -152,6 +265,65 @@ async def run_seed_on_startup():
                     """
                 )
             )
+
+        async def ensure_column(table_name: str, column_name: str, column_sql: str):
+            column_result = await db.execute(
+                text(
+                    """
+                    SELECT COUNT(*) AS column_count
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                      AND table_name = :table_name
+                      AND column_name = :column_name
+                    """
+                ),
+                {"table_name": table_name, "column_name": column_name},
+            )
+            if column_result.scalar_one() == 0:
+                await db.execute(text(f"ALTER TABLE {table_name} {column_sql}"))
+
+        for column_name, column_sql in [
+            ("reference_no", "ADD COLUMN reference_no VARCHAR(50) NULL"),
+            ("company_type", "ADD COLUMN company_type VARCHAR(100) NULL"),
+            ("company_status_type", "ADD COLUMN company_status_type VARCHAR(50) NULL"),
+            ("approval_status", "ADD COLUMN approval_status VARCHAR(30) NULL DEFAULT 'Pending'"),
+            ("client_id", "ADD COLUMN client_id VARCHAR(100) NULL"),
+            ("scope_codes_json", "ADD COLUMN scope_codes_json TEXT NULL"),
+            ("service_details_json", "ADD COLUMN service_details_json TEXT NULL"),
+            ("referral_from", "ADD COLUMN referral_from VARCHAR(100) NULL"),
+            ("referral_name", "ADD COLUMN referral_name VARCHAR(150) NULL"),
+            ("corp_address_json", "ADD COLUMN corp_address_json TEXT NULL"),
+            ("billing_address_json", "ADD COLUMN billing_address_json TEXT NULL"),
+            ("account_contact_json", "ADD COLUMN account_contact_json TEXT NULL"),
+            ("coordinator_contact_json", "ADD COLUMN coordinator_contact_json TEXT NULL"),
+            ("branches_json", "ADD COLUMN branches_json TEXT NULL"),
+        ]:
+            await ensure_column("company_master", column_name, column_sql)
+
+        for column_name, column_sql in [
+            ("date_of_birth", "ADD COLUMN date_of_birth DATE NULL"),
+            ("father_name", "ADD COLUMN father_name VARCHAR(150) NULL"),
+            ("emergency_contact", "ADD COLUMN emergency_contact VARCHAR(20) NULL"),
+            ("gender", "ADD COLUMN gender VARCHAR(20) NULL"),
+            ("blood_group", "ADD COLUMN blood_group VARCHAR(10) NULL"),
+            ("physically_challenged", "ADD COLUMN physically_challenged VARCHAR(10) NULL"),
+            ("marital_status", "ADD COLUMN marital_status VARCHAR(20) NULL"),
+            ("pan_number", "ADD COLUMN pan_number VARCHAR(20) NULL"),
+            ("foreign_national", "ADD COLUMN foreign_national VARCHAR(10) NULL"),
+            ("employment_status", "ADD COLUMN employment_status VARCHAR(50) NULL"),
+            ("employee_status", "ADD COLUMN employee_status VARCHAR(50) NULL"),
+            ("resignation_date", "ADD COLUMN resignation_date DATE NULL"),
+            ("resignation_reason", "ADD COLUMN resignation_reason VARCHAR(255) NULL"),
+            ("reporting_to", "ADD COLUMN reporting_to VARCHAR(150) NULL"),
+            ("branch_name", "ADD COLUMN branch_name VARCHAR(150) NULL"),
+            ("branch_id", "ADD COLUMN branch_id VARCHAR(50) NULL"),
+            ("transfer_date", "ADD COLUMN transfer_date DATE NULL"),
+            ("transfer_location", "ADD COLUMN transfer_location VARCHAR(150) NULL"),
+            ("transfer_branch_name", "ADD COLUMN transfer_branch_name VARCHAR(150) NULL"),
+            ("transfer_branch_id", "ADD COLUMN transfer_branch_id VARCHAR(50) NULL"),
+            ("ic_role", "ADD COLUMN ic_role VARCHAR(100) NULL"),
+        ]:
+            await ensure_column("user_master", column_name, column_sql)
 
         await db.execute(
             text(
@@ -345,6 +517,75 @@ async def run_seed_on_startup():
                     (1, 4, FALSE),
                     (1, 5, FALSE),
                     (1, 6, FALSE)
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                INSERT INTO posh_master_codes (category, name, code, description, is_active)
+                VALUES
+                    ('State Code', 'Tamil Nadu', 'TN', 'Default state code', TRUE),
+                    ('State Code', 'Karnataka', 'KA', 'Default state code', TRUE),
+                    ('State Code', 'Maharashtra', 'MH', 'Default state code', TRUE),
+                    ('City Code', 'Chennai', 'CHN', 'Default city code', TRUE),
+                    ('City Code', 'Bangalore', 'BLR', 'Default city code', TRUE),
+                    ('City Code', 'Mumbai', 'MUM', 'Default city code', TRUE),
+                    ('Scope of Work ID', 'POSH Compliance', 'POSH', 'Policies, training, assessments, certificates, and reporting', TRUE),
+                    ('Scope of Work ID', 'Payroll Services', 'PAYS', 'Payroll service scope', TRUE),
+                    ('Scope of Work ID', 'Virtual Office', 'VOFF', 'Virtual office service scope', TRUE),
+                    ('Scope of Work ID', 'Recruitment', 'RECR', 'Recruitment service scope', TRUE),
+                    ('Deliverables', 'PoSH Policy', 'POLICY', 'Policy documentation and publishing', TRUE),
+                    ('Deliverables', 'Awareness Training', 'TRAINING', 'Training video assignment and completion tracking', TRUE),
+                    ('Deliverables', 'Assessment & Certificates', 'CERTIFICATE', 'Assessment and certificate issue flow', TRUE),
+                    ('Deliverables', 'Audit-ready Reporting', 'REPORTING', 'Compliance reports and analytics', TRUE),
+                    ('Work Order Form', 'POSH Work Order', 'WO-POSH', 'Client POSH compliance work order template', TRUE),
+                    ('Create Company', 'Company Registration', 'COMPANY', 'Create company and POSH registration data', TRUE)
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    description = VALUES(description),
+                    is_active = VALUES(is_active)
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                INSERT INTO posh_offices (office_name, office_address, is_active)
+                VALUES
+                    ('ADYAR', 'Office Address', TRUE),
+                    ('AMBATTAUR', 'Office Address', TRUE),
+                    ('BANGALORE', 'Office Address', TRUE)
+                ON DUPLICATE KEY UPDATE
+                    office_address = VALUES(office_address),
+                    is_active = VALUES(is_active)
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                INSERT INTO posh_role_access
+                    (role_label, access_item, access_status, is_allowed, display_order)
+                VALUES
+                    ('Employee', 'Home Page', 'Access enabled', TRUE, 1),
+                    ('Employee', 'PoSH Policy', 'Access enabled', TRUE, 2),
+                    ('Employee', 'POSH Awareness Training', 'Access enabled', TRUE, 3),
+                    ('Employee', 'Assessment & Certificates', 'Access enabled', TRUE, 4),
+                    ('Employee', 'Raise POSH Complaints', 'Access enabled', TRUE, 5),
+                    ('PO / Member', 'Home Page', 'Access enabled', TRUE, 1),
+                    ('PO / Member', 'PoSH Policy', 'Access enabled', TRUE, 2),
+                    ('PO / Member', 'POSH Awareness Training', 'Access enabled', TRUE, 3),
+                    ('PO / Member', 'IC Training', 'Access enabled', TRUE, 4),
+                    ('PO / Member', 'Assessment & Certificates', 'Access enabled', TRUE, 5),
+                    ('PO / Member', 'Advance Training', 'NO Access', FALSE, 6),
+                    ('PO / Member', 'POSH Compliance', 'Access enabled', TRUE, 7),
+                    ('PO / Member', 'Raise POSH Complaints', 'Access enabled', TRUE, 8),
+                    ('PO / Member', 'Analytics & Reports', 'Access enabled', TRUE, 9)
+                ON DUPLICATE KEY UPDATE
+                    access_status = VALUES(access_status),
+                    is_allowed = VALUES(is_allowed),
+                    display_order = VALUES(display_order)
                 """
             )
         )

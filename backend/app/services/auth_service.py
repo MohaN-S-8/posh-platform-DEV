@@ -12,7 +12,12 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.models.auth import AccountLockout, LoginAttempts, OTPVerification, RefreshTokens
+from app.models.auth import (
+    AccountLockout,
+    LoginAttempts,
+    OTPVerification,
+    RefreshTokens,
+)
 from app.models.company import CompanyMaster
 from app.models.user import UserMaster
 from app.schemas.auth import LoginRequest, SignupRequest
@@ -289,12 +294,19 @@ class AuthService:
             lockout.locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)
 
     async def logout(
-        self, db: AsyncSession, user_id: int, refresh_token: str, session_id: int | None = None
+        self,
+        db: AsyncSession,
+        user_id: int,
+        refresh_token: str,
+        session_id: int | None = None,
     ) -> dict:
         """Revoke the current session so its refresh and access tokens stop working."""
         import hashlib
 
-        filters = [RefreshTokens.user_id == user_id, RefreshTokens.revoked == False]  # noqa: E712
+        filters = [
+            RefreshTokens.user_id == user_id,
+            RefreshTokens.revoked is False,
+        ]  # noqa: E712
         if session_id:
             filters.append(RefreshTokens.id == session_id)
         elif refresh_token:

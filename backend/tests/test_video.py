@@ -23,7 +23,10 @@ def test_progress_update_rejects_fast_forward():
             json={"current_position": 9999, "total_duration": 1200},
             cookies={"access_token": "fake_token"},
         )
-    assert response.status_code in [400, 401]  # 401 if token invalid, 400 if service rejects
+    assert response.status_code in [
+        400,
+        401,
+    ]  # 401 if token invalid, 400 if service rejects
 
 
 def test_stream_url_requires_auth():

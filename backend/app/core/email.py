@@ -13,10 +13,12 @@ APP_ENV = os.environ.get("APP_ENV", "development")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:80")
 
 
-async def send_email(to: str, subject: str, html_body: str) -> None:
+async def send_email(to: str, subject: str, html_body: str, cc: list[str] | None = None) -> None:
     message = MIMEMultipart("alternative")
     message["From"] = EMAILS_FROM
     message["To"] = to
+    if cc:
+        message["Cc"] = ", ".join(cc)
     message["Subject"] = subject
     message.attach(MIMEText(html_body, "html"))
 
@@ -33,6 +35,7 @@ async def send_email(to: str, subject: str, html_body: str) -> None:
         password=SMTP_PASSWORD if SMTP_PASSWORD else None,
         use_tls=use_tls,
         start_tls=start_tls,
+        recipients=[to, *(cc or [])],
     )
 
 

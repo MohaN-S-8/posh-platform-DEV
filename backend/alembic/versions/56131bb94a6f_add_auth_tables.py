@@ -28,7 +28,12 @@ def upgrade() -> None:
         sa.Column("email_attempted", sa.String(length=100), nullable=True),
         sa.Column("ip_address", sa.String(length=45), nullable=True),
         sa.Column("success", sa.Boolean(), nullable=True),
-        sa.Column("attempted_at", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "attempted_at",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
@@ -39,7 +44,12 @@ def upgrade() -> None:
         sa.Column("purpose", sa.Enum("Signup", "PasswordReset"), nullable=True),
         sa.Column("expires_at", sa.DateTime(), nullable=True),
         sa.Column("verified", sa.Boolean(), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
@@ -60,7 +70,12 @@ def upgrade() -> None:
         sa.Column("token_hash", sa.String(length=255), nullable=True),
         sa.Column("expires_at", sa.DateTime(), nullable=True),
         sa.Column("used", sa.Boolean(), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["user_master.user_id"],
@@ -76,7 +91,12 @@ def upgrade() -> None:
         sa.Column("ip_address", sa.String(length=45), nullable=True),
         sa.Column("expires_at", sa.DateTime(), nullable=True),
         sa.Column("revoked", sa.Boolean(), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["user_master.user_id"],

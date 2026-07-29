@@ -25,16 +25,36 @@ def upgrade() -> None:
         "language_master",
         sa.Column("language_id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("language_name", sa.String(length=50), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
-        sa.Column("updated_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.PrimaryKeyConstraint("language_id"),
     )
     op.create_table(
         "video_category",
         sa.Column("category_id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("category_name", sa.String(length=100), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
-        sa.Column("updated_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.PrimaryKeyConstraint("category_id"),
     )
     op.create_table(
@@ -45,12 +65,26 @@ def upgrade() -> None:
         sa.Column("category_id", sa.Integer(), nullable=True),
         sa.Column("duration_minutes", sa.Integer(), nullable=True),
         sa.Column("video_url", sa.String(length=500), nullable=True),
-        sa.Column("storage_type", sa.Enum("AWS S3", "Azure Blob", "Local", "MinIO"), nullable=True),
+        sa.Column(
+            "storage_type",
+            sa.Enum("AWS S3", "Azure Blob", "Local", "MinIO"),
+            nullable=True,
+        ),
         sa.Column("status", sa.Enum("Draft", "Published", "Archived"), nullable=True),
         sa.Column("created_by", sa.BigInteger(), nullable=True),
         sa.Column("company_id", sa.Integer(), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
-        sa.Column("updated_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["category_id"],
             ["video_category.category_id"],
@@ -72,7 +106,12 @@ def upgrade() -> None:
         sa.Column("question_text", sa.String(length=500), nullable=True),
         sa.Column("question_type", sa.Enum("MCQ", "True/False", "Scenario"), nullable=True),
         sa.Column("correct_option", sa.String(length=1), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["video_id"],
             ["video_master.video_id"],
@@ -90,7 +129,12 @@ def upgrade() -> None:
         sa.Column("passing_score", sa.Numeric(precision=5, scale=2), nullable=True),
         sa.Column("result", sa.Enum("Pass", "Fail"), nullable=True),
         sa.Column("attempt_number", sa.Integer(), nullable=True),
-        sa.Column("attempted_at", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "attempted_at",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["user_master.user_id"],
@@ -110,11 +154,18 @@ def upgrade() -> None:
         sa.Column("assigned_to_user_id", sa.BigInteger(), nullable=True),
         sa.Column("assigned_to_department", sa.String(length=100), nullable=True),
         sa.Column(
-            "assign_type", sa.Enum("Individual", "Department", "Company-Wide"), nullable=True
+            "assign_type",
+            sa.Enum("Individual", "Department", "Company-Wide"),
+            nullable=True,
         ),
         sa.Column("due_date", sa.DateTime(), nullable=True),
         sa.Column("passing_score", sa.Numeric(precision=5, scale=2), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["assigned_by"],
             ["user_master.user_id"],
@@ -147,8 +198,18 @@ def upgrade() -> None:
         sa.Column("status", sa.Enum("Not Started", "In Progress", "Completed"), nullable=True),
         sa.Column("started_at", sa.DateTime(), nullable=True),
         sa.Column("completed_at", sa.DateTime(), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
-        sa.Column("updated_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["company_id"],
             ["company_master.company_id"],
@@ -170,7 +231,12 @@ def upgrade() -> None:
         sa.Column("language_id", sa.Integer(), nullable=True),
         sa.Column("subtitle_path", sa.String(length=255), nullable=True),
         sa.Column("audio_url", sa.String(length=500), nullable=True),
-        sa.Column("created_date", sa.DateTime(), server_default=sa.text("now()"), nullable=True),
+        sa.Column(
+            "created_date",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["language_id"],
             ["language_master.language_id"],

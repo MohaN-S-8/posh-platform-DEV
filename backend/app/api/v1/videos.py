@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_any_permission, require_permission, require_role
+from app.core.dependencies import (
+    require_any_permission,
+    require_permission,
+    require_role,
+)
 from app.db.session import get_db
 from app.schemas.video import (
     ProgressUpdate,
