@@ -46,9 +46,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("UPDATE user_master SET role_id = 4 WHERE role_id = 5")
-    op.execute(
-        "UPDATE user_master SET role_id = 3 WHERE role_id = 4 AND email = 'hr@posh.com'"
-    )
+    op.execute("UPDATE user_master SET role_id = 3 WHERE role_id = 4 AND email = 'hr@posh.com'")
     op.execute("UPDATE role_master SET role_name = 'Company Admin' WHERE role_id = 2")
     op.execute("UPDATE role_master SET role_name = 'HR' WHERE role_id = 3")
     op.execute("UPDATE role_master SET role_name = 'Employee' WHERE role_id = 4")
