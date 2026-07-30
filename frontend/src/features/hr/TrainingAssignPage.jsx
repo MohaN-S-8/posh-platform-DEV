@@ -3,6 +3,13 @@ import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
 
+const employeeOptionLabel = (employee) => {
+  const name = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+  const employeeId = employee.employee_id ? ` (${employee.employee_id})` : "";
+  const department = employee.department ? ` - ${employee.department}` : "";
+  return `${name} - ${employee.email} - ${employee.role_label || "Employee"}${employeeId}${department}`;
+};
+
 export function TrainingAssignPage() {
   const [videos, setVideos] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -11,6 +18,7 @@ export function TrainingAssignPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const [form, setForm] = useState({
     video_id: "",
     assign_type: "Company-Wide",
@@ -59,8 +67,24 @@ export function TrainingAssignPage() {
       assigned_to_user_id: "",
       assigned_to_department: "",
     });
+    setEmployeeSearch("");
     setSuccess("");
     setError("");
+  };
+
+  const handleEmployeeSearch = (value) => {
+    setEmployeeSearch(value);
+    const normalized = value.trim().toLowerCase();
+    const match = employees.find((employee) => {
+      const label = employeeOptionLabel(employee).toLowerCase();
+      return (
+        label === normalized ||
+        String(employee.user_id) === value ||
+        String(employee.email || "").toLowerCase() === normalized ||
+        String(employee.employee_id || "").toLowerCase() === normalized
+      );
+    });
+    setForm({ ...form, assigned_to_user_id: match ? String(match.user_id) : "" });
   };
 
   const handleSubmit = async (e) => {
@@ -167,22 +191,20 @@ export function TrainingAssignPage() {
           {form.assign_type === "Individual" && (
             <div style={{ marginBottom: "18px" }}>
               <label style={labelStyle}>Select Employee *</label>
-              <select
+              <input
                 required
-                value={form.assigned_to_user_id}
-                onChange={(e) =>
-                  setForm({ ...form, assigned_to_user_id: e.target.value })
-                }
+                type="text"
+                list="training-employee-options"
+                value={employeeSearch}
+                placeholder="Type name, email, or employee ID"
+                onChange={(e) => handleEmployeeSearch(e.target.value)}
                 style={inputStyle}
-              >
-                <option value="">Select employee</option>
+              />
+              <datalist id="training-employee-options">
                 {employees.map((employee) => (
-                  <option key={employee.user_id} value={employee.user_id}>
-                    {employee.first_name} {employee.last_name || ""} - {employee.email}
-                    {employee.department ? ` (${employee.department})` : ""}
-                  </option>
+                  <option key={employee.user_id} value={employeeOptionLabel(employee)} />
                 ))}
-              </select>
+              </datalist>
               {!loadingOptions && employees.length === 0 && (
                 <p style={hintStyle}>No active employees found for this company.</p>
               )}

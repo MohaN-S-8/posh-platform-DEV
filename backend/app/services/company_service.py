@@ -15,8 +15,23 @@ logger = logging.getLogger(__name__)
 
 class CompanyService:
     async def get_all(self, db: AsyncSession) -> list:
-        result = await db.execute(select(CompanyMaster).where(CompanyMaster.is_deleted == "N"))
+        result = await db.execute(
+            select(CompanyMaster).where(
+                CompanyMaster.is_deleted == "N",
+                CompanyMaster.company_id != 1,
+            )
+        )
         return result.scalars().all()
+
+    async def get_visible_for_user(self, db: AsyncSession, current_user) -> list:
+        companies = await self.get_all(db)
+        if current_user.role_id == 1:
+            return companies
+        return [
+            company
+            for company in companies
+            if self._has_assigned_service(company, current_user.user_id)
+        ]
 
     async def get_by_id(self, db: AsyncSession, company_id: int) -> CompanyMaster:
         result = await db.execute(
@@ -33,13 +48,17 @@ class CompanyService:
             )
         return company
 
-    async def create(self, db: AsyncSession, data: CompanyCreate) -> CompanyMaster:
+    async def create(
+        self, db: AsyncSession, data: CompanyCreate, current_user=None
+    ) -> CompanyMaster:
         data_dict = data.model_dump()
 
         # Normalize company_code
         if "company_code" in data_dict and data_dict["company_code"]:
             data_dict["company_code"] = data_dict["company_code"].upper()
         data_dict = await self._normalize_service_details(db, data_dict)
+        if current_user and current_user.role_id != 1:
+            data_dict = self._mark_service_owner(data_dict, current_user.user_id)
 
         # Check duplicate code
         existing = await db.execute(
@@ -71,7 +90,13 @@ class CompanyService:
         await db.commit()
         return company
 
-    async def update(self, db: AsyncSession, company_id: int, data: CompanyUpdate) -> CompanyMaster:
+    async def update(
+        self,
+        db: AsyncSession,
+        company_id: int,
+        data: CompanyUpdate,
+        current_user=None,
+    ) -> CompanyMaster:
         company = await self.get_by_id(db, company_id)
 
         # Only update fields that were actually sent
@@ -86,6 +111,8 @@ class CompanyService:
                 "scope_codes_json": update_data.get("scope_codes_json", company.scope_codes_json),
             }
             normalized = await self._normalize_service_details(db, merged_data)
+            if current_user and current_user.role_id != 1:
+                normalized = self._mark_service_owner(normalized, current_user.user_id)
             update_data["service_details_json"] = normalized["service_details_json"]
             update_data["scope_codes_json"] = normalized["scope_codes_json"]
             update_data["client_id"] = normalized["client_id"]
@@ -98,6 +125,12 @@ class CompanyService:
 
     async def approve(self, db: AsyncSession, company_id: int) -> dict:
         company = await self.get_by_id(db, company_id)
+        rows = self._json_list(company.service_details_json)
+        if not rows or any(not row.get("assigned_to") for row in rows):
+            raise HTTPException(
+                400,
+                "Assign every work-order service before approval.",
+            )
         company.approval_status = "Approved"
         await db.commit()
         await db.refresh(company)
@@ -117,32 +150,393 @@ class CompanyService:
         return company
 
     async def delete(self, db: AsyncSession, company_id: int) -> dict:
+        if company_id == 1:
+            raise HTTPException(400, "The default platform company cannot be deleted.")
         company = await self.get_by_id(db, company_id)
-        company.is_deleted = "Y"  # soft delete
-        await db.commit()
-        return {"message": "Company deleted successfully."}
 
-    async def get_assignable_users(self, db: AsyncSession) -> list[dict]:
+        user_result = await db.execute(
+            text("SELECT user_id FROM user_master WHERE company_id = :company_id"),
+            {"company_id": company_id},
+        )
+        user_ids = [row.user_id for row in user_result]
+
+        # Delete child records first so foreign-key constraints do not block company removal.
+        await db.execute(
+            text(
+                """
+                DELETE FROM assessment_option
+                WHERE question_id IN (
+                    SELECT question_id
+                    FROM assessment_question
+                    WHERE video_id IN (
+                        SELECT video_id FROM video_master WHERE company_id = :company_id
+                    )
+                )
+                """
+            ),
+            {"company_id": company_id},
+        )
+        for query in [
+            """
+            DELETE FROM assessment_question
+            WHERE video_id IN (
+                SELECT video_id FROM video_master WHERE company_id = :company_id
+            )
+            """,
+            """
+            DELETE FROM assessment_result
+            WHERE video_id IN (
+                SELECT video_id FROM video_master WHERE company_id = :company_id
+            )
+               OR user_id IN (
+                SELECT user_id FROM user_master WHERE company_id = :company_id
+            )
+            """,
+            "DELETE FROM certificates WHERE company_id = :company_id",
+            "DELETE FROM certificate_template WHERE company_id = :company_id",
+            "DELETE FROM training_history WHERE company_id = :company_id",
+            "DELETE FROM course_assignment WHERE company_id = :company_id",
+            "DELETE FROM video_language WHERE video_id IN (SELECT video_id FROM video_master WHERE company_id = :company_id)",
+            "DELETE FROM video_quality WHERE company_id = :company_id",
+            "DELETE FROM video_master WHERE company_id = :company_id",
+            "DELETE FROM employee_upload_batch WHERE company_id = :company_id",
+            "DELETE FROM concerns WHERE company_id = :company_id",
+            "DELETE FROM notification WHERE company_id = :company_id",
+            "DELETE FROM analytics_summary WHERE company_id = :company_id",
+            "DELETE FROM posh_policy WHERE company_id = :company_id",
+            "DELETE FROM posh_employee_master WHERE company_id = :company_id",
+            "DELETE FROM company_languages WHERE company_id = :company_id",
+            "DELETE FROM audit_logs WHERE company_id = :company_id",
+        ]:
+            await db.execute(text(query), {"company_id": company_id})
+
+        if user_ids:
+            await db.execute(
+                text(
+                    """
+                    UPDATE user_master
+                    SET manager_id = NULL
+                    WHERE manager_id IN :user_ids
+                    """
+                ).bindparams(bindparam("user_ids", expanding=True)),
+                {"user_ids": user_ids},
+            )
+            for query in [
+                "DELETE FROM account_lockout WHERE user_id IN :user_ids",
+                "DELETE FROM refresh_tokens WHERE user_id IN :user_ids",
+                "DELETE FROM password_reset_tokens WHERE user_id IN :user_ids",
+                "DELETE FROM login_attempts WHERE user_id IN :user_ids",
+                "DELETE FROM audit_logs WHERE user_id IN :user_ids",
+            ]:
+                await db.execute(
+                    text(query).bindparams(bindparam("user_ids", expanding=True)),
+                    {"user_ids": user_ids},
+                )
+
+        await db.execute(
+            text("DELETE FROM user_master WHERE company_id = :company_id"),
+            {"company_id": company_id},
+        )
+        await db.execute(
+            text("DELETE FROM company_master WHERE company_id = :company_id"),
+            {"company_id": company_id},
+        )
+        await db.commit()
+        return {
+            "message": "Company and all related records deleted successfully.",
+            "company_id": company.company_id,
+            "company_name": company.company_name,
+        }
+
+    async def get_assignable_users(self, db: AsyncSession, current_user) -> list[dict]:
         from app.models.user import UserMaster
 
+        role_labels = {
+            1: "Super Admin",
+            2: "Company Admin",
+            5: "Client Admin (Mgmt)",
+            3: "HR",
+            4: "Employee",
+        }
+        assignable_roles = {
+            1: [1, 2, 5, 3, 4],
+            2: [5, 3, 4],
+            5: [3, 4],
+            3: [4],
+        }.get(current_user.role_id, [])
+        if not assignable_roles:
+            return []
+
+        filters = [
+            UserMaster.is_deleted == "N",
+            UserMaster.status == "Active",
+            UserMaster.role_id.in_(assignable_roles),
+        ]
+        if current_user.role_id != 1:
+            filters.append(UserMaster.company_id == current_user.company_id)
+
         result = await db.execute(
-            select(UserMaster)
-            .where(
-                UserMaster.is_deleted == "N",
-                UserMaster.status == "Active",
-                UserMaster.role_id.in_([1, 2, 3]),
-            )
-            .order_by(UserMaster.first_name, UserMaster.last_name)
+            select(UserMaster).where(*filters).order_by(UserMaster.first_name, UserMaster.last_name)
         )
         return [
             {
                 "user_id": user.user_id,
                 "name": f"{user.first_name} {user.last_name or ''}".strip(),
                 "email": user.email,
+                "mobile": user.mobile,
+                "designation": user.designation,
+                "employee_id": user.employee_id,
                 "manager_id": user.manager_id,
+                "role_id": user.role_id,
+                "role_label": role_labels.get(user.role_id, "User"),
             }
             for user in result.scalars().all()
         ]
+
+    async def get_employee_master_records(
+        self,
+        db: AsyncSession,
+        current_user,
+        company_id: int | None = None,
+    ) -> list[dict]:
+        if company_id is not None:
+            await self.ensure_registration_access(db, company_id, current_user)
+            company_ids = [company_id]
+        else:
+            companies = await self.get_registration_candidates(db, current_user)
+            company_ids = [company.company_id for company in companies]
+        if not company_ids:
+            return []
+        result = await db.execute(
+            text(
+                """
+                SELECT *
+                FROM posh_employee_master
+                WHERE company_id IN :company_ids
+                ORDER BY company_id, first_name, last_name
+                """
+            ).bindparams(bindparam("company_ids", expanding=True)),
+            {"company_ids": company_ids},
+        )
+        return [dict(row._mapping) for row in result]
+
+    async def create_employee_master_record(
+        self,
+        db: AsyncSession,
+        data,
+        current_user,
+    ) -> dict:
+        await self.ensure_registration_access(db, data.company_id, current_user)
+        payload = data.model_dump()
+        existing = await db.execute(
+            text(
+                """
+                SELECT id
+                FROM posh_employee_master
+                WHERE company_id = :company_id
+                  AND (employee_id = :employee_id OR email = :email)
+                LIMIT 1
+                """
+            ),
+            {
+                "company_id": payload["company_id"],
+                "employee_id": payload["employee_id"],
+                "email": payload["email"],
+            },
+        )
+        if existing.first():
+            raise HTTPException(400, "Employee ID or email already exists for this company.")
+        insert_result = await db.execute(
+            text(
+                """
+                INSERT INTO posh_employee_master (
+                    company_id, employee_id, first_name, last_name, email, mobile,
+                    date_of_birth, father_name, emergency_contact, gender, blood_group,
+                    physically_challenged, marital_status, pan_number, foreign_national,
+                    joining_date, designation, department, location_city, employment_status,
+                    employee_status, resignation_date, resignation_reason, reporting_to,
+                    branch_name, branch_id, transfer_date, transfer_location,
+                    transfer_branch_name, transfer_branch_id, ic_role, status
+                )
+                VALUES (
+                    :company_id, :employee_id, :first_name, :last_name, :email, :mobile,
+                    :date_of_birth, :father_name, :emergency_contact, :gender, :blood_group,
+                    :physically_challenged, :marital_status, :pan_number, :foreign_national,
+                    :joining_date, :designation, :department, :location_city, :employment_status,
+                    :employee_status, :resignation_date, :resignation_reason, :reporting_to,
+                    :branch_name, :branch_id, :transfer_date, :transfer_location,
+                    :transfer_branch_name, :transfer_branch_id, :ic_role, 'Active'
+                )
+                """
+            ),
+            payload,
+        )
+        await db.commit()
+        result = await db.execute(
+            text("SELECT * FROM posh_employee_master WHERE id = :id"),
+            {"id": insert_result.lastrowid},
+        )
+        return dict(result.first()._mapping)
+
+    async def update_employee_master_record(
+        self,
+        db: AsyncSession,
+        employee_master_id: int,
+        data,
+        current_user,
+    ) -> dict:
+        current_result = await db.execute(
+            text("SELECT * FROM posh_employee_master WHERE id = :id"),
+            {"id": employee_master_id},
+        )
+        current_record = current_result.first()
+        if not current_record:
+            raise HTTPException(404, "Employee master record not found.")
+
+        await self.ensure_registration_access(db, current_record.company_id, current_user)
+        payload = data.model_dump()
+        await self.ensure_registration_access(db, payload["company_id"], current_user)
+        duplicate = await db.execute(
+            text(
+                """
+                SELECT id
+                FROM posh_employee_master
+                WHERE company_id = :company_id
+                  AND id <> :id
+                  AND (employee_id = :employee_id OR email = :email)
+                LIMIT 1
+                """
+            ),
+            {
+                "id": employee_master_id,
+                "company_id": payload["company_id"],
+                "employee_id": payload["employee_id"],
+                "email": payload["email"],
+            },
+        )
+        if duplicate.first():
+            raise HTTPException(400, "Employee ID or email already exists for this company.")
+
+        payload["id"] = employee_master_id
+        await db.execute(
+            text(
+                """
+                UPDATE posh_employee_master
+                SET
+                    company_id = :company_id,
+                    employee_id = :employee_id,
+                    first_name = :first_name,
+                    last_name = :last_name,
+                    email = :email,
+                    mobile = :mobile,
+                    date_of_birth = :date_of_birth,
+                    father_name = :father_name,
+                    emergency_contact = :emergency_contact,
+                    gender = :gender,
+                    blood_group = :blood_group,
+                    physically_challenged = :physically_challenged,
+                    marital_status = :marital_status,
+                    pan_number = :pan_number,
+                    foreign_national = :foreign_national,
+                    joining_date = :joining_date,
+                    designation = :designation,
+                    department = :department,
+                    location_city = :location_city,
+                    employment_status = :employment_status,
+                    employee_status = :employee_status,
+                    resignation_date = :resignation_date,
+                    resignation_reason = :resignation_reason,
+                    reporting_to = :reporting_to,
+                    branch_name = :branch_name,
+                    branch_id = :branch_id,
+                    transfer_date = :transfer_date,
+                    transfer_location = :transfer_location,
+                    transfer_branch_name = :transfer_branch_name,
+                    transfer_branch_id = :transfer_branch_id,
+                    ic_role = :ic_role
+                WHERE id = :id
+                """
+            ),
+            payload,
+        )
+        await db.commit()
+        result = await db.execute(
+            text("SELECT * FROM posh_employee_master WHERE id = :id"),
+            {"id": employee_master_id},
+        )
+        return dict(result.first()._mapping)
+
+    async def delete_employee_master_record(
+        self,
+        db: AsyncSession,
+        employee_master_id: int,
+        current_user,
+    ) -> dict:
+        result = await db.execute(
+            text(
+                """
+                SELECT id, company_id, employee_id, first_name, last_name
+                FROM posh_employee_master
+                WHERE id = :id
+                """
+            ),
+            {"id": employee_master_id},
+        )
+        employee = result.first()
+        if not employee:
+            raise HTTPException(404, "Employee master record not found.")
+
+        await self.ensure_registration_access(db, employee.company_id, current_user)
+        await db.execute(
+            text("DELETE FROM posh_employee_master WHERE id = :id"),
+            {"id": employee_master_id},
+        )
+        await db.commit()
+        employee_name = f"{employee.first_name} {employee.last_name or ''}".strip()
+        return {
+            "message": "Employee master record deleted successfully.",
+            "employee_master_id": employee_master_id,
+            "employee_id": employee.employee_id,
+            "employee_name": employee_name,
+        }
+
+    async def set_employee_master_status(
+        self,
+        db: AsyncSession,
+        employee_master_id: int,
+        new_status: str,
+        current_user,
+    ) -> dict:
+        if new_status not in ["Active", "Inactive"]:
+            raise HTTPException(400, "Status must be 'Active' or 'Inactive'.")
+        result = await db.execute(
+            text(
+                """
+                SELECT id, company_id, employee_id, first_name, last_name
+                FROM posh_employee_master
+                WHERE id = :id
+                """
+            ),
+            {"id": employee_master_id},
+        )
+        employee = result.first()
+        if not employee:
+            raise HTTPException(404, "Employee master record not found.")
+
+        await self.ensure_registration_access(db, employee.company_id, current_user)
+        await db.execute(
+            text("UPDATE posh_employee_master SET status = :status WHERE id = :id"),
+            {"status": new_status, "id": employee_master_id},
+        )
+        await db.commit()
+        employee_name = f"{employee.first_name} {employee.last_name or ''}".strip()
+        return {
+            "message": "Employee master status updated successfully.",
+            "employee_master_id": employee_master_id,
+            "employee_id": employee.employee_id,
+            "employee_name": employee_name,
+            "status": new_status,
+        }
 
     async def get_company_master_codes(self, db: AsyncSession) -> list[dict]:
         result = await db.execute(
@@ -150,7 +544,7 @@ class CompanyService:
                 """
                 SELECT id, category, name, code, description, is_active
                 FROM posh_master_codes
-                WHERE category IN ('State Code', 'City Code', 'Scope of Work ID', 'Deliverables')
+                WHERE category IN ('Country Code', 'State Code', 'City Code', 'Scope of Work ID', 'Deliverables')
                 ORDER BY category, name
                 """
             )
@@ -191,6 +585,73 @@ class CompanyService:
                     }
                 )
         return assigned_rows
+
+    async def get_registration_candidates(
+        self,
+        db: AsyncSession,
+        current_user,
+    ) -> list[CompanyMaster]:
+        result = await db.execute(
+            select(CompanyMaster)
+            .where(
+                CompanyMaster.is_deleted == "N",
+                CompanyMaster.company_id != 1,
+                CompanyMaster.status == "Active",
+                CompanyMaster.approval_status == "Approved",
+            )
+            .order_by(CompanyMaster.updated_date.desc())
+        )
+        companies = result.scalars().all()
+        if current_user.role_id == 1:
+            return companies
+        return [
+            company
+            for company in companies
+            if self._has_assigned_service(company, current_user.user_id)
+        ]
+
+    async def update_registration(
+        self,
+        db: AsyncSession,
+        company_id: int,
+        data: CompanyUpdate,
+        current_user,
+    ) -> CompanyMaster:
+        await self.ensure_registration_access(db, company_id, current_user)
+        return await self.update(db, company_id, data)
+
+    async def ensure_registration_access(
+        self,
+        db: AsyncSession,
+        company_id: int,
+        current_user,
+    ) -> CompanyMaster:
+        company = await self.get_by_id(db, company_id)
+        if company.approval_status != "Approved":
+            raise HTTPException(400, "Only approved work-order companies can be registered.")
+        if current_user.role_id != 1 and not self._has_assigned_service(
+            company, current_user.user_id
+        ):
+            raise HTTPException(403, "You do not have permission to register this company.")
+        return company
+
+    async def can_access_work_order(self, db: AsyncSession, company_id: int, current_user) -> bool:
+        company = await self.get_by_id(db, company_id)
+        return self._has_assigned_service(company, current_user.user_id)
+
+    def _has_assigned_service(self, company: CompanyMaster, user_id: int) -> bool:
+        return any(
+            str(row.get("assigned_to") or "") == str(user_id)
+            or str(row.get("created_by") or "") == str(user_id)
+            for row in self._json_list(company.service_details_json)
+        )
+
+    def _mark_service_owner(self, data_dict: dict, user_id: int) -> dict:
+        rows = self._json_list(data_dict.get("service_details_json"))
+        for row in rows:
+            row.setdefault("created_by", str(user_id))
+        data_dict["service_details_json"] = json.dumps(rows)
+        return data_dict
 
     async def _normalize_service_details(self, db: AsyncSession, data_dict: dict) -> dict:
         rows = self._json_list(data_dict.get("service_details_json"))

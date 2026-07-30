@@ -1,22 +1,11 @@
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import BadgeIcon from "@mui/icons-material/Badge";
-import BusinessIcon from "@mui/icons-material/Business";
-import HistoryIcon from "@mui/icons-material/History";
-import PeopleIcon from "@mui/icons-material/People";
-import ReportProblemIcon from "@mui/icons-material/ReportProblem";
-import SettingsIcon from "@mui/icons-material/Settings";
-import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
-import { canAccess } from "../../utils/accessControl";
 
 export function AdminDashboard() {
   const { user } = useAuthStore();
-  const navigate = useNavigate();
   const [analytics, setAnalytics] = useState(null);
   const [analyticsError, setAnalyticsError] = useState("");
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
@@ -72,105 +61,6 @@ export function AdminDashboard() {
     ];
   }, [analytics, user?.role_id]);
 
-  const modules = [
-    {
-      title: "Company Management",
-      description: "Create companies, track status, and maintain employee strength.",
-      path: "/admin/companies",
-      icon: <BusinessIcon />,
-      status: "Available",
-      allowedRoles: [1, 2],
-    },
-    {
-      title: "User Management",
-      description: "Create the next role in the management flow and maintain user access.",
-      path: "/admin/users",
-      icon: <PeopleIcon />,
-      status: "Available",
-      allowedRoles: [1, 2, 5],
-      requiredPermission: "users.manage",
-    },
-    {
-      title: "Assigned Work Orders",
-      description: "View company services assigned to you with contact details and timelines.",
-      path: "/admin/assigned-work-orders",
-      icon: <AssessmentIcon />,
-      status: "Available",
-      allowedRoles: [1, 2],
-    },
-    // {
-    //   title: "Owner Admin Setup",
-    //   description: "Direct-link company owner flow for creating Admin users.",
-    //   path: "/owner/admin-setup",
-    //   icon: <PeopleIcon />,
-    //   status: "Owner",
-    //   allowedRoles: [1],
-    // },
-    {
-      title: "Video Management",
-      description: "Upload, publish, and manage POSH training videos.",
-      path: "/admin/videos",
-      icon: <VideoLibraryIcon />,
-      status: "Available",
-      allowedRoles: [1, 2],
-      requiredPermission: "videos.manage",
-    },
-    {
-      title: "Certificate Module",
-      description: "Create certificate templates and manage generated certificate setup.",
-      path: "/admin/certificates",
-      icon: <BadgeIcon />,
-      status: "Available",
-      allowedRoles: [1, 2],
-      requiredPermission: "certificates.manage",
-    },
-    {
-      title: "Analytics",
-      description: "Platform and company-level training metrics.",
-      path: "/admin/analytics",
-      icon: <AssessmentIcon />,
-      status: "Available",
-      allowedRoles: [1, 2],
-      requiredPermission: "reports.view",
-    },
-    {
-      title: "Audit Logs",
-      description: "Review recent successful and failed login attempts.",
-      path: "/admin/audit-logs",
-      icon: <HistoryIcon />,
-      status: "Available",
-      allowedRoles: [1, 2],
-      requiredPermission: "reports.view",
-    },
-    {
-      title: "POSH Admin Config",
-      description: "Review POSH offices, master codes, access matrix, and flow status.",
-      path: "/admin/config",
-      icon: <SettingsIcon />,
-      status: "Available",
-      allowedRoles: [1],
-    },
-    {
-      title: "Concerns Received",
-      description: "Review concern submissions from users in your company.",
-      path: "/admin/concerns",
-      icon: <ReportProblemIcon />,
-      status: "Available",
-      allowedRoles: [1, 2],
-    },
-    {
-      title: "Reports",
-      description: "Download available Excel reports for audits and management.",
-      path: "/admin/reports",
-      icon: <AssessmentIcon />,
-      status: "Available",
-      allowedRoles: [1, 2],
-      requiredPermission: "reports.view",
-    },
-  ];
-
-  const visibleModules = modules.filter((module) => canAccess(user, module));
-
   return (
     <PortalShell
       title={
@@ -188,7 +78,7 @@ export function AdminDashboard() {
         <div className="portal-auto-grid">
           {user?.role_id === 5 ? (
             <div className="portal-card">
-              Create and manage HR / IC users for your company.
+              Admin modules are hidden until Super Admin aligns RBAC for this role.
             </div>
           ) : loadingAnalytics ? (
             <div className="portal-card">Loading analytics...</div>
@@ -218,40 +108,9 @@ export function AdminDashboard() {
       <section>
         <div className="portal-section-title">Admin Workspace</div>
         <div className="portal-auto-grid">
-          {visibleModules.map((module) => {
-            const enabled = Boolean(module.path);
-            return (
-              <button
-                key={module.title}
-                type="button"
-                onClick={() => enabled && navigate(module.path)}
-                disabled={!enabled}
-                className="portal-card portal-tile"
-                style={{ cursor: enabled ? "pointer" : "not-allowed", opacity: enabled ? 1 : 0.78 }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    marginBottom: "14px",
-                  }}
-                >
-                  <div style={{ color: "#4A2E83", display: "flex" }}>{module.icon}</div>
-                  <span
-                    className={`portal-badge ${
-                      module.status === "Available" ? "portal-badge-green" : "portal-badge-purple"
-                    }`}
-                  >
-                    {module.status}
-                  </span>
-                </div>
-                <h3 style={{ fontSize: "14.5px" }}>{module.title}</h3>
-                <p>{module.description}</p>
-              </button>
-            );
-          })}
+          <div className="portal-card" style={{ color: "var(--portal-muted)" }}>
+            Admin modules are hidden until RBAC is aligned.
+          </div>
         </div>
       </section>
     </PortalShell>

@@ -10,7 +10,7 @@ const emptyForm = {
   company_name: "",
   reference_no: "",
   company_type: "",
-  company_status_type: "CLIENT",
+  company_status_type: "Client",
   client_id: "",
   scope_codes_json: "",
   service_details_json: "",
@@ -34,57 +34,21 @@ const emptyForm = {
 
 const fields = [
   { label: "Reference No", key: "reference_no", required: true, placeholder: "01/2026" },
-  { label: "Company CODE", key: "company_code", required: true, createOnly: true, placeholder: "Auto from company name" },
   { label: "Company Name", key: "company_name", required: true, placeholder: "Select or enter company name" },
-  { label: "Company Type", key: "company_type", required: true, placeholder: "Proprietor / Partnership / Limited" },
-  { label: "Company Status", key: "company_status_type", type: "select", options: ["MASTER", "CLIENT"] },
-  { label: "Industry", key: "industry_type", required: true },
-  {
-    label: "Website",
-    key: "website",
-    type: "url",
-    placeholder: "https://example.com",
-  },
-  { label: "CIN No", key: "registration_number" },
-  { label: "GST Number", key: "gst_number" },
-  { label: "Employee Strength", key: "employee_strength", type: "number", min: 1 },
+  { label: "Company Code (auto, editable)", key: "company_code", required: true, createOnly: true, placeholder: "Auto-fills from name" },
+  { label: "Company Status", key: "company_status_type", type: "select", options: ["Client", "Master"] },
+];
+
+const clientDataFields = [
+  { label: "Referral From", key: "referral_from", type: "select", options: ["Social Media", "Friends", "BNI", "Vendors", "Client", "Relatives"] },
+  { label: "Referral Name", key: "referral_name" },
   { label: "Contact Person Name", key: "contact_person", required: true },
   { label: "Contact Person Email", key: "contact_email", type: "email", required: true },
   { label: "Contact Person Number", key: "contact_mobile", required: true },
-  { label: "Referral From", key: "referral_from", type: "select", options: ["Social Media", "Friends", "BNI", "Vendors", "Client", "Relatives"] },
-  { label: "Referral Name", key: "referral_name" },
-];
-
-const addressFields = [
-  ["address1", "Address 1"],
-  ["address2", "Address 2"],
-  ["address3", "Address 3"],
-  ["city", "City"],
-  ["pincode", "Pincode"],
-  ["state", "State"],
-  ["country", "Country"],
-];
-
-const contactFields = [
-  ["name", "Name"],
-  ["designation", "Designation"],
-  ["contact_no", "Contact No"],
-  ["email", "Email"],
-];
-
-const branchFields = [
-  ["branch_name", "Branch Name"],
-  ["branch_id", "Branch ID"],
-  ["address1", "Branch Address 1"],
-  ["address2", "Branch Address 2"],
-  ["city", "Branch City"],
-  ["state", "Branch State"],
-  ["country", "Branch Country"],
 ];
 
 const workOrderFields = [
   ["client_id", "Client ID", "readonly"],
-  ["scope", "Scope", "scope"],
   ["deliverables", "Deliverables", "deliverables"],
   ["start_date", "Start Date", "date"],
   ["stop_date", "Stop Date", "date"],
@@ -101,15 +65,6 @@ const parseJson = (value, fallback) => {
   } catch {
     return fallback;
   }
-};
-
-const getJsonValue = (form, key, field) => parseJson(form[key], {})?.[field] || "";
-
-const setJsonValue = (setForm, key, field, value) => {
-  setForm((current) => {
-    const next = { ...parseJson(current[key], {}), [field]: value };
-    return { ...current, [key]: JSON.stringify(next) };
-  });
 };
 
 const getJsonArray = (form, key) => {
@@ -136,14 +91,6 @@ const toggleJsonArrayMultiValue = (setForm, key, index, field, value) => {
       ? existing.filter((item) => item !== value)
       : [...existing, value];
     rows[index] = { ...rows[index], [field]: next.join(", ") };
-    return { ...current, [key]: JSON.stringify(rows) };
-  });
-};
-
-const addJsonArrayRow = (setForm, key) => {
-  setForm((current) => {
-    const rows = getJsonArray(current, key).map((row) => ({ ...row }));
-    rows.push({});
     return { ...current, [key]: JSON.stringify(rows) };
   });
 };
@@ -179,11 +126,16 @@ const generateClientIdPreview = (companyCode, scope, sequence) => {
   return `${companyCode}/${scope}/${year}-${sequence}`;
 };
 
-const quickMasterFields = [
-  { category: "State Code", label: "State Code", placeholder: "Tamil Nadu", codePlaceholder: "TN" },
-  { category: "City Code", label: "City Code", placeholder: "Chennai", codePlaceholder: "CHN" },
-  { category: "Scope of Work ID", label: "Scope of Work ID", placeholder: "POSH Compliance", codePlaceholder: "POSH" },
-];
+const nextReferenceNo = (companies) => {
+  const year = new Date().getFullYear();
+  const maxNumber = companies.reduce((maxValue, company) => {
+    const [numberPart, yearPart] = String(company.reference_no || "").split("/");
+    if (Number(yearPart) !== year) return maxValue;
+    const parsed = Number(numberPart);
+    return Number.isFinite(parsed) ? Math.max(maxValue, parsed) : maxValue;
+  }, 0);
+  return `${maxNumber + 1}/${year}`;
+};
 
 export function CompanyListPage() {
   // const navigate = useNavigate();
@@ -192,21 +144,12 @@ export function CompanyListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState([1, 2].includes(user?.role_id));
   const [editingCompany, setEditingCompany] = useState(null);
   const [selectedExistingCompany, setSelectedExistingCompany] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [languageRows, setLanguageRows] = useState([]);
-  const [defaultLanguageId, setDefaultLanguageId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [masters, setMasters] = useState([]);
-  const [masterDrafts, setMasterDrafts] = useState(() =>
-    quickMasterFields.reduce((drafts, item) => ({
-      ...drafts,
-      [item.category]: { name: "", code: "" },
-    }), {}),
-  );
-  const [savingMaster, setSavingMaster] = useState("");
   const [assignableUsers, setAssignableUsers] = useState([]);
   const [approvingCompanyId, setApprovingCompanyId] = useState(null);
 
@@ -224,7 +167,7 @@ export function CompanyListPage() {
     setError("");
     try {
       const res = await apiClient.get("/companies/");
-      setCompanies(res.data || []);
+      setCompanies((res.data || []).filter((company) => Number(company.company_id) !== 1));
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to load companies."));
     } finally {
@@ -261,51 +204,31 @@ export function CompanyListPage() {
     [masters],
   );
 
-  const saveQuickMaster = async (category) => {
-    const draft = masterDrafts[category] || { name: "", code: "" };
-    const name = draft.name.trim();
-    const code = draft.code.trim().toUpperCase();
-    if (!name || !code) {
-      setError("Enter both name and code before creating a master value.");
-      return;
-    }
-    const duplicate = masters.some(
-      (item) =>
-        item.category === category &&
-        String(item.code || "").toUpperCase() === code,
-    );
-    if (duplicate) {
-      setError(`${category} code '${code}' already exists. Choose it from the dropdown or enter a new code.`);
-      return;
-    }
-    setSavingMaster(category);
-    setError("");
-    setSuccess("");
-    try {
-      await apiClient.post("/admin-config/master-codes", {
-        category,
-        name,
-        code,
-        description: `${category} created from Company Management`,
-        is_active: true,
-      });
-      setMasterDrafts((current) => ({ ...current, [category]: { name: "", code: "" } }));
-      setSuccess(`${category} created.`);
-      await fetchMasters();
-    } catch (err) {
-      setError(apiErrorMessage(err, `Failed to create ${category}.`));
-    } finally {
-      setSavingMaster("");
-    }
-  };
+  const scopedDeliverables = useCallback(
+    (scopeCode) =>
+      masterOptions("Deliverables").filter((item) => {
+        const description = parseJson(item.description, {});
+        return !description.scope || description.scope === scopeCode;
+      }),
+    [masterOptions],
+  );
 
   const normalizePayload = () => ({
     ...form,
+    reference_no: form.reference_no || nextReferenceNo(companies),
     company_code: form.company_code || generateCompanyCode(form.company_name),
-    scope_codes_json: form.scope_codes_json || JSON.stringify(["POSH"]),
-    service_details_json: form.service_details_json || JSON.stringify([{}]),
-    branches_json: form.branches_json || JSON.stringify([{}]),
+    company_type: form.company_type || "Work Order",
+    company_status_type: form.company_status_type || "Client",
+    industry_type: form.industry_type || "Pending Registration",
+    scope_codes_json: form.scope_codes_json || JSON.stringify([]),
+    service_details_json: form.service_details_json || JSON.stringify([]),
+    corp_address_json: form.corp_address_json || "{}",
+    billing_address_json: form.billing_address_json || "{}",
+    account_contact_json: form.account_contact_json || "{}",
+    coordinator_contact_json: form.coordinator_contact_json || "{}",
+    branches_json: form.branches_json || JSON.stringify([]),
     employee_strength: form.employee_strength ? Number(form.employee_strength) : null,
+    contact_email: form.contact_email || null,
   });
 
   const handleCompanyNameChange = (value) => {
@@ -338,9 +261,7 @@ export function CompanyListPage() {
   const openCreate = () => {
     setEditingCompany(null);
     setSelectedExistingCompany(null);
-    setLanguageRows([]);
-    setDefaultLanguageId("");
-    setForm(emptyForm);
+    setForm({ ...emptyForm, reference_no: nextReferenceNo(companies) });
     setShowForm(true);
     setError("");
     setSuccess("");
@@ -357,19 +278,20 @@ export function CompanyListPage() {
     setShowForm(true);
     setError("");
     setSuccess("");
-    try {
-      const res = await apiClient.get(`/companies/${company.company_id}/languages`);
-      setLanguageRows(res.data || []);
-      const currentDefault = res.data?.find((row) => row.is_default);
-      setDefaultLanguageId(String(currentDefault?.language_id || ""));
-    } catch {
-      setLanguageRows([]);
-      setDefaultLanguageId("");
-    }
   };
 
   const saveCompany = async (e) => {
     e.preventDefault();
+    const selectedScopes = getJsonArray(form, "service_details_json").filter((row) => row.scope);
+    if (!selectedScopes.length) {
+      setError("Select at least one Scope of Work.");
+      return;
+    }
+    const missingAssignment = selectedScopes.find((row) => !row.assigned_to);
+    if (missingAssignment) {
+      setError("Assign every selected service before submitting.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     setSuccess("");
@@ -395,28 +317,6 @@ export function CompanyListPage() {
       await fetchCompanies();
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to save company."));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const saveLanguages = async () => {
-    if (!editingCompany) return;
-    const languageIds = languageRows
-      .filter((row) => row.enabled)
-      .map((row) => row.language_id);
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
-    try {
-      const res = await apiClient.put(`/companies/${editingCompany.company_id}/languages`, {
-        language_ids: languageIds,
-        default_language_id: defaultLanguageId ? Number(defaultLanguageId) : null,
-      });
-      setLanguageRows(res.data || []);
-      setSuccess("Language preferences updated.");
-    } catch (err) {
-      setError(apiErrorMessage(err, "Failed to update language preferences."));
     } finally {
       setSubmitting(false);
     }
@@ -474,10 +374,25 @@ export function CompanyListPage() {
     }
   };
 
+  const toggleScope = (scopeCode) => {
+    setForm((current) => {
+      const rows = getJsonArray(current, "service_details_json").map((row) => ({ ...row }));
+      const exists = rows.some((row) => row.scope === scopeCode);
+      const nextRows = exists
+        ? rows.filter((row) => row.scope !== scopeCode)
+        : [...rows.filter((row) => row.scope), { scope: scopeCode }];
+      return {
+        ...current,
+        scope_codes_json: JSON.stringify(nextRows.map((row) => row.scope)),
+        service_details_json: JSON.stringify(nextRows.length ? nextRows : [{}]),
+      };
+    });
+  };
+
   return (
     <PortalShell
-      title="Company Management"
-      subtitle="Manage registered companies, employee counts, and configurations."
+      title="Create Company & Work Order"
+      subtitle="Reference No, Company Code and Client IDs auto-generate."
     >
       {approvingCompanyId && (
         <div style={loadingOverlayStyle}>
@@ -488,52 +403,23 @@ export function CompanyListPage() {
           </div>
         </div>
       )}
-      <div style={masterStripStyle}>
-        {user?.role_id === 1 && quickMasterFields.map((item) => {
-            const draft = masterDrafts[item.category] || { name: "", code: "" };
-            return (
-              <div key={item.category} style={quickMasterStyle}>
-                <strong style={{ gridColumn: "1 / -1", color: "var(--portal-purple)" }}>{item.label}</strong>
-                <input
-                  value={draft.name}
-                  placeholder={item.placeholder}
-                  onChange={(e) =>
-                    setMasterDrafts((current) => ({
-                      ...current,
-                      [item.category]: { ...draft, name: e.target.value },
-                    }))
-                  }
-                  style={inputStyle}
-                />
-                <input
-                  value={draft.code}
-                  placeholder={item.codePlaceholder}
-                  onChange={(e) =>
-                    setMasterDrafts((current) => ({
-                      ...current,
-                      [item.category]: { ...draft, code: e.target.value.toUpperCase() },
-                    }))
-                  }
-                  style={inputStyle}
-                />
-                <button
-                  type="button"
-                  onClick={() => saveQuickMaster(item.category)}
-                  disabled={savingMaster === item.category}
-                  style={secondaryButtonStyle}
-                >
-                  {savingMaster === item.category ? "Creating..." : "Create"}
-                </button>
-              </div>
-            );
-          })}
-        <button type="button" onClick={openCreate} style={primaryButtonStyle}>
-          Add Company
-        </button>
-      </div>
+      {!showForm && (
+        <div style={topActionsStyle}>
+          <button type="button" onClick={openCreate} style={primaryButtonStyle}>
+            Create Company & Work Order
+          </button>
+        </div>
+      )}
 
       <datalist id="state-code-options">
         {masterOptions("State Code").map((item) => (
+          <option key={item.id} value={item.code}>
+            {item.name}
+          </option>
+        ))}
+      </datalist>
+      <datalist id="country-code-options">
+        {masterOptions("Country Code").map((item) => (
           <option key={item.id} value={item.code}>
             {item.name}
           </option>
@@ -567,8 +453,11 @@ export function CompanyListPage() {
       {showForm && (
         <div style={panelStyle}>
           <h3 style={{ color: "var(--portal-purple)", marginTop: 0 }}>
-            {editingCompany ? "Edit Company" : "Create New Company"}
+            {editingCompany ? "Edit Company & Work Order" : "Create Company & Work Order"}
           </h3>
+          <p style={helperTextStyle}>
+            Reference No auto-generates as Running No / Year. Company Code derives from the name and stays editable for new companies. Selecting one or more scopes generates a Client ID per scope automatically.
+          </p>
           <form onSubmit={saveCompany}>
             <div style={formGridStyle}>
               {fields
@@ -608,8 +497,8 @@ export function CompanyListPage() {
                         min={min}
                         placeholder={placeholder}
                         list={key === "company_name" ? "company-name-options" : undefined}
-                        readOnly={key === "company_code" && !!selectedExistingCompany}
-                        value={form[key] || ""}
+                        readOnly={key === "reference_no" || (key === "company_code" && !!selectedExistingCompany)}
+                        value={key === "reference_no" ? form.reference_no || nextReferenceNo(companies) : form[key] || ""}
                         onChange={(e) => {
                           const value = e.target.value;
                           if (key === "company_name") {
@@ -620,7 +509,10 @@ export function CompanyListPage() {
                         }}
                         style={{
                           ...inputStyle,
-                          background: key === "company_code" && selectedExistingCompany ? "#f7f3ff" : "white",
+                          background:
+                            key === "reference_no" || (key === "company_code" && selectedExistingCompany)
+                              ? "#f7f3ff"
+                              : "white",
                         }}
                       />
                     )}
@@ -628,93 +520,64 @@ export function CompanyListPage() {
                   ),
                 )}
               <div style={sectionStyle}>
-                <h4 style={sectionHeadingStyle}>Corporate Office Address</h4>
-                <div style={formGridStyle}>
-                  {addressFields.map(([field, label]) => (
-                    <label key={`corp-${field}`} style={labelStyle}>
-                      {label} - Corp Off
-                      <input
-                        required={["address1", "city", "pincode", "state", "country"].includes(field)}
-                        list={field === "city" ? "city-code-options" : field === "state" ? "state-code-options" : undefined}
-                        value={getJsonValue(form, "corp_address_json", field)}
-                        onChange={(e) =>
-                          setJsonValue(setForm, "corp_address_json", field, e.target.value)
-                        }
-                        style={inputStyle}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div style={sectionStyle}>
-                <h4 style={sectionHeadingStyle}>Billing Address</h4>
-                <div style={formGridStyle}>
-                  {addressFields.map(([field, label]) => (
-                    <label key={`billing-${field}`} style={labelStyle}>
-                      {label} - Billing Add
-                      <input
-                        required={["address1", "city", "pincode", "state", "country"].includes(field)}
-                        list={field === "city" ? "city-code-options" : field === "state" ? "state-code-options" : undefined}
-                        value={getJsonValue(form, "billing_address_json", field)}
-                        onChange={(e) =>
-                          setJsonValue(setForm, "billing_address_json", field, e.target.value)
-                        }
-                        style={inputStyle}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div style={sectionStyle}>
-                <h4 style={sectionHeadingStyle}>Account Contact 1</h4>
-                <div style={formGridStyle}>
-                  {contactFields.map(([field, label]) => (
-                    <label key={`account-${field}`} style={labelStyle}>
-                      {label} - Acc 1
-                      <input
-                        required
-                        type={field === "email" ? "email" : "text"}
-                        value={getJsonValue(form, "account_contact_json", field)}
-                        onChange={(e) =>
-                          setJsonValue(setForm, "account_contact_json", field, e.target.value)
-                        }
-                        style={inputStyle}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div style={sectionStyle}>
-                <h4 style={sectionHeadingStyle}>Coordinator Contact 1 - Company Admin</h4>
-                <div style={formGridStyle}>
-                  {contactFields.map(([field, label]) => (
-                    <label key={`coordinator-${field}`} style={labelStyle}>
-                      {label} - Co-ord 1
-                      <input
-                        required
-                        type={field === "email" ? "email" : "text"}
-                        value={getJsonValue(form, "coordinator_contact_json", field)}
-                        onChange={(e) =>
-                          setJsonValue(setForm, "coordinator_contact_json", field, e.target.value)
-                        }
-                        style={inputStyle}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div style={sectionStyle}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
-                  <h4 style={sectionHeadingStyle}>Client Data / Work Order Form - 1A</h4>
-                  <button type="button" onClick={() => addJsonArrayRow(setForm, "service_details_json")} style={secondaryButtonStyle}>
-                    Add Scope
-                  </button>
+                  <h4 style={sectionHeadingStyle}>Scope of Work (select one or more)</h4>
+                </div>
+                <div style={scopeGridStyle}>
+                  {masterOptions("Scope of Work ID").map((scope) => {
+                    const selected = getJsonArray(form, "service_details_json").some((row) => row.scope === scope.code);
+                    return (
+                      <label key={scope.id} style={scopeOptionStyle}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleScope(scope.code)}
+                        />
+                        <span>{scope.name}</span>
+                        <small>{scope.code}</small>
+                      </label>
+                    );
+                  })}
+                  {masterOptions("Scope of Work ID").length === 0 && (
+                    <span style={{ color: "var(--portal-muted)", fontSize: "13px" }}>
+                      Add scope values in Masters.
+                    </span>
+                  )}
+                </div>
+                <h4 style={sectionHeadingStyle}>Client Data (per service selected)</h4>
+                <p style={helperTextStyle}>
+                  Select one or more scopes above to enter Client Data - Start Date, Stop Date, Frequency, Notes, Billing Amount, Assigned To - for each service.
+                </p>
+                <div style={formGridStyle}>
+                  {clientDataFields.map(({ label, key, type = "text", required, options }) => (
+                    <label key={key} style={labelStyle}>
+                      {label}
+                      {type === "select" ? (
+                        <select
+                          required={required}
+                          value={form[key] || ""}
+                          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                          style={inputStyle}
+                        >
+                          <option value="">-</option>
+                          {options.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={type}
+                          required={required}
+                          value={form[key] || ""}
+                          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                          style={inputStyle}
+                        />
+                      )}
+                    </label>
+                  ))}
                 </div>
                 {getJsonArray(form, "service_details_json").map((service, serviceIndex) => {
+                  if (!service.scope) return null;
                   const sequence = nextClientSequence(companies) + serviceIndex;
                   const previewClientId =
                     service.client_id ||
@@ -747,7 +610,7 @@ export function CompanyListPage() {
                               />
                             ) : type === "deliverables" ? (
                               <div style={multiSelectStyle}>
-                                {masterOptions("Deliverables").map((item) => {
+                                {scopedDeliverables(service.scope).map((item) => {
                                   const selected = String(service[field] || "")
                                     .split(",")
                                     .map((value) => value.trim())
@@ -771,9 +634,9 @@ export function CompanyListPage() {
                                     </label>
                                   );
                                 })}
-                                {masterOptions("Deliverables").length === 0 && (
+                                {scopedDeliverables(service.scope).length === 0 && (
                                   <span style={{ color: "var(--portal-muted)", fontSize: "13px" }}>
-                                    Add deliverables in POSH Admin Config.
+                                    Add deliverables in Masters.
                                   </span>
                                 )}
                               </div>
@@ -803,16 +666,17 @@ export function CompanyListPage() {
                                       ...rows[serviceIndex],
                                       assigned_to: e.target.value,
                                       assigned_to_name: user?.name || "",
+                                      assigned_to_role: user?.role_label || "",
                                     };
                                     return { ...current, service_details_json: JSON.stringify(rows) };
                                   });
                                 }}
                                 style={inputStyle}
                               >
-                                <option value="">Select employee</option>
+                                <option value="">Select user</option>
                                 {assignableUsers.map((user) => (
                                   <option key={user.user_id} value={user.user_id}>
-                                    {user.name} - {user.email}
+                                    {user.name} - {user.email} - {user.role_label || "User"}
                                   </option>
                                 ))}
                               </select>
@@ -820,6 +684,7 @@ export function CompanyListPage() {
                               <input
                                 type={type === "scope" ? "text" : type}
                                 list={type === "scope" ? "scope-code-options" : undefined}
+                                readOnly={type === "scope"}
                                 value={service[field] || ""}
                                 onChange={(e) =>
                                   setJsonArrayValue(setForm, "service_details_json", serviceIndex, field, e.target.value)
@@ -835,49 +700,10 @@ export function CompanyListPage() {
                 })}
               </div>
 
-              <div style={sectionStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
-                  <h4 style={sectionHeadingStyle}>Branches</h4>
-                  <button type="button" onClick={() => addJsonArrayRow(setForm, "branches_json")} style={secondaryButtonStyle}>
-                    Add Branch
-                  </button>
-                </div>
-                {getJsonArray(form, "branches_json").map((branch, branchIndex) => (
-                  <div key={`branch-${branchIndex}`} style={panelInsetStyle}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
-                      <strong style={{ color: "var(--portal-purple)" }}>Branch {branchIndex + 1}</strong>
-                      {getJsonArray(form, "branches_json").length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeJsonArrayRow(setForm, "branches_json", branchIndex)}
-                          style={secondaryButtonStyle}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    <div style={formGridStyle}>
-                      {branchFields.map(([field, label]) => (
-                        <label key={`branch-${branchIndex}-${field}`} style={labelStyle}>
-                          {label}
-                          <input
-                            list={field === "city" ? "city-code-options" : field === "state" ? "state-code-options" : undefined}
-                            value={branch[field] || ""}
-                            onChange={(e) =>
-                              setJsonArrayValue(setForm, "branches_json", branchIndex, field, e.target.value)
-                            }
-                            style={inputStyle}
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <button type="submit" disabled={submitting} style={primaryButtonStyle}>
-                {submitting ? "Saving..." : editingCompany ? "Save Changes" : "Create Company"}
+                {submitting ? "Saving..." : editingCompany ? "Save Changes" : "Submit for Approval"}
               </button>
               <button type="button" onClick={() => setShowForm(false)} style={secondaryButtonStyle}>
                 Cancel
@@ -885,64 +711,19 @@ export function CompanyListPage() {
             </div>
           </form>
 
-          {editingCompany && (
-            <div style={{ ...panelInsetStyle, marginTop: "20px" }}>
-              <h4 style={{ margin: "0 0 12px", color: "var(--portal-purple)" }}>
-                Language Preferences
-              </h4>
-              <div style={languageGridStyle}>
-                {languageRows.map((language) => (
-                  <label key={language.language_id} style={checkboxStyle}>
-                    <input
-                      type="checkbox"
-                      checked={language.enabled}
-                      onChange={(e) => {
-                        const enabled = e.target.checked;
-                        setLanguageRows((current) =>
-                          current.map((row) =>
-                            row.language_id === language.language_id
-                              ? { ...row, enabled }
-                              : row,
-                          ),
-                        );
-                        if (enabled && !defaultLanguageId) {
-                          setDefaultLanguageId(String(language.language_id));
-                        }
-                      }}
-                    />
-                    {language.language_name}
-                    <input
-                      type="radio"
-                      name="default_language"
-                      disabled={!language.enabled}
-                      checked={String(language.language_id) === defaultLanguageId}
-                      onChange={() => setDefaultLanguageId(String(language.language_id))}
-                    />
-                    Default
-                  </label>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={saveLanguages}
-                disabled={submitting}
-                style={{ ...primaryButtonStyle, marginTop: "14px" }}
-              >
-                Save Languages
-              </button>
-            </div>
-          )}
         </div>
       )}
 
       {loading ? (
         <p style={{ color: "#666" }}>Loading companies...</p>
       ) : (
+        <>
+        <h3 style={tableHeadingStyle}>Companies & Work Orders</h3>
         <div style={tableWrapStyle}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "960px" }}>
             <thead>
-              <tr style={{ background: "var(--portal-purple)", color: "white" }}>
-                {["Code", "Name", "Client ID", "Industry", "Contact", "GST", "Employees", "Approval", "Status", "Actions"].map(
+              <tr style={{ background: "#faf8ff", color: "var(--portal-muted)" }}>
+                {["Ref No", "Company", "Code", "Status", "Client ID(s)", "Approval", "Actions"].map(
                   (heading) => (
                     <th key={heading} style={thStyle}>
                       {heading}
@@ -954,7 +735,7 @@ export function CompanyListPage() {
             <tbody>
               {companies.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: "40px", textAlign: "center", color: "#999" }}>
+                  <td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#999" }}>
                     No companies found. Create one above.
                   </td>
                 </tr>
@@ -967,22 +748,13 @@ export function CompanyListPage() {
                       borderBottom: "1px solid #eee",
                     }}
                   >
-                    <td style={strongCellStyle}>{company.company_code}</td>
+                    <td style={strongCellStyle}>{company.reference_no || "-"}</td>
                     <td style={tdStyle}>{company.company_name}</td>
+                    <td style={tdStyle}>{company.company_code}</td>
+                    <td style={tdStyle}>{company.company_status_type || "Client"}</td>
                     <td style={tdStyle}>{company.client_id || "-"}</td>
-                    <td style={tdStyle}>{company.industry_type || "-"}</td>
-                    <td style={tdStyle}>
-                      {company.contact_person || "-"}
-                      <br />
-                      <span style={{ color: "var(--portal-muted)" }}>{company.contact_email || "-"}</span>
-                    </td>
-                    <td style={tdStyle}>{company.gst_number || "-"}</td>
-                    <td style={tdStyle}>{company.employee_strength || "-"}</td>
                     <td style={tdStyle}>
                       <span style={approvalStyle(company.approval_status)}>{company.approval_status || "Pending"}</span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={statusStyle(company.status)}>{company.status}</span>
                     </td>
                     <td style={{ ...tdStyle, display: "flex", gap: "8px", flexWrap: "wrap" }}>
                       <button
@@ -1025,6 +797,7 @@ export function CompanyListPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </PortalShell>
   );
@@ -1070,24 +843,45 @@ const sectionHeadingStyle = {
   fontSize: "15px",
 };
 
-const masterStripStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-  gap: "12px",
-  alignItems: "end",
+const topActionsStyle = {
+  display: "flex",
+  justifyContent: "flex-end",
   marginBottom: "20px",
 };
 
-const quickMasterStyle = {
+const helperTextStyle = {
+  margin: "-4px 0 18px",
+  color: "var(--portal-muted)",
+  fontSize: "13px",
+  lineHeight: 1.5,
+};
+
+const scopeGridStyle = {
   display: "grid",
-  gridTemplateColumns: "1fr 0.75fr auto",
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: "12px",
+  marginBottom: "12px",
+};
+
+const scopeOptionStyle = {
+  display: "grid",
+  gridTemplateColumns: "auto 1fr",
   gap: "8px",
-  alignItems: "end",
-  background: "var(--portal-card)",
+  alignItems: "center",
   border: "1px solid var(--portal-border)",
   borderRadius: "8px",
   padding: "12px",
-  boxShadow: "0 2px 8px rgba(74,46,131,0.06)",
+  background: "#faf8ff",
+  color: "var(--portal-text)",
+  fontWeight: 700,
+};
+
+const tableHeadingStyle = {
+  margin: "26px 0 12px",
+  color: "var(--portal-purple)",
+  fontSize: "14px",
+  textTransform: "uppercase",
+  letterSpacing: 0,
 };
 
 const formGridStyle = {
@@ -1097,27 +891,12 @@ const formGridStyle = {
   marginBottom: "16px",
 };
 
-const languageGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-  gap: "10px",
-};
-
 const labelStyle = {
   display: "grid",
   gap: "6px",
   color: "var(--portal-text)",
   fontWeight: 700,
   fontSize: "13px",
-};
-
-const checkboxStyle = {
-  display: "flex",
-  gap: "8px",
-  alignItems: "center",
-  color: "var(--portal-text)",
-  fontSize: "13px",
-  fontWeight: 600,
 };
 
 const inputStyle = {
@@ -1233,15 +1012,6 @@ const successStyle = {
   color: "var(--portal-purple)",
   marginBottom: "16px",
 };
-
-const statusStyle = (status) => ({
-  padding: "4px 10px",
-  borderRadius: "999px",
-  fontSize: "12px",
-  fontWeight: 700,
-  background: status === "Active" ? "#f7f3ff" : "#fdf0f0",
-  color: status === "Active" ? "var(--portal-purple)" : "#c0392b",
-});
 
 const approvalStyle = (status) => ({
   padding: "4px 10px",

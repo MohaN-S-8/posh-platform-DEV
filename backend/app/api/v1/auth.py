@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
+from app.models.company import CompanyMaster
 from app.models.user import UserMaster
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -205,3 +206,32 @@ async def change_password(
     return await auth_service.change_password(
         db, current_user.user_id, data.current_password, data.new_password
     )
+
+
+@router.get("/me")
+async def my_profile(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return the current user's display profile for role-based home pages."""
+    user_result = await db.execute(
+        select(UserMaster).where(UserMaster.user_id == current_user.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+    company_result = await db.execute(
+        select(CompanyMaster.company_name).where(
+            CompanyMaster.company_id == current_user.company_id
+        )
+    )
+    company_name = company_result.scalar_one_or_none()
+    full_name = " ".join(
+        part for part in [user.first_name if user else "", user.last_name if user else ""] if part
+    ).strip()
+    return {
+        "user_id": current_user.user_id,
+        "role_id": current_user.role_id,
+        "company_id": current_user.company_id,
+        "first_name": user.first_name if user else current_user.first_name,
+        "full_name": full_name or current_user.first_name,
+        "company_name": company_name or "Your company",
+    }

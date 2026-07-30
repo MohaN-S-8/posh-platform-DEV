@@ -1,22 +1,22 @@
-import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import BadgeIcon from "@mui/icons-material/Badge";
 import CloseIcon from "@mui/icons-material/Close";
 import DashboardIcon from "@mui/icons-material/Dashboard";
-import DownloadIcon from "@mui/icons-material/Download";
-import GroupsIcon from "@mui/icons-material/Groups";
-import HistoryIcon from "@mui/icons-material/History";
+import FolderIcon from "@mui/icons-material/Folder";
+import BusinessIcon from "@mui/icons-material/Business";
+import DescriptionIcon from "@mui/icons-material/Description";
+import BadgeIcon from "@mui/icons-material/Badge";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import LockIcon from "@mui/icons-material/Lock";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MenuIcon from "@mui/icons-material/Menu";
 import NotificationsIcon from "@mui/icons-material/Notifications";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
 import PolicyIcon from "@mui/icons-material/Policy";
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 import SearchIcon from "@mui/icons-material/Search";
-import SettingsIcon from "@mui/icons-material/Settings";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
 import PropTypes from "prop-types";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import apiClient from "../api/client";
 import { apiErrorMessage } from "../api/errors";
@@ -25,132 +25,226 @@ import { canAccess } from "../utils/accessControl";
 
 const roleLabels = {
   1: "Super Admin",
-  2: "Corp Admin",
-  5: "Client / Management",
-  3: "HR / IC",
+  2: "Company Admin",
+  5: "Client Admin (Mgmt)",
+  3: "HR",
   4: "Employee",
 };
 
-function navForRole(roleId) {
-  if (roleId === 4) {
-    return [
-      { label: "Home (Stats)", to: "/dashboard", icon: <DashboardIcon fontSize="small" /> },
-      { label: "PoSH Policy", to: "/posh-policy", icon: <PolicyIcon fontSize="small" /> },
-      {
-        label: "POSH Awareness Training",
-        to: "/employee/courses",
-        icon: <PlayCircleIcon fontSize="small" />,
-        requiredPermission: "courses.watch",
-      },
-      { label: "Assessment & Certificate", to: "/employee/certificates", icon: <BadgeIcon fontSize="small" /> },
-      { label: "Training History", to: "/employee/history", icon: <HistoryIcon fontSize="small" /> },
-    ];
-  }
-  if (roleId === 3) {
-    return [
-      { label: "Home (Stats)", to: "/dashboard", icon: <DashboardIcon fontSize="small" /> },
-      { label: "PoSH Policy", to: "/posh-policy", icon: <PolicyIcon fontSize="small" /> },
-      {
-        label: "Employees",
-        to: "/hr/users",
-        icon: <GroupsIcon fontSize="small" />,
-        requiredPermission: "users.manage",
-      },
-      {
-        label: "Employee Upload",
-        to: "/hr/upload",
-        icon: <UploadFileIcon fontSize="small" />,
-        requiredPermission: "users.manage",
-      },
-      {
-        label: "Training Assignment",
-        to: "/hr/assign",
-        icon: <PlayCircleIcon fontSize="small" />,
-        requiredPermission: "training.assign",
-      },
-      {
-        label: "Assigned Work Orders",
-        to: "/admin/assigned-work-orders",
-        icon: <AssessmentIcon fontSize="small" />,
-      },
-      {
-        label: "Reports",
-        to: "/hr/reports",
-        icon: <DownloadIcon fontSize="small" />,
-        requiredPermission: "reports.view",
-      },
-    ];
-  }
-  if (roleId === 5) {
-    return [
-      { label: "Home (Stats)", to: "/dashboard", icon: <DashboardIcon fontSize="small" /> },
-      { label: "PoSH Policy", to: "/posh-policy", icon: <PolicyIcon fontSize="small" /> },
-      {
-        label: "Users",
-        to: "/admin/users",
-        icon: <GroupsIcon fontSize="small" />,
-        requiredPermission: "users.manage",
-      },
-    ];
-  }
-  return [
-    { label: "Home (Stats)", to: "/dashboard", icon: <DashboardIcon fontSize="small" /> },
-    { label: "PoSH Policy", to: "/posh-policy", icon: <PolicyIcon fontSize="small" /> },
-    {
-      label: "Companies",
-      to: "/admin/companies",
-      icon: <AdminPanelSettingsIcon fontSize="small" />,
-      allowedRoles: [1, 2],
+const defaultAllowed = {
+  "Super Admin": new Set([
+    "Home",
+    "Create Admin",
+    "Masters (State/City/Scope)",
+    "Create Company & Work Order",
+    "Company Registration - PoSH",
+    "Employee Master - PoSH",
+    "PoSH Office Master",
+    "Role & Access Matrix",
+  ]),
+  "Company Admin": new Set([
+    "Home",
+    "PoSH Policy",
+    "Create Company & Work Order",
+    "Company Registration - PoSH",
+    "Employee Master - PoSH",
+    "Assessment & Certificate",
+    "POSH Compliance",
+    "POSH Complaints",
+    "Analytics & Reports",
+  ]),
+  "Client Admin (Mgmt)": new Set([
+    "Home",
+    "PoSH Policy",
+    "POSH Awareness Training",
+    "Assessment & Certificate",
+    "POSH Compliance",
+    "POSH Complaints",
+    "Analytics & Reports",
+    "Employee Master - PoSH",
+  ]),
+  HR: new Set([
+    "Home",
+    "PoSH Policy",
+    "POSH Awareness Training",
+    "Assessment & Certificate",
+    "POSH Complaints",
+    "Employee Master - PoSH",
+  ]),
+  Employee: new Set([
+    "Home",
+    "PoSH Policy",
+    "POSH Awareness Training",
+    "Assessment & Certificate",
+    "POSH Complaints",
+  ]),
+};
+
+const accessItemAliases = {
+  "Home Page": "Home",
+  "Assessment & Certificates": "Assessment & Certificate",
+  "Raise POSH Complaints": "POSH Complaints",
+};
+
+const normalizeAccessItem = (accessItem) => accessItemAliases[accessItem] || accessItem;
+
+const moduleCatalog = [
+  {
+    accessItem: "Home",
+    label: "Dashboard",
+    to: () => "/dashboard",
+    icon: <DashboardIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "PoSH Policy",
+    label: "PoSH Policy",
+    to: () => "/posh-policy",
+    icon: <PolicyIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "POSH Awareness Training",
+    label: "POSH Awareness Training",
+    to: (roleId) => {
+      if (roleId === 4) return "/employee/courses";
+      if (roleId === 3) return "/hr/assign";
+      if (roleId === 1) return "/super-admin/videos";
+      if (roleId === 2) return "/admin/videos";
+      return "/admin/videos";
     },
-    {
-      label: "Users",
-      to: "/admin/users",
-      icon: <GroupsIcon fontSize="small" />,
-      requiredPermission: "users.manage",
+    icon: <PlayCircleIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "IC Training",
+    label: "IC Training",
+    to: (roleId) => {
+      if (roleId === 1) return "/super-admin/videos";
+      if (roleId === 3) return "/hr/assign";
+      return "/admin/videos";
     },
-    {
-      label: "Assigned Work Orders",
-      to: "/admin/assigned-work-orders",
-      icon: <AssessmentIcon fontSize="small" />,
-      allowedRoles: [1, 2],
+    icon: <PlayCircleIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "Advance Training",
+    label: "Advance Training",
+    to: (roleId) => (roleId === 1 ? "/super-admin/videos" : "/admin/videos"),
+    icon: <PlayCircleIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "Assessment & Certificate",
+    label: "Assessment & Certificates",
+    to: (roleId) => {
+      if (roleId === 1) return "/super-admin/certificates";
+      return roleId === 4 ? "/employee/certificates" : "/admin/certificates";
     },
-    {
-      label: "Videos",
-      to: "/admin/videos",
-      icon: <PlayCircleIcon fontSize="small" />,
-      requiredPermission: "videos.manage",
+    icon: <AssessmentIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "POSH Compliance",
+    label: "POSH Compliance",
+    to: (roleId) => (roleId === 1 ? "/super-admin/compliance" : "/hr/compliance"),
+    icon: <AssessmentIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "POSH Complaints",
+    label: "Concerns Received",
+    to: (roleId) => (roleId === 1 ? "/super-admin/concerns" : "/admin/concerns"),
+    icon: <ReportProblemIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "POSH Audit",
+    label: "POSH Audit",
+    to: (roleId) => (roleId === 1 ? "/super-admin/audit-logs" : "/admin/audit-logs"),
+    icon: <DescriptionIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "Analytics & Reports",
+    label: "Analytics & Reports",
+    to: (roleId) => {
+      if (roleId === 1) return "/super-admin/analytics";
+      return roleId === 3 ? "/hr/reports" : "/admin/analytics";
     },
-    {
-      label: "Certificates",
-      to: "/admin/certificates",
-      icon: <BadgeIcon fontSize="small" />,
-      requiredPermission: "certificates.manage",
+    icon: <AssessmentIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "Create Admin",
+    label: "Create Admin",
+    to: () => "/super-admin/create-admin",
+    icon: <PersonAddIcon fontSize="small" />,
+    allowedRoles: [1],
+  },
+  {
+    accessItem: "Masters (State/City/Scope)",
+    label: "Masters (State/City/Scope)",
+    to: () => "/super-admin/masters",
+    icon: <FolderIcon fontSize="small" />,
+    allowedRoles: [1],
+  },
+  {
+    accessItem: "Create Company & Work Order",
+    label: "Create Company & Work Order",
+    to: (roleId) => (roleId === 1 ? "/super-admin/companies" : "/admin/companies"),
+    icon: <BusinessIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "Company Registration - PoSH",
+    label: "Company Registration - PoSH",
+    to: (roleId) => (roleId === 1 ? "/super-admin/company-registration" : "/admin/company-registration"),
+    icon: <DescriptionIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "Employee Master - PoSH",
+    label: "Employee Master - PoSH",
+    to: (roleId) => {
+      if (roleId === 3) return "/hr/users";
+      if (roleId === 5) return "/admin/users";
+      if (roleId === 2) return "/admin/users";
+      return "/super-admin/employee-master";
     },
-    {
-      label: "Analytics & Reports",
-      to: "/admin/analytics",
-      icon: <AssessmentIcon fontSize="small" />,
-      requiredPermission: "reports.view",
-    },
-    {
-      label: "Audit Logs",
-      to: "/admin/audit-logs",
-      icon: <HistoryIcon fontSize="small" />,
-      requiredPermission: "reports.view",
-    },
-    {
-      label: "POSH Admin Config",
-      to: "/admin/config",
-      icon: <SettingsIcon fontSize="small" />,
-      allowedRoles: [1],
-    },
-    {
-      label: "Concerns Received",
-      to: "/admin/concerns",
-      icon: <ReportProblemIcon fontSize="small" />,
-      allowedRoles: [1, 2],
-    },
-  ];
+    icon: <BadgeIcon fontSize="small" />,
+    allowedRoles: [1, 2, 3, 4, 5],
+  },
+  {
+    accessItem: "PoSH Office Master",
+    label: "PoSH Office Master",
+    to: () => "/super-admin/posh-office-master",
+    icon: <AccountBalanceIcon fontSize="small" />,
+    allowedRoles: [1],
+  },
+  {
+    accessItem: "Role & Access Matrix",
+    label: "Role & Access Matrix",
+    to: () => "/super-admin/role-access",
+    icon: <LockIcon fontSize="small" />,
+    allowedRoles: [1],
+  },
+];
+
+function navForRole(roleId, enabledAccessItems) {
+  return moduleCatalog
+    .filter(
+      (item) =>
+        item.allowedRoles.includes(roleId) &&
+        enabledAccessItems.has(item.accessItem),
+    )
+    .map((item) => ({
+      label: item.label,
+      to: item.to(roleId),
+      icon: item.icon,
+      allowedRoles: [roleId],
+    }))
+    .filter((item) => item.to);
 }
 
 export function PortalShell({ title, subtitle, children }) {
@@ -164,14 +258,31 @@ export function PortalShell({ title, subtitle, children }) {
   const [notifications, setNotifications] = useState([]);
   const [notificationError, setNotificationError] = useState("");
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [roleAccess, setRoleAccess] = useState([]);
   const [concern, setConcern] = useState({
     category: "Workplace concern",
     message: "",
   });
   const [concernMessage, setConcernMessage] = useState("");
   const [concernError, setConcernError] = useState("");
-  const items = navForRole(user?.role_id).filter((item) => canAccess(user, item));
-  const canReportConcern = user?.role_id !== 1;
+  const roleLabel = roleLabels[user?.role_id];
+  const enabledAccessItems = useMemo(() => {
+    const enabled = new Set(defaultAllowed[roleLabel] || ["Home"]);
+    roleAccess.forEach((record) => {
+      const accessItem = normalizeAccessItem(record.access_item);
+      if (record.is_allowed) {
+        enabled.add(accessItem);
+      } else {
+        enabled.delete(accessItem);
+      }
+    });
+    enabled.add("Home");
+    return enabled;
+  }, [roleAccess, roleLabel]);
+  const items = navForRole(user?.role_id, enabledAccessItems).filter((item) =>
+    canAccess(user, item),
+  );
+  const canReportConcern = false;
   const unreadCount = notifications.filter((item) => !item.is_read).length;
   const filteredItems = items.filter((item) =>
     item.label.toLowerCase().includes(searchQuery.trim().toLowerCase()),
@@ -207,6 +318,23 @@ export function PortalShell({ title, subtitle, children }) {
     };
     loadNotifications();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadRoleAccess = async () => {
+      if (!user?.role_id) return;
+      try {
+        const res = await apiClient.get("/admin-config/my-role-access");
+        if (isMounted) setRoleAccess(res.data || []);
+      } catch {
+        if (isMounted) setRoleAccess([]);
+      }
+    };
+    loadRoleAccess();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.role_id]);
 
   const openPanel = (panel) => {
     setActivePanel((current) => (current === panel ? "" : panel));
@@ -319,15 +447,6 @@ export function PortalShell({ title, subtitle, children }) {
             </div>
           </div>
           <div className="portal-topbar-actions">
-            {canReportConcern && (
-              <button
-                type="button"
-                className="portal-primary-btn"
-                onClick={() => openPanel("concern")}
-              >
-                <ReportProblemIcon fontSize="small" /> Report a Concern
-              </button>
-            )}
             <button
               type="button"
               className="portal-icon-btn"

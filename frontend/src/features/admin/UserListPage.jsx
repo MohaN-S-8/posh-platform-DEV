@@ -76,6 +76,7 @@ const initialForm = {
   ic_role: "",
   role_id: 4,
   company_id: "",
+  password: "",
 };
 
 const personalFields = [
@@ -133,7 +134,20 @@ export function UserListPage() {
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
   const isHrRoute = location.pathname.startsWith("/hr/");
-  const pageTitle = isHrRoute ? "Employee Management" : "User Management";
+  const pageTitle =
+    user?.role_id === 2
+      ? "Client / Management Users"
+      : isHrRoute
+        ? "Employee Management"
+        : "User Management";
+  const createButtonLabel =
+    user?.role_id === 2
+      ? "New Client / Mgmt"
+      : user?.role_id === 5
+        ? "New HR"
+        : user?.role_id === 3
+          ? "New Employee"
+          : "New User";
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -143,6 +157,8 @@ export function UserListPage() {
       const companyReq =
         user?.role_id === 1
           ? apiClient.get("/companies/")
+          : user?.role_id === 2
+            ? apiClient.get("/companies/registration-candidates/")
           : Promise.resolve({ data: [] });
       const [userRes, companyRes] = await Promise.all([userReq, companyReq]);
       setUsers(userRes.data || []);
@@ -151,7 +167,9 @@ export function UserListPage() {
         ...current,
         role_id: defaultRoleFor(user),
         company_id:
-          user?.role_id === 1 ? current.company_id : user?.company_id || "",
+          user?.role_id === 1 || user?.role_id === 2
+            ? current.company_id || companyRes.data?.[0]?.company_id || ""
+            : user?.company_id || "",
       }));
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to load users."));
@@ -196,15 +214,15 @@ export function UserListPage() {
         email: form.email.trim().toLowerCase(),
         role_id: Number(form.role_id),
         company_id: Number(
-          user?.role_id === 1 ? form.company_id : user.company_id,
+          user?.role_id === 1 || user?.role_id === 2 ? form.company_id : user.company_id,
         ),
       };
       await apiClient.post("/users/", cleanUserPayload(payload));
-      setSuccess("User created successfully. Temporary password was emailed.");
+      setSuccess(form.password ? "User created successfully." : "User created successfully. Temporary password was emailed.");
       setForm({
         ...initialForm,
         role_id: defaultRoleFor(user),
-        company_id: user?.role_id === 1 ? "" : user?.company_id || "",
+        company_id: user?.role_id === 1 || user?.role_id === 2 ? "" : user?.company_id || "",
       });
       setShowCreate(false);
       await loadData();
@@ -224,7 +242,7 @@ export function UserListPage() {
       await apiClient.post(`/users/${passwordForm.userId}/reset-password`, {
         new_password: passwordForm.password,
       });
-      setSuccess("Password changed successfully.");
+      setSuccess(passwordForm.password ? "Password changed successfully." : "Temporary password generated and emailed.");
       setPasswordForm({ userId: "", password: "" });
       setShowPassword(false);
     } catch (err) {
@@ -257,6 +275,7 @@ export function UserListPage() {
     try {
       await apiClient.put(`/users/${editingUser.user_id}`, cleanUserPayload({
         ...editForm,
+        password: undefined,
         email: editForm.email.trim().toLowerCase(),
         role_id: Number(editForm.role_id),
       }));
@@ -329,7 +348,7 @@ export function UserListPage() {
             style={primaryButtonStyle}
           >
             <AddIcon fontSize="small" />
-            New User
+            {createButtonLabel}
           </button>
         </div>
       </div>
@@ -339,7 +358,7 @@ export function UserListPage() {
 
       {showCreate && (
         <form onSubmit={submitCreate} style={panelStyle}>
-          <h2 style={panelTitleStyle}>Create User</h2>
+          <h2 style={panelTitleStyle}>Create {ROLES[defaultRoleFor(user)] || "User"}</h2>
           <div style={sectionLabelStyle}>Personal Information</div>
           <div style={formGridStyle}>
             {personalFields.map(([field, label, type = "text"]) => (
@@ -405,9 +424,9 @@ export function UserListPage() {
                 ))}
               </select>
             </label>
-            {user?.role_id === 1 && (
+            {(user?.role_id === 1 || user?.role_id === 2) && (
               <label style={labelStyle}>
-                Company
+                {user?.role_id === 2 ? "Client Company" : "Company"}
                 <select
                   required
                   value={form.company_id}
@@ -425,6 +444,20 @@ export function UserListPage() {
                 </select>
               </label>
             )}
+            <label style={labelStyle}>
+              Password
+              <input
+                type="password"
+                minLength={8}
+                maxLength={15}
+                value={form.password || ""}
+                placeholder="Leave blank to auto-generate"
+                onChange={(e) =>
+                  setForm({ ...form, password: e.target.value })
+                }
+                style={inputStyle}
+              />
+            </label>
           </div>
           <button type="submit" disabled={saving} style={primaryButtonStyle}>
             {saving ? "Creating..." : "Create User"}
@@ -458,11 +491,11 @@ export function UserListPage() {
             <label style={labelStyle}>
               New Password
               <input
-                required
                 type="password"
                 minLength={8}
                 maxLength={15}
                 value={passwordForm.password}
+                placeholder="Leave blank to auto-generate"
                 onChange={(e) =>
                   setPasswordForm({ ...passwordForm, password: e.target.value })
                 }

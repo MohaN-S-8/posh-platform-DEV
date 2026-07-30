@@ -25,6 +25,12 @@ import { AdminConcernsPage } from "./features/admin/AdminConcernsPage";
 import { AdminConfigPage } from "./features/admin/AdminConfigPage";
 import { AdminReportsPage } from "./features/admin/AdminReportsPage";
 import { AssignedWorkOrdersPage } from "./features/admin/AssignedWorkOrdersPage";
+import { CompanyRegistrationPage } from "./features/admin/CompanyRegistrationPage";
+import { CreateAdminPage } from "./features/admin/CreateAdminPage";
+import { EmployeeMasterPage } from "./features/admin/EmployeeMasterPage";
+import { MastersPage } from "./features/admin/MastersPage";
+import { PoshOfficeMasterPage } from "./features/admin/PoshOfficeMasterPage";
+import { RoleAccessMatrixPage } from "./features/admin/RoleAccessMatrixPage";
 import { CertificateTemplatePage } from "./features/admin/CertificateTemplatePage";
 import { CertificateVerifyPage } from "./features/certificates/CertificateVerifyPage";
 import { LandingPage } from "./features/landing/LandingPage";
@@ -71,7 +77,7 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]}>
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]} accessItem="Home">
                 <StatsHomePage />
               </RoleRoute>
             </ProtectedRoute>
@@ -81,7 +87,7 @@ function App() {
           path="/posh-policy"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]}>
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]} accessItem="PoSH Policy">
                 <PoshPolicyPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -141,8 +147,72 @@ function App() {
           path="/admin/companies"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[2]} accessItem="Create Company & Work Order">
                 <CompanyListPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/companies"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]} accessItem="Create Company & Work Order">
+                <CompanyListPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/company-registration"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[2]} accessItem="Company Registration - PoSH">
+                <CompanyRegistrationPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/company-registration"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]} accessItem="Company Registration - PoSH">
+                <CompanyRegistrationPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/employee-master"
+          element={<Navigate to="/admin/users" replace />}
+        />
+        <Route
+          path="/super-admin/employee-master"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]} accessItem="Employee Master - PoSH">
+                <EmployeeMasterPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/posh-office-master"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]} accessItem="PoSH Office Master">
+                <PoshOfficeMasterPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/role-access"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]} accessItem="Role & Access Matrix">
+                <RoleAccessMatrixPage />
               </RoleRoute>
             </ProtectedRoute>
           }
@@ -151,7 +221,7 @@ function App() {
           path="/admin/users"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 5]} requiredPermission="users.manage">
+              <RoleRoute allowedRoles={[1, 2, 5]} requiredPermission="users.manage" accessItem="Employee Master - PoSH">
                 <UserListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -161,7 +231,17 @@ function App() {
           path="/admin/videos"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="videos.manage">
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="videos.manage" accessItem="POSH Awareness Training">
+                <VideoListPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/videos"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]} requiredPermission="videos.manage" accessItem="POSH Awareness Training">
                 <VideoListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -171,7 +251,17 @@ function App() {
           path="/admin/certificates"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="certificates.manage">
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="certificates.manage" accessItem="Assessment & Certificate">
+                <CertificateTemplatePage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/certificates"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]} requiredPermission="certificates.manage" accessItem="Assessment & Certificate">
                 <CertificateTemplatePage />
               </RoleRoute>
             </ProtectedRoute>
@@ -179,9 +269,13 @@ function App() {
         />
         <Route
           path="/admin/audit-logs"
+          element={<Navigate to="/super-admin/audit-logs" replace />}
+        />
+        <Route
+          path="/super-admin/audit-logs"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
+              <RoleRoute allowedRoles={[1, 2, 3, 4, 5]} requiredPermission="reports.view" accessItem="POSH Audit">
                 <AdminAuditLogPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -191,7 +285,17 @@ function App() {
           path="/admin/analytics"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view" accessItem="Analytics & Reports">
+                <AdminAnalyticsPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/analytics"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]} requiredPermission="reports.view" accessItem="Analytics & Reports">
                 <AdminAnalyticsPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -203,6 +307,26 @@ function App() {
             <ProtectedRoute>
               <RoleRoute allowedRoles={[1]}>
                 <AdminConfigPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/create-admin"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]} accessItem="Create Admin">
+                <CreateAdminPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/masters"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]} accessItem="Masters (State/City/Scope)">
+                <MastersPage />
               </RoleRoute>
             </ProtectedRoute>
           }
@@ -221,7 +345,17 @@ function App() {
           path="/admin/concerns"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]}>
+              <RoleRoute allowedRoles={[1, 2]} accessItem="POSH Complaints">
+                <AdminConcernsPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/concerns"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]} accessItem="POSH Complaints">
                 <AdminConcernsPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -231,7 +365,7 @@ function App() {
           path="/admin/reports"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view" accessItem="Analytics & Reports">
                 <AdminReportsPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -262,7 +396,7 @@ function App() {
           path="/hr/users"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[3]} requiredPermission="users.manage">
+              <RoleRoute allowedRoles={[3]} requiredPermission="users.manage" accessItem="Employee Master - PoSH">
                 <UserListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -272,7 +406,7 @@ function App() {
           path="/hr/assign"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]} requiredPermission="training.assign">
+              <RoleRoute allowedRoles={[1, 2, 3]} requiredPermission="training.assign" accessItem="POSH Awareness Training">
                 <TrainingAssignPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -292,7 +426,17 @@ function App() {
           path="/hr/compliance"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view">
+              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view" accessItem="POSH Compliance">
+                <CompliancePage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/compliance"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1]} requiredPermission="reports.view" accessItem="POSH Compliance">
                 <CompliancePage />
               </RoleRoute>
             </ProtectedRoute>
@@ -302,7 +446,7 @@ function App() {
           path="/hr/reports"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]} requiredPermission="reports.view">
+              <RoleRoute allowedRoles={[1, 2, 3]} requiredPermission="reports.view" accessItem="Analytics & Reports">
                 <HRReportsPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -324,7 +468,7 @@ function App() {
           path="/employee/courses"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[4]}>
+              <RoleRoute allowedRoles={[4]} accessItem="POSH Awareness Training">
                 <CoursesPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -354,7 +498,7 @@ function App() {
           path="/employee/certificates"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[4]}>
+              <RoleRoute allowedRoles={[4]} accessItem="Assessment & Certificate">
                 <CertificatesPage />
               </RoleRoute>
             </ProtectedRoute>

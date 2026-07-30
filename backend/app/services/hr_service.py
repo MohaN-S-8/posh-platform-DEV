@@ -49,6 +49,8 @@ class HRService:
                     "email": employee.email,
                     "department": employee.department,
                     "designation": employee.designation,
+                    "role_id": employee.role_id,
+                    "role_label": "Employee",
                 }
                 for employee in employees
             ],

@@ -24,6 +24,23 @@ class UserService:
         result = await db.execute(query)
         return result.scalars().all()
 
+    async def get_all_for_companies(
+        self,
+        db: AsyncSession,
+        company_ids: list[int],
+        role_ids: Optional[set[int]] = None,
+    ) -> list:
+        if not company_ids:
+            return []
+        query = select(UserMaster).where(
+            UserMaster.is_deleted == "N",
+            UserMaster.company_id.in_(company_ids),
+        )
+        if role_ids:
+            query = query.where(UserMaster.role_id.in_(role_ids))
+        result = await db.execute(query)
+        return result.scalars().all()
+
     async def get_by_id(
         self, db: AsyncSession, user_id: int, company_id: Optional[int] = None
     ) -> UserMaster:
@@ -43,6 +60,10 @@ class UserService:
         return user
 
     async def create(self, db: AsyncSession, data: UserCreate) -> UserMaster:
+        data_dict = data.model_dump()
+        requested_username = (data_dict.pop("username", None) or data.email).strip()
+        requested_password = data_dict.pop("password", None)
+
         # Check duplicate email
         existing = await db.execute(select(UserMaster).where(UserMaster.email == data.email))
         if existing.scalar_one_or_none():
@@ -50,23 +71,19 @@ class UserService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered.",
             )
-
-        # Generate temporary password
-        # temp_password = "Temp@1234"
-        import secrets
-        import string
-
-        # Generate a secure random temporary password
-        alphabet = string.ascii_letters + string.digits + "!@#$"
-        temp_password = (
-            secrets.choice(string.ascii_uppercase)
-            + secrets.choice(string.digits)
-            + secrets.choice("!@#$")
-            + "".join(secrets.choice(alphabet) for _ in range(9))
+        existing_username = await db.execute(
+            select(UserMaster).where(UserMaster.username == requested_username)
         )
+        if existing_username.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already registered.",
+            )
+
+        temp_password = requested_password or self._generate_temporary_password()
         user = UserMaster(
-            **data.model_dump(),
-            username=data.email,
+            **data_dict,
+            username=requested_username,
             password_hash=hash_password(temp_password),
             status="Active",
         )
@@ -147,12 +164,24 @@ class UserService:
         self,
         db: AsyncSession,
         user_id: int,
-        new_password: str,
+        new_password: Optional[str] = None,
         company_id: Optional[int] = None,
     ) -> dict:
         user = await self.get_by_id(db, user_id, company_id)
-        user.password_hash = hash_password(new_password)
+        password = new_password or self._generate_temporary_password()
+        user.password_hash = hash_password(password)
         await db.commit()
+        if not new_password:
+            from app.core.email import send_welcome_email
+
+            try:
+                await send_welcome_email(
+                    to=user.email,
+                    first_name=user.first_name,
+                    temp_password=password,
+                )
+            except Exception:
+                pass
         return {"message": "Password reset successfully."}
 
     async def delete(
@@ -162,3 +191,15 @@ class UserService:
         user.is_deleted = "Y"
         await db.commit()
         return {"message": "User deleted successfully."}
+
+    def _generate_temporary_password(self) -> str:
+        import secrets
+        import string
+
+        alphabet = string.ascii_letters + string.digits + "!@#$"
+        return (
+            secrets.choice(string.ascii_uppercase)
+            + secrets.choice(string.digits)
+            + secrets.choice("!@#$")
+            + "".join(secrets.choice(alphabet) for _ in range(9))
+        )

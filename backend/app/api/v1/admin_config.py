@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_roles
+from app.core.dependencies import get_current_user, require_roles
 from app.db.session import get_db
 from app.schemas.admin_config import (
     AdminConfigResponse,
@@ -19,12 +19,52 @@ from app.schemas.admin_config import (
 
 router = APIRouter(prefix="/admin-config", tags=["POSH Admin Configuration"])
 SUPER_ADMIN_ROLES = [1]
+ROLE_ACCESS_LABELS = {
+    1: "Super Admin",
+    2: "Company Admin",
+    5: "Client Admin (Mgmt)",
+    3: "HR",
+    4: "Employee",
+}
+ROLE_ACCESS_ALIASES = {
+    1: ["Super Admin"],
+    2: ["Company Admin", "Corp Admin", "Admin"],
+    5: ["Client Admin (Mgmt)", "Client / Management"],
+    3: ["HR", "HR / IC", "PO / Member"],
+    4: ["Employee"],
+}
 
 
 def _row_dict(row):
     if row is None:
         raise HTTPException(500, "Configuration was saved but could not be reloaded.")
     return dict(row._mapping)
+
+
+@router.get("/my-role-access", response_model=list[RoleAccessResponse])
+async def get_my_role_access(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    role_label = ROLE_ACCESS_LABELS.get(current_user.role_id)
+    if not role_label:
+        return []
+    for label in ROLE_ACCESS_ALIASES.get(current_user.role_id, [role_label]):
+        result = await db.execute(
+            text(
+                """
+                SELECT id, role_label, access_item, access_status, is_allowed, display_order
+                FROM posh_role_access
+                WHERE role_label = :role_label
+                ORDER BY display_order, id
+                """
+            ),
+            {"role_label": label},
+        )
+        rows = [_row_dict(row) for row in result]
+        if rows:
+            return rows
+    return []
 
 
 async def _ensure_exists(db: AsyncSession, table_name: str, record_id: int):

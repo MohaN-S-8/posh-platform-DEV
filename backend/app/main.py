@@ -211,6 +211,51 @@ async def run_seed_on_startup():
                 """
             )
         )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS posh_employee_master (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    company_id INT NOT NULL,
+                    employee_id VARCHAR(30) NOT NULL,
+                    first_name VARCHAR(100) NOT NULL,
+                    last_name VARCHAR(100) NULL,
+                    email VARCHAR(100) NOT NULL,
+                    mobile VARCHAR(20) NOT NULL,
+                    date_of_birth DATE NULL,
+                    father_name VARCHAR(150) NULL,
+                    emergency_contact VARCHAR(20) NULL,
+                    gender VARCHAR(20) NULL,
+                    blood_group VARCHAR(10) NULL,
+                    physically_challenged VARCHAR(10) NULL,
+                    marital_status VARCHAR(20) NULL,
+                    pan_number VARCHAR(20) NULL,
+                    foreign_national VARCHAR(10) NULL,
+                    joining_date DATE NULL,
+                    designation VARCHAR(100) NULL,
+                    department VARCHAR(100) NULL,
+                    location_city VARCHAR(150) NULL,
+                    employment_status VARCHAR(50) NULL,
+                    employee_status VARCHAR(50) NULL,
+                    resignation_date DATE NULL,
+                    resignation_reason VARCHAR(255) NULL,
+                    reporting_to VARCHAR(150) NULL,
+                    branch_name VARCHAR(150) NULL,
+                    branch_id VARCHAR(50) NULL,
+                    transfer_date DATE NULL,
+                    transfer_location VARCHAR(150) NULL,
+                    transfer_branch_name VARCHAR(150) NULL,
+                    transfer_branch_id VARCHAR(50) NULL,
+                    ic_role VARCHAR(100) NULL,
+                    status VARCHAR(30) DEFAULT 'Active',
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_posh_employee_master_company_emp (company_id, employee_id),
+                    UNIQUE KEY uq_posh_employee_master_company_email (company_id, email)
+                )
+                """
+            )
+        )
         for column_name, column_sql in [
             ("document_path", "ADD COLUMN document_path VARCHAR(500) NULL"),
             ("document_name", "ADD COLUMN document_name VARCHAR(255) NULL"),
@@ -525,6 +570,7 @@ async def run_seed_on_startup():
                 """
                 INSERT INTO posh_master_codes (category, name, code, description, is_active)
                 VALUES
+                    ('Country Code', 'INDIA', 'IN', 'Default country code', TRUE),
                     ('State Code', 'Tamil Nadu', 'TN', 'Default state code', TRUE),
                     ('State Code', 'Karnataka', 'KA', 'Default state code', TRUE),
                     ('State Code', 'Maharashtra', 'MH', 'Default state code', TRUE),

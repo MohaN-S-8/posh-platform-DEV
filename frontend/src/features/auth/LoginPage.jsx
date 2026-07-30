@@ -1,7 +1,7 @@
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -51,13 +51,24 @@ const passwordToggleStyle = {
 
 const showDevCredentials =
   import.meta.env.DEV || import.meta.env.VITE_SHOW_DEV_CREDENTIALS === "true";
+const loginErrorStorageKey = "posh_login_error";
+const loginErrorVisibleMs = 60 * 1000;
 
 export function LoginPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => sessionStorage.getItem(loginErrorStorageKey) || "");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (!error) return undefined;
+    const timer = window.setTimeout(() => {
+      setError("");
+      sessionStorage.removeItem(loginErrorStorageKey);
+    }, loginErrorVisibleMs);
+    return () => window.clearTimeout(timer);
+  }, [error]);
 
   const {
     register,
@@ -71,9 +82,11 @@ export function LoginPage() {
   const onSubmit = async (data) => {
     setLoading(true);
     setError("");
+    sessionStorage.removeItem(loginErrorStorageKey);
     try {
       const res = await authApi.login(data);
       const { access_token, user_id, role_id, company_id, permissions } = res.data;
+      sessionStorage.removeItem(loginErrorStorageKey);
       setAuth({ user_id, role_id, company_id, permissions: permissions || [] }, access_token);
 
       if ([1, 2, 3, 4, 5].includes(role_id)) {
@@ -82,15 +95,14 @@ export function LoginPage() {
         navigate("/unauthorized");
       }
     } catch (err) {
+      let nextError = "Invalid email or password.";
       if (err.response?.status === 423) {
-        setError(apiErrorMessage(err, "Account locked. Try again later."));
+        nextError = apiErrorMessage(err, "Account locked. Try again later.");
       } else if (err.response?.status === 403) {
-        setError(
-          apiErrorMessage(err, "Your account is inactive. Contact your administrator."),
-        );
-      } else {
-        setError("Invalid email or password.");
+        nextError = apiErrorMessage(err, "Your account is inactive. Contact your administrator.");
       }
+      sessionStorage.setItem(loginErrorStorageKey, nextError);
+      setError(nextError);
     } finally {
       setLoading(false);
     }
@@ -238,7 +250,7 @@ export function LoginPage() {
           </span>
         </div>
         <LoadingOverlay
-          show={loading}
+          show={loading && !error}
           title="Signing in"
           message="Checking your account and opening your dashboard."
         />

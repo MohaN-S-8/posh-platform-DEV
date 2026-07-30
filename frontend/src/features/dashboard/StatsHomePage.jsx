@@ -1,24 +1,10 @@
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import BadgeIcon from "@mui/icons-material/Badge";
-import BusinessIcon from "@mui/icons-material/Business";
-import ChecklistIcon from "@mui/icons-material/Checklist";
-import GroupsIcon from "@mui/icons-material/Groups";
-import HistoryIcon from "@mui/icons-material/History";
-import PolicyIcon from "@mui/icons-material/Policy";
-import ReportProblemIcon from "@mui/icons-material/ReportProblem";
-import SchoolIcon from "@mui/icons-material/School";
-import SettingsIcon from "@mui/icons-material/Settings";
 import ShieldIcon from "@mui/icons-material/Shield";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
-import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
-import { canAccess } from "../../utils/accessControl";
 
 const roleContent = {
   1: {
@@ -52,122 +38,6 @@ const roleContent = {
     checklist: ["Training started", "Video watched", "Assessment completed", "Certificate downloaded"],
   },
 };
-
-const actionCards = [
-  {
-    title: "PoSH Policy",
-    description: "Read the current policy, rights, IC composition, and FAQs.",
-    icon: <PolicyIcon />,
-    path: "/posh-policy",
-    allowedRoles: [1, 2, 3, 4, 5],
-  },
-  {
-    title: "POSH Admin Config",
-    description: "View POSH office master, role access, and implementation status.",
-    icon: <SettingsIcon />,
-    path: "/admin/config",
-    allowedRoles: [1],
-  },
-  {
-    title: "Company Management",
-    description: "Create and monitor companies, status, and employee strength.",
-    icon: <BusinessIcon />,
-    path: "/admin/companies",
-    allowedRoles: [1, 2],
-  },
-  {
-    title: "Assigned Work Orders",
-    description: "View company services assigned to you after creation and approval.",
-    icon: <AssessmentIcon />,
-    path: "/admin/assigned-work-orders",
-    allowedRoles: [1, 2, 3],
-  },
-  {
-    title: "User Management",
-    description: "Create users according to the role hierarchy.",
-    icon: <GroupsIcon />,
-    path: "/admin/users",
-    allowedRoles: [1, 2, 5],
-    requiredPermission: "users.manage",
-  },
-  {
-    title: "Employee Upload",
-    description: "Import employee records and correct upload issues.",
-    icon: <UploadFileIcon />,
-    path: "/hr/upload",
-    allowedRoles: [3],
-    requiredPermission: "users.manage",
-  },
-  {
-    title: "Training Assignment",
-    description: "Assign POSH training to employees and departments.",
-    icon: <SchoolIcon />,
-    path: "/hr/assign",
-    allowedRoles: [3],
-    requiredPermission: "training.assign",
-  },
-  {
-    title: "POSH Awareness Training",
-    description: "Watch assigned videos and continue pending training.",
-    icon: <VideoLibraryIcon />,
-    path: "/employee/courses",
-    allowedRoles: [4],
-    requiredPermission: "courses.watch",
-  },
-  {
-    title: "Assessment & Certificate",
-    description: "Complete assessments and download valid certificates.",
-    icon: <BadgeIcon />,
-    path: "/employee/certificates",
-    allowedRoles: [4],
-  },
-  {
-    title: "Video Management",
-    description: "Upload, publish, and manage POSH learning content.",
-    icon: <VideoLibraryIcon />,
-    path: "/admin/videos",
-    allowedRoles: [1, 2],
-    requiredPermission: "videos.manage",
-  },
-  {
-    title: "Certificate Templates",
-    description: "Maintain certificate templates, logos, signatures, and active designs.",
-    icon: <BadgeIcon />,
-    path: "/admin/certificates",
-    allowedRoles: [1, 2],
-    requiredPermission: "certificates.manage",
-  },
-  {
-    title: "POSH Complaints",
-    description: "Review and close received concern submissions.",
-    icon: <ReportProblemIcon />,
-    path: "/admin/concerns",
-    allowedRoles: [1, 2],
-  },
-  {
-    title: "Analytics & Reports",
-    description: "View completion metrics and export audit-ready reports.",
-    icon: <AssessmentIcon />,
-    path: "/admin/analytics",
-    allowedRoles: [1, 2],
-    requiredPermission: "reports.view",
-  },
-  {
-    title: "HR Reports",
-    description: "Download employee and training reports for your company.",
-    icon: <HistoryIcon />,
-    path: "/hr/reports",
-    allowedRoles: [3],
-    requiredPermission: "reports.view",
-  },
-  {
-    title: "Training History",
-    description: "Track completed, in-progress, and not-started training records.",
-    icon: <HistoryIcon />,
-    path: "/employee/history",
-    allowedRoles: [4],
-  },
-];
 
 function metricSet(user, data) {
   if (user?.role_id === 1) {
@@ -211,9 +81,8 @@ function loadEndpoint(user) {
 
 export function StatsHomePage() {
   const { user } = useAuthStore();
-  const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [courses, setCourses] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -225,15 +94,13 @@ export function StatsHomePage() {
       setLoading(true);
       setError("");
       try {
-        const summaryRes = await apiClient.get(loadEndpoint(user));
-        let courseRows = [];
-        if (user?.role_id === 4) {
-          const coursesRes = await apiClient.get("/employee/courses");
-          courseRows = coursesRes.data || [];
-        }
+        const [summaryRes, profileRes] = await Promise.all([
+          apiClient.get(loadEndpoint(user)),
+          apiClient.get("/auth/me"),
+        ]);
         if (active) {
           setData(summaryRes.data);
-          setCourses(courseRows);
+          setProfile(profileRes.data);
         }
       } catch (err) {
         if (active) setError(apiErrorMessage(err, "Home metrics are unavailable."));
@@ -248,25 +115,8 @@ export function StatsHomePage() {
   }, [user]);
 
   const metrics = useMemo(() => metricSet(user, data), [data, user]);
-  const visibleActions = actionCards.filter((item) => canAccess(user, item));
-  const completionRate = Number.parseInt(
-    String(metrics.find((item) => item.label === "Compliance")?.value ?? data?.completion_rate ?? 0),
-    10,
-  ) || 0;
-
-  const progressRows =
-    user?.role_id === 4
-      ? courses.slice(0, 4).map((course) => ({
-          label: course.title,
-          value: Math.round(course.completion_percent || 0),
-          status: course.status,
-          path: `/employee/video/${course.video_id}`,
-        }))
-      : [
-          { label: "Training completion", value: completionRate || 72, status: "Live" },
-          { label: "Certificate readiness", value: user?.role_id === 1 ? 68 : 81, status: "Tracked" },
-          { label: "Concern closure", value: user?.role_id === 3 ? 54 : 76, status: "Monitored" },
-        ];
+  const displayName = profile?.full_name || profile?.first_name || "there";
+  const companyName = profile?.company_name || "Your company";
 
   return (
     <PortalShell title={content.title} subtitle={content.subtitle}>
@@ -276,20 +126,27 @@ export function StatsHomePage() {
         </div>
       )}
 
-      <section className="portal-home-hero">
-        <div>
-          <div className="portal-home-eyebrow">{content.scope}</div>
-          <h2>PoSH Programme At A Glance</h2>
-          <p>
-            A single home view for training, certificates, concerns, compliance evidence,
-            and the actions available to your role.
-          </p>
-        </div>
-        <div className="portal-home-shield">
-          <ShieldIcon />
-          <span>POSH</span>
-        </div>
-      </section>
+      {user?.role_id !== 1 && (
+        <section className="portal-home-hero">
+          <div>
+            <div className="portal-home-eyebrow">Welcome back</div>
+            <h2>{displayName}</h2>
+            <p>
+              {companyName} is happy to see your ownership and responsibility in taking
+              the time to learn about the Prevention of Sexual Harassment (PoSH) policy.
+            </p>
+            <p>
+              Every module you complete and every question you ask helps us build a
+              workplace where everyone feels safe, respected and heard. Thank you for
+              being part of that effort.
+            </p>
+          </div>
+          <div className="portal-home-shield">
+            <ShieldIcon />
+            <span>POSH</span>
+          </div>
+        </section>
+      )}
 
       <section className="portal-grid-4 portal-home-kpis">
         {metrics.map((metric) => (
@@ -299,102 +156,6 @@ export function StatsHomePage() {
             <div className="portal-kpi-trend">{metric.trend}</div>
           </div>
         ))}
-      </section>
-
-      <section className="portal-home-layout">
-        <div className="portal-card">
-          <div className="portal-section-title" style={{ marginTop: 0 }}>Role Workspace</div>
-          <div className="portal-home-action-grid">
-            {visibleActions.map((action) => (
-              <button
-                type="button"
-                key={action.title}
-                className="portal-home-action"
-                onClick={() => navigate(action.path)}
-              >
-                <span>{action.icon}</span>
-                <strong>{action.title}</strong>
-                <small>{action.description}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="portal-card">
-          <div className="portal-section-title" style={{ marginTop: 0 }}>Compliance Checklist</div>
-          <div className="portal-home-checklist">
-            {content.checklist.map((item, index) => (
-              <div key={item} className="portal-home-check">
-                <span className={index < 2 ? "done" : ""}>
-                  <ChecklistIcon fontSize="small" />
-                </span>
-                <div>
-                  <strong>{item}</strong>
-                  <small>{index < 2 ? "Verified" : "In progress"}</small>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="portal-home-layout portal-home-layout-bottom">
-        <div className="portal-card">
-          <div className="portal-section-title" style={{ marginTop: 0 }}>Progress</div>
-          <div className="portal-home-progress-list">
-            {progressRows.length ? (
-              progressRows.map((row) => (
-                <button
-                  type="button"
-                  key={row.label}
-                  className="portal-home-progress-row"
-                  onClick={() => row.path && navigate(row.path)}
-                  disabled={!row.path}
-                >
-                  <div>
-                    <strong>{row.label}</strong>
-                    <small>{row.status}</small>
-                  </div>
-                  <div className="portal-home-progress-meter">
-                    <div className="portal-progress">
-                      <div className="portal-progress-bar" style={{ width: `${Math.min(100, row.value)}%` }} />
-                    </div>
-                    <span>{row.value}%</span>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <p className="portal-home-muted">Progress appears after training is assigned.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="portal-card">
-          <div className="portal-section-title" style={{ marginTop: 0 }}>PoSH Modules</div>
-          <div className="portal-home-module-list">
-            {[
-              ["PoSH Policy", "Policy and statutory awareness", "/posh-policy"],
-              ["IC Training", "Internal Committee readiness", ""],
-              ["Advance Training", "Culture and leadership learning", ""],
-              ["PoSH Audit", "Evidence and audit preparation", ""],
-            ].map(([title, text, path]) => (
-              <button
-                type="button"
-                key={title}
-                className="portal-home-module-row"
-                disabled={!path}
-                onClick={() => path && navigate(path)}
-              >
-                <PolicyIcon fontSize="small" />
-                <div>
-                  <strong>{title}</strong>
-                  <small>{text}</small>
-                </div>
-                <span className="portal-badge portal-badge-purple">Ready</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </section>
 
       <LoadingOverlay

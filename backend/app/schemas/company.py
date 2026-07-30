@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
@@ -171,3 +172,58 @@ class CompanyLanguagePreference(BaseModel):
 class CompanyLanguageUpdate(BaseModel):
     language_ids: list[int]
     default_language_id: Optional[int] = None
+
+
+class EmployeeMasterCreate(BaseModel):
+    company_id: int
+    employee_id: str
+    first_name: str
+    last_name: Optional[str] = None
+    email: EmailStr
+    mobile: str
+    date_of_birth: Optional[date] = None
+    father_name: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    gender: Optional[str] = None
+    blood_group: Optional[str] = None
+    physically_challenged: Optional[str] = None
+    marital_status: Optional[str] = None
+    pan_number: Optional[str] = None
+    foreign_national: Optional[str] = None
+    joining_date: Optional[date] = None
+    designation: Optional[str] = None
+    department: Optional[str] = None
+    location_city: Optional[str] = None
+    employment_status: Optional[str] = None
+    employee_status: Optional[str] = None
+    resignation_date: Optional[date] = None
+    resignation_reason: Optional[str] = None
+    reporting_to: Optional[str] = None
+    branch_name: Optional[str] = None
+    branch_id: Optional[str] = None
+    transfer_date: Optional[date] = None
+    transfer_location: Optional[str] = None
+    transfer_branch_name: Optional[str] = None
+    transfer_branch_id: Optional[str] = None
+    ic_role: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_employee_email(cls, v):
+        return v.strip().lower()
+
+    @field_validator("mobile")
+    @classmethod
+    def validate_employee_mobile(cls, v):
+        value = v.strip()
+        if not re.match(r"^\d{4,15}$", value):
+            raise ValueError("Contact number must be 4 to 15 digits")
+        return value
+
+
+class EmployeeMasterResponse(EmployeeMasterCreate):
+    id: int
+    status: str
+
+    class Config:
+        from_attributes = True
