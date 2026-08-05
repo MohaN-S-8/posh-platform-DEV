@@ -64,7 +64,10 @@ async def run_seed_on_startup():
     from sqlalchemy import text
 
     from app.core.security import hash_password
+    from app.db.init_db import init_db
     from app.db.session import AsyncSessionLocal
+
+    await init_db()
 
     async with AsyncSessionLocal() as db:
         await db.execute(
