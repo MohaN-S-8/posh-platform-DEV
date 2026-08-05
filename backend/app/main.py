@@ -331,7 +331,10 @@ async def run_seed_on_startup():
             ("reference_no", "ADD COLUMN reference_no VARCHAR(50) NULL"),
             ("company_type", "ADD COLUMN company_type VARCHAR(100) NULL"),
             ("company_status_type", "ADD COLUMN company_status_type VARCHAR(50) NULL"),
-            ("approval_status", "ADD COLUMN approval_status VARCHAR(30) NULL DEFAULT 'Pending'"),
+            (
+                "approval_status",
+                "ADD COLUMN approval_status VARCHAR(30) NULL DEFAULT 'Pending'",
+            ),
             ("client_id", "ADD COLUMN client_id VARCHAR(100) NULL"),
             ("scope_codes_json", "ADD COLUMN scope_codes_json TEXT NULL"),
             ("service_details_json", "ADD COLUMN service_details_json TEXT NULL"),
@@ -340,7 +343,10 @@ async def run_seed_on_startup():
             ("corp_address_json", "ADD COLUMN corp_address_json TEXT NULL"),
             ("billing_address_json", "ADD COLUMN billing_address_json TEXT NULL"),
             ("account_contact_json", "ADD COLUMN account_contact_json TEXT NULL"),
-            ("coordinator_contact_json", "ADD COLUMN coordinator_contact_json TEXT NULL"),
+            (
+                "coordinator_contact_json",
+                "ADD COLUMN coordinator_contact_json TEXT NULL",
+            ),
             ("branches_json", "ADD COLUMN branches_json TEXT NULL"),
         ]:
             await ensure_column("company_master", column_name, column_sql)
@@ -351,7 +357,10 @@ async def run_seed_on_startup():
             ("emergency_contact", "ADD COLUMN emergency_contact VARCHAR(20) NULL"),
             ("gender", "ADD COLUMN gender VARCHAR(20) NULL"),
             ("blood_group", "ADD COLUMN blood_group VARCHAR(10) NULL"),
-            ("physically_challenged", "ADD COLUMN physically_challenged VARCHAR(10) NULL"),
+            (
+                "physically_challenged",
+                "ADD COLUMN physically_challenged VARCHAR(10) NULL",
+            ),
             ("marital_status", "ADD COLUMN marital_status VARCHAR(20) NULL"),
             ("pan_number", "ADD COLUMN pan_number VARCHAR(20) NULL"),
             ("foreign_national", "ADD COLUMN foreign_national VARCHAR(10) NULL"),
@@ -364,7 +373,10 @@ async def run_seed_on_startup():
             ("branch_id", "ADD COLUMN branch_id VARCHAR(50) NULL"),
             ("transfer_date", "ADD COLUMN transfer_date DATE NULL"),
             ("transfer_location", "ADD COLUMN transfer_location VARCHAR(150) NULL"),
-            ("transfer_branch_name", "ADD COLUMN transfer_branch_name VARCHAR(150) NULL"),
+            (
+                "transfer_branch_name",
+                "ADD COLUMN transfer_branch_name VARCHAR(150) NULL",
+            ),
             ("transfer_branch_id", "ADD COLUMN transfer_branch_id VARCHAR(50) NULL"),
             ("ic_role", "ADD COLUMN ic_role VARCHAR(100) NULL"),
         ]:

@@ -711,7 +711,12 @@ class CompanyService:
 
         rows = self._json_list(company.service_details_json)
         if not rows:
-            return {"sent": 0, "failed": 0, "notifications": 0, "message": "No service rows found."}
+            return {
+                "sent": 0,
+                "failed": 0,
+                "notifications": 0,
+                "message": "No service rows found.",
+            }
         assigned_ids = {
             int(row["assigned_to"]) for row in rows if str(row.get("assigned_to") or "").isdigit()
         }

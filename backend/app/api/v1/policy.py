@@ -50,9 +50,21 @@ DEFAULT_POLICY = {
             "name": "Gomathi Subramaniam",
             "detail": "Senior Manager - HR, Chennai HQ",
         },
-        {"role": "Member", "name": "Priya Raman", "detail": "HR Business Partner, Chennai HQ"},
-        {"role": "Member", "name": "Arjun Mehta", "detail": "Legal Counsel, Chennai HQ"},
-        {"role": "External Member", "name": "Kavitha Reddy", "detail": "Sakhi Foundation"},
+        {
+            "role": "Member",
+            "name": "Priya Raman",
+            "detail": "HR Business Partner, Chennai HQ",
+        },
+        {
+            "role": "Member",
+            "name": "Arjun Mehta",
+            "detail": "Legal Counsel, Chennai HQ",
+        },
+        {
+            "role": "External Member",
+            "name": "Kavitha Reddy",
+            "detail": "Sakhi Foundation",
+        },
     ],
     "rights": [
         "Right to a safe workplace",
