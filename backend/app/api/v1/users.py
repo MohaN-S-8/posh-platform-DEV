@@ -263,7 +263,7 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Soft-delete a user according to the configured role-management flow."""
+    """Permanently delete a user according to the configured role-management flow."""
     existing = await user_service.get_by_id(
         db,
         user_id,

@@ -87,7 +87,7 @@ async def seed():
                 DELETE rp FROM role_permission rp
                 JOIN permission_master pm ON pm.permission_id = rp.permission_id
                 WHERE
-                    (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','videos.upload','reports.view'))
+                    (rp.role_id = 3 AND pm.permission_key = 'videos.manage')
                     OR rp.role_id = 5
             """
             )
@@ -102,7 +102,7 @@ async def seed():
                 UNION SELECT 5, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage')
                 UNION SELECT 3, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','training.assign')
+                WHERE permission_key IN ('users.manage','videos.upload','reports.view','training.assign')
                 UNION SELECT 4, permission_id FROM permission_master
                 WHERE permission_key IN ('courses.watch')
             """

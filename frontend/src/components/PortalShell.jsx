@@ -68,7 +68,9 @@ const defaultAllowed = {
     "PoSH Policy",
     "POSH Awareness Training",
     "Assessment & Certificate",
+    "POSH Compliance",
     "POSH Complaints",
+    "Analytics & Reports",
     "Employee Master - PoSH",
   ]),
   Employee: new Set([
@@ -147,7 +149,11 @@ const moduleCatalog = [
   {
     accessItem: "POSH Compliance",
     label: "POSH Compliance",
-    to: (roleId) => (roleId === 1 ? "/super-admin/compliance" : "/hr/compliance"),
+    to: (roleId) => {
+      if (roleId === 1) return "/super-admin/compliance";
+      if (roleId === 2 || roleId === 5) return "/admin/compliance";
+      return "/hr/compliance";
+    },
     icon: <AssessmentIcon fontSize="small" />,
     allowedRoles: [1, 2, 3, 4, 5],
   },

@@ -41,8 +41,15 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def get_sync_database_url() -> str:
+    url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    return url.replace("mysql+asyncmy://", "mysql+pymysql://").replace(
+        "mysql+aiomysql://", "mysql+pymysql://"
+    )
+
+
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+    url = get_sync_database_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -54,6 +61,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    config.set_main_option("sqlalchemy.url", get_sync_database_url())
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

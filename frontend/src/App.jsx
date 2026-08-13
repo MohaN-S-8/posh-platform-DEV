@@ -423,10 +423,20 @@ function App() {
           }
         />
         <Route
+          path="/admin/compliance"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[2, 5]} requiredPermission="reports.view" accessItem="POSH Compliance">
+                <CompliancePage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/hr/compliance"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="reports.view" accessItem="POSH Compliance">
+              <RoleRoute allowedRoles={[3]} requiredPermission="reports.view" accessItem="POSH Compliance">
                 <CompliancePage />
               </RoleRoute>
             </ProtectedRoute>

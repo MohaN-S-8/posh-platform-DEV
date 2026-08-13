@@ -68,7 +68,9 @@ const defaultAllowed = {
     "PoSH Policy",
     "POSH Awareness Training",
     "Assessment & Certificate",
+    "POSH Compliance",
     "POSH Complaints",
+    "Analytics & Reports",
     "Employee Master - PoSH",
   ]),
   Employee: new Set([

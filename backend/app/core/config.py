@@ -1,6 +1,5 @@
 from typing import List
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -29,16 +28,6 @@ class Settings(BaseSettings):
     ENTRA_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/sso/entra/callback"
     # App
     APP_ENV: str = "development"
-
-    @field_validator("DATABASE_URL", mode="before")
-    @classmethod
-    def normalize_database_url(cls, value: str) -> str:
-        if isinstance(value, str):
-            if value.startswith("mysql://"):
-                return value.replace("mysql://", "mysql+asyncmy://", 1)
-            if value.startswith("mysql+mysqldb://") or value.startswith("mysql+pymysql://"):
-                return value.replace(value.split("://", 1)[0], "mysql+asyncmy", 1)
-        return value
 
     class Config:
         env_file = ".env"  # reads from the .env file automatically

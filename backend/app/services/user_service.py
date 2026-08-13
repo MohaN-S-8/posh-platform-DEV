@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
@@ -63,21 +63,46 @@ class UserService:
         data_dict = data.model_dump()
         requested_username = (data_dict.pop("username", None) or data.email).strip()
         requested_password = data_dict.pop("password", None)
+        await self._purge_deleted_identity_conflicts(
+            db,
+            email=data.email,
+            username=requested_username,
+            employee_id=data.employee_id,
+        )
 
         # Check duplicate email
-        existing = await db.execute(select(UserMaster).where(UserMaster.email == data.email))
+        existing = await db.execute(
+            select(UserMaster).where(
+                UserMaster.email == data.email,
+                UserMaster.is_deleted == "N",
+            )
+        )
         if existing.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered.",
             )
         existing_username = await db.execute(
-            select(UserMaster).where(UserMaster.username == requested_username)
+            select(UserMaster).where(
+                UserMaster.username == requested_username,
+                UserMaster.is_deleted == "N",
+            )
         )
         if existing_username.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already registered.",
+            )
+        existing_employee_id = await db.execute(
+            select(UserMaster).where(
+                UserMaster.employee_id == data.employee_id,
+                UserMaster.is_deleted == "N",
+            )
+        )
+        if existing_employee_id.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee ID already registered.",
             )
 
         temp_password = requested_password or self._generate_temporary_password()
@@ -102,6 +127,26 @@ class UserService:
 
         await db.refresh(user)
         return user
+
+    async def _purge_deleted_identity_conflicts(
+        self,
+        db: AsyncSession,
+        email: str,
+        username: str,
+        employee_id: str,
+    ) -> None:
+        result = await db.execute(
+            select(UserMaster).where(
+                UserMaster.is_deleted == "Y",
+                (
+                    (UserMaster.email == email)
+                    | (UserMaster.username == username)
+                    | (UserMaster.employee_id == employee_id)
+                ),
+            )
+        )
+        for deleted_user in result.scalars().all():
+            await self._hard_delete_user(db, deleted_user)
 
     async def update(
         self,
@@ -188,9 +233,73 @@ class UserService:
         self, db: AsyncSession, user_id: int, company_id: Optional[int] = None
     ) -> dict:
         user = await self.get_by_id(db, user_id, company_id)
-        user.is_deleted = "Y"
+        await self._hard_delete_user(db, user)
         await db.commit()
-        return {"message": "User deleted successfully."}
+        return {"message": "User permanently deleted successfully."}
+
+    async def _hard_delete_user(self, db: AsyncSession, user: UserMaster) -> None:
+        user_id = user.user_id
+        email = user.email
+
+        delete_statements = [
+            ("DELETE FROM notification WHERE user_id = :user_id", {"user_id": user_id}),
+            (
+                "DELETE FROM refresh_tokens WHERE user_id = :user_id",
+                {"user_id": user_id},
+            ),
+            (
+                "DELETE FROM password_reset_tokens WHERE user_id = :user_id",
+                {"user_id": user_id},
+            ),
+            (
+                "DELETE FROM account_lockout WHERE user_id = :user_id",
+                {"user_id": user_id},
+            ),
+            (
+                "DELETE FROM login_attempts WHERE user_id = :user_id OR email_attempted = :email",
+                {"user_id": user_id, "email": email},
+            ),
+            ("DELETE FROM otp_verification WHERE email = :email", {"email": email}),
+            ("DELETE FROM certificates WHERE user_id = :user_id", {"user_id": user_id}),
+            (
+                "DELETE FROM assessment_result WHERE user_id = :user_id",
+                {"user_id": user_id},
+            ),
+            (
+                "DELETE FROM training_history WHERE user_id = :user_id",
+                {"user_id": user_id},
+            ),
+            (
+                """
+                DELETE FROM course_assignment
+                WHERE assigned_to_user_id = :user_id OR assigned_by = :user_id
+                """,
+                {"user_id": user_id},
+            ),
+            ("DELETE FROM concerns WHERE user_id = :user_id", {"user_id": user_id}),
+        ]
+        for statement, params in delete_statements:
+            await db.execute(text(statement), params)
+
+        await db.execute(
+            text("UPDATE user_master SET manager_id = NULL WHERE manager_id = :user_id"),
+            {"user_id": user_id},
+        )
+        await db.execute(
+            text("UPDATE video_master SET created_by = NULL WHERE created_by = :user_id"),
+            {"user_id": user_id},
+        )
+        await db.execute(
+            text(
+                "UPDATE employee_upload_batch SET uploaded_by = NULL WHERE uploaded_by = :user_id"
+            ),
+            {"user_id": user_id},
+        )
+        await db.execute(
+            text("UPDATE audit_logs SET user_id = NULL WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        )
+        await db.delete(user)
 
     def _generate_temporary_password(self) -> str:
         import secrets

@@ -16,7 +16,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     "training.assign",
   ],
   5: ["users.manage"],
-  3: ["users.manage", "training.assign"],
+  3: ["users.manage", "videos.upload", "reports.view", "training.assign"],
   4: ["courses.watch"],
 };
 

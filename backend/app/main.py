@@ -64,10 +64,7 @@ async def run_seed_on_startup():
     from sqlalchemy import text
 
     from app.core.security import hash_password
-    from app.db.init_db import init_db
     from app.db.session import AsyncSessionLocal
-
-    await init_db()
 
     async with AsyncSessionLocal() as db:
         await db.execute(
@@ -107,6 +104,83 @@ async def run_seed_on_startup():
                     UNIQUE KEY uq_company_language (company_id, language_id)
                 )
                 """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS company_master (
+                    company_id INT PRIMARY KEY,
+                    company_code VARCHAR(50),
+                    company_name VARCHAR(255),
+                    status VARCHAR(50),
+                    is_deleted CHAR(1) DEFAULT 'N',
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS user_master (
+                    user_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    company_id INT,
+                    employee_id VARCHAR(50),
+                    first_name VARCHAR(100),
+                    last_name VARCHAR(100),
+                    email VARCHAR(100) UNIQUE,
+                    mobile VARCHAR(20),
+                    role_id INT,
+                    username VARCHAR(100),
+                    password_hash TEXT,
+                    status VARCHAR(30),
+                    is_deleted CHAR(1),
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS role_master (
+                    role_id INT PRIMARY KEY,
+                    role_name VARCHAR(100)
+                )
+            """
+            )
+        )
+        await db.execute(
+            text(
+                """
+        CREATE TABLE IF NOT EXISTS language_master (
+        language_id INT PRIMARY KEY,
+        language_name VARCHAR(100)
+        )
+        """
+            )
+        )
+        await db.execute(
+            text(
+                """
+        CREATE TABLE IF NOT EXISTS video_category (
+            category_id INT PRIMARY KEY,
+            category_name VARCHAR(150)
+        )
+        """
+            )
+        )
+        await db.execute(
+            text(
+                """
+        CREATE TABLE IF NOT EXISTS account_lockout (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT,
+        failed_attempts INT DEFAULT 0,
+        locked_until DATETIME NULL
+        )
+        """
             )
         )
         await db.execute(
@@ -293,6 +367,17 @@ async def run_seed_on_startup():
                 """
             )
         )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS certificate_template (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    certificate_name VARCHAR(255) NULL,
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
         template_column_result = await db.execute(
             text(
                 """
@@ -456,15 +541,7 @@ async def run_seed_on_startup():
                 "email": "admin@posh.com",
                 "mobile": "9000000001",
                 "role_id": 1,
-            },
-            {
-                "employee_id": "HR001",
-                "first_name": "HR",
-                "last_name": "Manager",
-                "email": "hr@posh.com",
-                "mobile": "9000000002",
-                "role_id": 3,
-            },
+            }
         ]
 
         for user in default_users:

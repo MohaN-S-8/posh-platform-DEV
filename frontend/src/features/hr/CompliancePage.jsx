@@ -1,14 +1,56 @@
+import DownloadIcon from "@mui/icons-material/Download";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
+import { PortalShell } from "../../components/PortalShell";
+import { useAuthStore } from "../../store/authStore";
+
+const complianceContextForRole = (roleId) => {
+  if (roleId === 1) {
+    return {
+      path: "/super-admin/compliance",
+      backTarget: "/dashboard",
+      backLabel: "Back to Super Admin Dashboard",
+      title: "Super Admin Compliance",
+      subtitle: "Platform-wide training status, department compliance, and overdue employees.",
+    };
+  }
+
+  if (roleId === 2 || roleId === 5) {
+    return {
+      path: "/admin/compliance",
+      backTarget: "/admin",
+      backLabel: "Back to Admin Dashboard",
+      title: "Admin Compliance",
+      subtitle: "Company training compliance, department progress, and pending actions.",
+    };
+  }
+
+  return {
+    path: "/hr/compliance",
+    backTarget: "/hr",
+    backLabel: "Back to HR Dashboard",
+    title: "HR Compliance",
+    subtitle: "Employee training compliance and department progress for your company.",
+  };
+};
 
 export function CompliancePage() {
+  const { user } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
+  const complianceContext = complianceContextForRole(user?.role_id);
+
+  useEffect(() => {
+    if (user?.role_id && location.pathname !== complianceContext.path) {
+      navigate(complianceContext.path, { replace: true });
+    }
+  }, [complianceContext.path, location.pathname, navigate, user?.role_id]);
 
   useEffect(() => {
     let active = true;
@@ -53,14 +95,17 @@ export function CompliancePage() {
   };
 
   const stats = [
-    { label: "Total Employees", value: data?.total_employees ?? 0, color: "#17324d" },
-    { label: "Completed", value: data?.completed ?? 0, color: "#1f7a4d" },
-    { label: "In Progress", value: data?.in_progress ?? 0, color: "#c77918" },
-    { label: "Not Started", value: data?.not_started ?? 0, color: "#c0392b" },
+    { label: "Total Employees", value: data?.total_employees ?? 0, trend: "Assigned users" },
+    { label: "Completed", value: data?.completed ?? 0, trend: "Finished training" },
+    { label: "In Progress", value: data?.in_progress ?? 0, trend: "Currently active" },
+    { label: "Not Started", value: data?.not_started ?? 0, trend: "Awaiting start" },
   ];
+  const complianceRate = data?.compliance_rate ?? 0;
+  const complianceBadge =
+    complianceRate >= 80 ? "portal-badge-green" : complianceRate >= 50 ? "portal-badge-amber" : "portal-badge-purple";
 
   return (
-    <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
+    <PortalShell title={complianceContext.title} subtitle={complianceContext.subtitle}>
       <div
         style={{
           display: "flex",
@@ -68,54 +113,35 @@ export function CompliancePage() {
           alignItems: "center",
           gap: "16px",
           flexWrap: "wrap",
-          marginBottom: "24px",
+          marginBottom: "20px",
         }}
       >
-        <div>
-          <button
-            type="button"
-            onClick={() => navigate("/hr")}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#17324d",
-              cursor: "pointer",
-              marginBottom: "8px",
-              fontWeight: 700,
-            }}
-          >
-            Back to HR Dashboard
-          </button>
-          <h1 style={{ color: "#17324d", margin: 0, fontSize: "30px" }}>
-            Compliance Dashboard
-          </h1>
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate(complianceContext.backTarget)}
+          className="portal-outline-btn"
+        >
+          {complianceContext.backLabel}
+        </button>
         <button
           type="button"
           onClick={downloadReport}
           disabled={downloading}
-          style={{
-            padding: "10px 20px",
-            background: downloading ? "#93a4b7" : "#1f7a4d",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: downloading ? "not-allowed" : "pointer",
-            fontWeight: 700,
-          }}
+          className="portal-primary-btn"
+          style={{ opacity: downloading ? 0.72 : 1 }}
         >
+          <DownloadIcon fontSize="small" />
           {downloading ? "Downloading..." : "Download Excel Report"}
         </button>
       </div>
 
       {error && (
         <div
+          className="portal-card"
           style={{
-            background: "#fff7f6",
             border: "1px solid #f3b4ae",
-            borderRadius: "8px",
+            background: "#fff7f6",
             color: "#c0392b",
-            padding: "12px 14px",
             marginBottom: "18px",
           }}
         >
@@ -123,110 +149,65 @@ export function CompliancePage() {
         </div>
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-          gap: "16px",
-          marginBottom: "24px",
-        }}
-      >
-        {stats.map(({ label, value, color }) => (
-          <div
-            key={label}
-            style={{
-              background: "white",
-              borderRadius: "8px",
-              padding: "20px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-              border: "1px solid #e7edf3",
-              borderTop: `4px solid ${color}`,
-            }}
-          >
-            <div style={{ fontSize: "30px", fontWeight: 800, color }}>{value}</div>
-            <div style={{ fontSize: "13px", color: "#64748b", marginTop: "4px" }}>
-              {label}
+      <section style={{ marginBottom: "28px" }}>
+        <div className="portal-section-title">Compliance Snapshot</div>
+        <div className="portal-auto-grid">
+          {stats.map(({ label, value, trend }) => (
+            <div key={label} className="portal-card">
+              <div className="portal-kpi-value">{value}</div>
+              <div className="portal-kpi-label">{label}</div>
+              <div className="portal-kpi-trend">{trend}</div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <div
-        style={{
-          background: "white",
-          borderRadius: "8px",
-          padding: "20px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          border: "1px solid #e7edf3",
-          marginBottom: "20px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "12px",
-            gap: "12px",
-          }}
-        >
-          <h2 style={{ margin: 0, color: "#17324d", fontSize: "20px" }}>
-            Overall Compliance Rate
-          </h2>
-          <span
-            style={{
-              fontSize: "24px",
-              fontWeight: 800,
-              color: (data?.compliance_rate ?? 0) >= 80 ? "#1f7a4d" : "#c0392b",
-            }}
-          >
-            {data?.compliance_rate ?? 0}%
-          </span>
+          ))}
         </div>
-        <div
-          style={{
-            height: "12px",
-            background: "#edf2f7",
-            borderRadius: "999px",
-            overflow: "hidden",
-          }}
-        >
+      </section>
+
+      <section style={{ marginBottom: "28px" }}>
+        <div className="portal-card">
           <div
             style={{
-              height: "100%",
-              width: `${Math.min(100, data?.compliance_rate ?? 0)}%`,
-              background: (data?.compliance_rate ?? 0) >= 80 ? "#1f7a4d" : "#c0392b",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+              marginBottom: "14px",
             }}
-          />
+          >
+            <div>
+              <div className="portal-section-title" style={{ margin: 0 }}>
+                Overall Compliance Rate
+              </div>
+              <p style={{ margin: "6px 0 0", color: "var(--portal-muted)" }}>
+                Completion percentage across assigned training.
+              </p>
+            </div>
+            <span className={`portal-badge ${complianceBadge}`} style={{ fontSize: "14px" }}>
+              {complianceRate}%
+            </span>
+          </div>
+          <div className="portal-progress" style={{ height: "14px" }}>
+            <div
+              className="portal-progress-bar"
+              style={{ width: `${Math.min(100, Math.max(0, complianceRate))}%` }}
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div
-        style={{
-          background: "white",
-          borderRadius: "8px",
-          padding: "20px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-          border: "1px solid #e7edf3",
-          marginBottom: "20px",
-          overflowX: "auto",
-        }}
-      >
-        <h2 style={{ marginTop: 0, color: "#17324d", fontSize: "20px" }}>
+      <section className="portal-card" style={{ marginBottom: "28px", overflowX: "auto" }}>
+        <div className="portal-section-title" style={{ marginTop: 0 }}>
           Department Compliance
-        </h2>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "640px" }}>
+        </div>
+        <table className="portal-table" style={{ minWidth: "640px" }}>
           <thead>
-            <tr style={{ background: "#f6f8fb" }}>
+            <tr>
               {["Department", "Employees", "Completed", "Pending", "Compliance"].map(
                 (h, index) => (
                   <th
                     key={h}
                     style={{
-                      padding: "10px 16px",
                       textAlign: index === 0 ? "left" : "right",
-                      fontSize: "13px",
-                      color: "#64748b",
                     }}
                   >
                     {h}
@@ -238,20 +219,16 @@ export function CompliancePage() {
           <tbody>
             {data?.department_breakdown?.length ? (
               data.department_breakdown.map((dept) => (
-                <tr key={dept.department} style={{ borderBottom: "1px solid #eef2f6" }}>
-                  <td style={{ padding: "10px 16px", fontSize: "14px" }}>
-                    {dept.department}
-                  </td>
+                <tr key={dept.department}>
+                  <td>{dept.department}</td>
                   {[dept.total, dept.completed, dept.pending, `${dept.compliance_rate}%`].map(
                     (value, index) => (
                       <td
                         key={index}
                         style={{
-                          padding: "10px 16px",
-                          fontSize: "14px",
                           textAlign: "right",
                           fontWeight: 700,
-                          color: "#17324d",
+                          color: "var(--portal-purple)",
                         }}
                       >
                         {value}
@@ -262,39 +239,28 @@ export function CompliancePage() {
               ))
             ) : (
               <tr>
-                <td colSpan={5} style={{ padding: "16px", color: "#64748b" }}>
+                <td colSpan={5} style={{ color: "var(--portal-muted)" }}>
                   No department data available yet.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
+      </section>
 
       {data?.overdue_employees?.length > 0 && (
-        <div
-          style={{
-            background: "white",
-            borderRadius: "8px",
-            padding: "20px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-            border: "1px solid #e7edf3",
-            overflowX: "auto",
-          }}
-        >
-          <h2 style={{ marginTop: 0, color: "#c0392b", fontSize: "20px" }}>
+        <section className="portal-card" style={{ overflowX: "auto" }}>
+          <div className="portal-section-title" style={{ marginTop: 0, color: "#c0392b" }}>
             Overdue Employees ({data.overdue_employees.length})
-          </h2>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "520px" }}>
+          </div>
+          <table className="portal-table" style={{ minWidth: "520px" }}>
             <thead>
-              <tr style={{ background: "#fff7f6" }}>
+              <tr>
                 {["Name", "Email", "Due Date"].map((h) => (
                   <th
                     key={h}
                     style={{
-                      padding: "10px 16px",
                       textAlign: "left",
-                      fontSize: "13px",
                       color: "#c0392b",
                     }}
                   >
@@ -305,21 +271,17 @@ export function CompliancePage() {
             </thead>
             <tbody>
               {data.overdue_employees.map((emp, index) => (
-                <tr key={`${emp.email}-${index}`} style={{ borderBottom: "1px solid #eef2f6" }}>
-                  <td style={{ padding: "10px 16px", fontSize: "14px" }}>
-                    {emp.name}
-                  </td>
-                  <td style={{ padding: "10px 16px", fontSize: "14px", color: "#64748b" }}>
-                    {emp.email}
-                  </td>
-                  <td style={{ padding: "10px 16px", fontSize: "14px", color: "#c0392b" }}>
+                <tr key={`${emp.email}-${index}`}>
+                  <td>{emp.name}</td>
+                  <td style={{ color: "var(--portal-muted)" }}>{emp.email}</td>
+                  <td style={{ color: "#c0392b", fontWeight: 700 }}>
                     {emp.due_date}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </section>
       )}
 
       <LoadingOverlay
@@ -331,6 +293,6 @@ export function CompliancePage() {
             : "Fetching training status and department compliance."
         }
       />
-    </div>
+    </PortalShell>
   );
 }
