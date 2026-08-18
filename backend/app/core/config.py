@@ -1,7 +1,11 @@
+import json
 from typing import List
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+
+def normalize_origin(origin: str) -> str:
+    return origin.strip().rstrip("/")
 
 
 class Settings(BaseSettings):
@@ -18,7 +22,7 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:80"
     PUBLIC_APP_URL: str = "http://localhost:80"
 
@@ -30,15 +34,26 @@ class Settings(BaseSettings):
     # App
     APP_ENV: str = "development"
 
-    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, value):
-        if isinstance(value, str):
-            stripped_value = value.strip()
-            if stripped_value.startswith("["):
-                return value
-            return [origin.strip() for origin in stripped_value.split(",") if origin.strip()]
-        return value
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        raw_origins = self.BACKEND_CORS_ORIGINS.strip()
+        if raw_origins.startswith("["):
+            try:
+                parsed_origins = json.loads(raw_origins)
+            except json.JSONDecodeError:
+                parsed_origins = raw_origins.split(",")
+        else:
+            parsed_origins = raw_origins.split(",")
+        origins = [
+            normalize_origin(str(origin))
+            for origin in parsed_origins
+            if normalize_origin(str(origin))
+        ]
+        for origin in [self.FRONTEND_URL, self.PUBLIC_APP_URL]:
+            normalized_origin = normalize_origin(origin)
+            if normalized_origin and normalized_origin not in origins:
+                origins.append(normalized_origin)
+        return origins
 
     class Config:
         env_file = ".env"  # reads from the .env file automatically
