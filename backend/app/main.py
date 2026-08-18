@@ -4,6 +4,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.staticfiles import StaticFiles
 
 from app.api.v1.admin import router as admin_router
 from app.api.v1.admin_config import router as admin_config_router
@@ -20,6 +21,7 @@ from app.api.v1.policy import router as policy_router
 from app.api.v1.users import router as users_router
 from app.api.v1.videos import router as videos_router
 from app.core.config import settings
+from app.core.storage import LOCAL_STORAGE_ROOT, use_local_storage
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -41,6 +43,10 @@ app.include_router(admin_config_router, prefix="/api/v1")
 app.include_router(employee_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(policy_router, prefix="/api/v1")
+
+if use_local_storage():
+    LOCAL_STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+    app.mount("/storage", StaticFiles(directory=str(LOCAL_STORAGE_ROOT)), name="storage")
 
 
 @app.on_event("startup")

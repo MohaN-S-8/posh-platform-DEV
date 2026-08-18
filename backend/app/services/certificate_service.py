@@ -23,7 +23,7 @@ from app.models.certificate import Certificate, CertificateTemplate
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
 
-CERT_BUCKET = "posh-certificates"
+CERT_BUCKET = os.environ.get("MINIO_BUCKET_CERTIFICATES", "posh-certificates")
 logger = logging.getLogger(__name__)
 
 
