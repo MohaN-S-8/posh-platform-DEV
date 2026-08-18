@@ -1,7 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { LoadingOverlay } from "./components/LoadingOverlay";
 import { SessionTimeout } from "./components/SessionTimeout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RoleRoute } from "./routes/RoleRoute";
+import { useLoadingStore } from "./store/loadingStore";
 
 // Auth screens
 import { LoginPage } from "./features/auth/LoginPage";
@@ -56,6 +58,8 @@ import { TrainingHistoryPage } from "./features/employee/TrainingHistoryPage";
 import { StatsHomePage } from "./features/dashboard/StatsHomePage";
 
 function App() {
+  const activeRequests = useLoadingStore((state) => state.activeRequests);
+
   return (
     <BrowserRouter>
       <SessionTimeout />
@@ -529,6 +533,11 @@ function App() {
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      <LoadingOverlay
+        show={activeRequests > 0}
+        title="Loading"
+        message="Fetching the latest data."
+      />
     </BrowserRouter>
   );
 }
