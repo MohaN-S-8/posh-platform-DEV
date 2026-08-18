@@ -453,6 +453,12 @@ async def run_seed_on_startup():
             ("service_details_json", "ADD COLUMN service_details_json TEXT NULL"),
             ("referral_from", "ADD COLUMN referral_from VARCHAR(100) NULL"),
             ("referral_name", "ADD COLUMN referral_name VARCHAR(150) NULL"),
+            ("industry_type", "ADD COLUMN industry_type VARCHAR(100) NULL"),
+            ("website", "ADD COLUMN website VARCHAR(200) NULL"),
+            ("registration_number", "ADD COLUMN registration_number VARCHAR(50) NULL"),
+            ("gst_number", "ADD COLUMN gst_number VARCHAR(50) NULL"),
+            ("employee_strength", "ADD COLUMN employee_strength INT NULL"),
+            ("address", "ADD COLUMN address TEXT NULL"),
             ("corp_address_json", "ADD COLUMN corp_address_json TEXT NULL"),
             ("billing_address_json", "ADD COLUMN billing_address_json TEXT NULL"),
             ("account_contact_json", "ADD COLUMN account_contact_json TEXT NULL"),
@@ -461,6 +467,10 @@ async def run_seed_on_startup():
                 "ADD COLUMN coordinator_contact_json TEXT NULL",
             ),
             ("branches_json", "ADD COLUMN branches_json TEXT NULL"),
+            ("contact_person", "ADD COLUMN contact_person VARCHAR(100) NULL"),
+            ("contact_email", "ADD COLUMN contact_email VARCHAR(100) NULL"),
+            ("contact_mobile", "ADD COLUMN contact_mobile VARCHAR(20) NULL"),
+            ("updated_date", "ADD COLUMN updated_date DATETIME DEFAULT CURRENT_TIMESTAMP"),
         ]:
             await ensure_column("company_master", column_name, column_sql)
 
@@ -477,6 +487,8 @@ async def run_seed_on_startup():
             ("marital_status", "ADD COLUMN marital_status VARCHAR(20) NULL"),
             ("pan_number", "ADD COLUMN pan_number VARCHAR(20) NULL"),
             ("foreign_national", "ADD COLUMN foreign_national VARCHAR(10) NULL"),
+            ("department", "ADD COLUMN department VARCHAR(100) NULL"),
+            ("designation", "ADD COLUMN designation VARCHAR(100) NULL"),
             ("employment_status", "ADD COLUMN employment_status VARCHAR(50) NULL"),
             ("employee_status", "ADD COLUMN employee_status VARCHAR(50) NULL"),
             ("resignation_date", "ADD COLUMN resignation_date DATE NULL"),
@@ -492,6 +504,14 @@ async def run_seed_on_startup():
             ),
             ("transfer_branch_id", "ADD COLUMN transfer_branch_id VARCHAR(50) NULL"),
             ("ic_role", "ADD COLUMN ic_role VARCHAR(100) NULL"),
+            ("manager_id", "ADD COLUMN manager_id BIGINT NULL"),
+            (
+                "login_type",
+                "ADD COLUMN login_type ENUM('Email', 'SSO', 'Entra ID') DEFAULT 'Email'",
+            ),
+            ("language_preference", "ADD COLUMN language_preference INT NULL"),
+            ("joining_date", "ADD COLUMN joining_date DATE NULL"),
+            ("updated_date", "ADD COLUMN updated_date DATETIME DEFAULT CURRENT_TIMESTAMP"),
         ]:
             await ensure_column("user_master", column_name, column_sql)
 
