@@ -10,6 +10,28 @@ from app.db.session import get_db
 from app.models.auth import RefreshTokens
 from app.models.user import UserMaster
 
+ROLE_ACCESS_LABELS = {
+    1: ["Super Admin"],
+    2: ["Company Admin", "Corp Admin", "Admin"],
+    5: ["Client Admin (Mgmt)", "Client / Management"],
+    3: ["HR", "HR / IC", "PO / Member"],
+    4: ["Employee"],
+}
+
+PERMISSION_ACCESS_ITEMS = {
+    "users.manage": ["Employee Master - PoSH"],
+    "videos.upload": ["POSH Awareness Training"],
+    "certificates.manage": ["Assessment & Certificate", "Assessment & Certificates"],
+    "reports.view": [
+        "Analytics & Reports",
+        "POSH Compliance",
+        "POSH Complaints",
+        "POSH Audit",
+    ],
+    "training.assign": ["POSH Awareness Training"],
+    "courses.watch": ["POSH Awareness Training"],
+}
+
 
 class CurrentUser:
     """Holds the authenticated user's info — passed to every protected route."""
@@ -125,6 +147,9 @@ def require_permission(permission_key: str):
         if current_user.role_id == 1:
             return current_user
 
+        if await _has_matrix_permission(db, current_user.role_id, permission_key):
+            return current_user
+
         result = await db.execute(
             text(
                 """
@@ -158,6 +183,10 @@ def require_any_permission(permission_keys: list[str]):
         if current_user.role_id == 1:
             return current_user
 
+        for permission_key in permission_keys:
+            if await _has_matrix_permission(db, current_user.role_id, permission_key):
+                return current_user
+
         result = await db.execute(
             text(
                 """
@@ -179,3 +208,82 @@ def require_any_permission(permission_keys: list[str]):
         return current_user
 
     return checker
+
+
+async def _has_matrix_permission(
+    db: AsyncSession,
+    role_id: int,
+    permission_key: str,
+) -> bool:
+    """Treat Super Admin Role & Access Matrix grants as page-level permission grants."""
+    role_labels = ROLE_ACCESS_LABELS.get(role_id, [])
+    access_items = PERMISSION_ACCESS_ITEMS.get(permission_key, [])
+    if not role_labels or not access_items:
+        return False
+
+    result = await db.execute(
+        text(
+            """
+            SELECT 1
+            FROM posh_role_access
+            WHERE role_label IN :role_labels
+              AND access_item IN :access_items
+              AND is_allowed = TRUE
+            LIMIT 1
+            """
+        ).bindparams(
+            bindparam("role_labels", expanding=True),
+            bindparam("access_items", expanding=True),
+        ),
+        {"role_labels": role_labels, "access_items": access_items},
+    )
+    return result.scalar_one_or_none() is not None
+
+
+def require_roles_or_matrix(role_ids: list[int], access_items: list[str]):
+    """Allow access by fixed role ids or by an enabled Role & Access Matrix item."""
+
+    async def checker(
+        current_user: CurrentUser = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ):
+        if current_user.role_id in role_ids:
+            return current_user
+
+        if await _has_matrix_access_items(db, current_user.role_id, access_items):
+            return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this resource.",
+        )
+
+    return checker
+
+
+async def _has_matrix_access_items(
+    db: AsyncSession,
+    role_id: int,
+    access_items: list[str],
+) -> bool:
+    role_labels = ROLE_ACCESS_LABELS.get(role_id, [])
+    if not role_labels or not access_items:
+        return False
+
+    result = await db.execute(
+        text(
+            """
+            SELECT 1
+            FROM posh_role_access
+            WHERE role_label IN :role_labels
+              AND access_item IN :access_items
+              AND is_allowed = TRUE
+            LIMIT 1
+            """
+        ).bindparams(
+            bindparam("role_labels", expanding=True),
+            bindparam("access_items", expanding=True),
+        ),
+        {"role_labels": role_labels, "access_items": access_items},
+    )
+    return result.scalar_one_or_none() is not None

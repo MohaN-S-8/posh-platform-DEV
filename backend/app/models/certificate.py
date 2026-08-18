@@ -29,7 +29,7 @@ class CertificateTemplate(Base):
     signature_path = Column(String(255))  # path in MinIO
     color_code = Column(String(20), default="#1a3c5e")
     company_id = Column(Integer, ForeignKey("company_master.company_id"))
-    status = Column(Enum("Active", "Inactive"), default="Active")
+    status = Column(Enum("Pending", "Active", "Inactive", "Rejected"), default="Pending")
     created_date = Column(DateTime, server_default=func.now())
     updated_date = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

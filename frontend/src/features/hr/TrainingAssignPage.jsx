@@ -34,7 +34,7 @@ export function TrainingAssignPage() {
       setError("");
       try {
         const [videoRes, employeeRes] = await Promise.all([
-          apiClient.get("/videos/published"),
+          apiClient.get("/videos/assignable"),
           apiClient.get("/hr/employees"),
         ]);
         setVideos(videoRes.data);
@@ -53,9 +53,12 @@ export function TrainingAssignPage() {
     () => videos.find((video) => String(video.video_id) === String(form.video_id)),
     [videos, form.video_id],
   );
+  const publishedVideos = videos.filter((video) => video.status === "Published");
+  const pendingVideos = videos.filter((video) => video.status !== "Published");
 
   const canSubmit =
     form.video_id &&
+    selectedVideo?.status === "Published" &&
     (form.assign_type === "Company-Wide" ||
       (form.assign_type === "Individual" && form.assigned_to_user_id) ||
       (form.assign_type === "Department" && form.assigned_to_department));
@@ -142,19 +145,45 @@ export function TrainingAssignPage() {
             >
               <option value="">Select published video</option>
               {videos.map((video) => (
-                <option key={video.video_id} value={video.video_id}>
+                <option
+                  key={video.video_id}
+                  value={video.video_id}
+                  disabled={video.status !== "Published"}
+                >
                   {video.title}
                   {video.duration_minutes ? ` (${video.duration_minutes} min)` : ""}
+                  {video.status !== "Published" ? ` - ${video.status}, waiting for approval` : ""}
                 </option>
               ))}
             </select>
             {!loadingOptions && videos.length === 0 && (
               <p style={hintStyle}>
-                No published videos available. Publish a video from Admin - Videos first.
+                No videos available yet. Upload a POSH video first.
               </p>
             )}
+            {!loadingOptions && videos.length > 0 && publishedVideos.length === 0 && (
+              <p style={hintStyle}>
+                {pendingVideos.length} video(s) are uploaded and waiting for Super Admin approval.
+                Assignment will unlock after publish.
+              </p>
+            )}
+            {!loadingOptions && pendingVideos.length > 0 && (
+              <div style={pendingListStyle}>
+                {pendingVideos.map((video) => (
+                  <div key={video.video_id} style={pendingItemStyle}>
+                    <span>{video.title}</span>
+                    <strong>{video.status === "Draft" ? "Waiting for approval" : video.status}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
             {selectedVideo && (
-              <p style={hintStyle}>Selected: {selectedVideo.title}</p>
+              <p style={hintStyle}>
+                Selected: {selectedVideo.title}
+                {selectedVideo.status !== "Published"
+                  ? " - waiting for Super Admin approval"
+                  : ""}
+              </p>
             )}
           </div>
 
@@ -347,6 +376,25 @@ const inputStyle = {
 const hintStyle = {
   margin: "8px 0 0",
   color: "var(--portal-muted)",
+  fontSize: "13px",
+};
+
+const pendingListStyle = {
+  marginTop: "12px",
+  display: "grid",
+  gap: "8px",
+};
+
+const pendingItemStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  alignItems: "center",
+  padding: "10px 12px",
+  border: "1px solid #f0d7a8",
+  borderRadius: "8px",
+  background: "#fff8e8",
+  color: "#704600",
   fontSize: "13px",
 };
 

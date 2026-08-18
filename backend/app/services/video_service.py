@@ -36,13 +36,13 @@ VIDEO_BUCKET = os.environ.get("MINIO_BUCKET_VIDEOS", "posh-videos")
 
 
 class VideoService:
-    async def _get_company_video(self, db: AsyncSession, video_id: int, company_id: int):
-        result = await db.execute(
-            select(VideoMaster).where(
-                VideoMaster.video_id == video_id,
-                VideoMaster.company_id == company_id,
-            )
-        )
+    async def _get_company_video(
+        self, db: AsyncSession, video_id: int, company_id: Optional[int]
+    ):
+        filters = [VideoMaster.video_id == video_id]
+        if company_id is not None:
+            filters.append(VideoMaster.company_id == company_id)
+        result = await db.execute(select(VideoMaster).where(*filters))
         video = result.scalar_one_or_none()
         if not video:
             raise HTTPException(404, "Video not found.")
@@ -557,12 +557,14 @@ class VideoService:
             "assessment_unlocked": history.status == "Completed",
         }
 
-    async def publish_video(self, db: AsyncSession, video_id: int, company_id: int) -> VideoMaster:
+    async def publish_video(
+        self, db: AsyncSession, video_id: int, company_id: Optional[int]
+    ) -> VideoMaster:
+        filters = [VideoMaster.video_id == video_id]
+        if company_id is not None:
+            filters.append(VideoMaster.company_id == company_id)
         result = await db.execute(
-            select(VideoMaster).where(
-                VideoMaster.video_id == video_id,
-                VideoMaster.company_id == company_id,
-            )
+            select(VideoMaster).where(*filters)
         )
         video = result.scalar_one_or_none()
         if not video:
@@ -570,13 +572,13 @@ class VideoService:
         video.status = "Published"
         recipient_ids = await notification_service.active_user_ids_by_roles(
             db,
-            company_id=company_id,
+            company_id=video.company_id,
             role_ids=[5, 3, 4],
         )
         await notification_service.create_for_user_ids(
             db,
             user_ids=recipient_ids,
-            company_id=company_id,
+            company_id=video.company_id,
             title="Video published",
             message=f"{video.title} is now published.",
         )
@@ -584,7 +586,7 @@ class VideoService:
         return video
 
     async def update_video(
-        self, db: AsyncSession, video_id: int, company_id: int, data: VideoUpdate
+        self, db: AsyncSession, video_id: int, company_id: Optional[int], data: VideoUpdate
     ) -> VideoMaster:
         video = await self._get_company_video(db, video_id, company_id)
         update_data = data.model_dump(exclude_unset=True)
@@ -601,20 +603,25 @@ class VideoService:
         await db.refresh(video)
         return video
 
-    async def archive_video(self, db: AsyncSession, video_id: int, company_id: int) -> VideoMaster:
+    async def archive_video(
+        self, db: AsyncSession, video_id: int, company_id: Optional[int]
+    ) -> VideoMaster:
         video = await self._get_company_video(db, video_id, company_id)
         video.status = "Archived"
         await db.commit()
         return video
 
-    async def delete_video(self, db: AsyncSession, video_id: int, company_id: int) -> dict:
+    async def delete_video(
+        self, db: AsyncSession, video_id: int, company_id: Optional[int]
+    ) -> dict:
         video = await self._get_company_video(db, video_id, company_id)
+        video_company_id = video.company_id
         usage_result = await db.execute(
             select(func.count())
             .select_from(CourseAssignment)
             .where(
                 CourseAssignment.video_id == video_id,
-                CourseAssignment.company_id == company_id,
+                CourseAssignment.company_id == video_company_id,
             )
         )
         history_result = await db.execute(
@@ -622,7 +629,7 @@ class VideoService:
             .select_from(TrainingHistory)
             .where(
                 TrainingHistory.video_id == video_id,
-                TrainingHistory.company_id == company_id,
+                TrainingHistory.company_id == video_company_id,
             )
         )
         result_result = await db.execute(
@@ -656,16 +663,19 @@ class VideoService:
                 WHERE video_id = :video_id AND company_id = :company_id
                 """
             ),
-            {"video_id": video_id, "company_id": company_id},
+            {"video_id": video_id, "company_id": video_company_id},
         )
         await db.delete(video)
         await db.commit()
         return {"message": "Video deleted successfully."}
 
-    async def list_videos(self, db: AsyncSession, company_id: int):
+    async def list_videos(self, db: AsyncSession, company_id: Optional[int]):
+        filters = []
+        if company_id is not None:
+            filters.append(VideoMaster.company_id == company_id)
         result = await db.execute(
             select(VideoMaster)
-            .where(VideoMaster.company_id == company_id)
+            .where(*filters)
             .order_by(VideoMaster.created_date.desc())
         )
         return result.scalars().all()
@@ -677,6 +687,18 @@ class VideoService:
             .where(
                 VideoMaster.company_id == company_id,
                 VideoMaster.status == "Published",
+            )
+            .order_by(VideoMaster.title)
+        )
+        return result.scalars().all()
+
+    async def list_assignable_videos(self, db: AsyncSession, company_id: int) -> list:
+        """List non-archived videos for assignment screens, including drafts awaiting approval."""
+        result = await db.execute(
+            select(VideoMaster)
+            .where(
+                VideoMaster.company_id == company_id,
+                VideoMaster.status != "Archived",
             )
             .order_by(VideoMaster.title)
         )

@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_roles
+from app.core.dependencies import require_roles, require_roles_or_matrix
 from app.db.session import get_db
 from app.schemas.company import (
     CompanyCreate,
@@ -24,12 +24,15 @@ user_service = UserService()
 
 # Role IDs: 1=Super Admin, 2=Admin, 5=Client / Management, 3=HR / IC, 4=Employee
 ADMIN_ROLES = [1, 2]
+WORK_ORDER_ACCESS = ["Create Company & Work Order"]
+REGISTRATION_ACCESS = ["Company Registration - PoSH"]
+EMPLOYEE_MASTER_ACCESS = ["Employee Master - PoSH"]
 
 
 @router.get("/", response_model=list[CompanyResponse])
 async def list_companies(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, WORK_ORDER_ACCESS)),
 ):
     """List work-order companies visible to the current admin."""
     return await company_service.get_visible_for_user(db, current_user)
@@ -39,7 +42,7 @@ async def list_companies(
 async def create_company(
     data: CompanyCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, WORK_ORDER_ACCESS)),
 ):
     """Create a new company."""
     return await company_service.create(db, data, current_user)
@@ -58,7 +61,7 @@ async def list_assignable_users(
 async def list_employee_master(
     company_id: Optional[int] = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, EMPLOYEE_MASTER_ACCESS)),
 ):
     """List POSH employee-master records for registration workflows."""
     return await company_service.get_employee_master_records(db, current_user, company_id)
@@ -68,7 +71,7 @@ async def list_employee_master(
 async def create_employee_master(
     data: EmployeeMasterCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, EMPLOYEE_MASTER_ACCESS)),
 ):
     """Create employee-master records used by POSH registration."""
     return await company_service.create_employee_master_record(db, data, current_user)
@@ -79,7 +82,7 @@ async def update_employee_master(
     employee_master_id: int,
     data: EmployeeMasterCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, EMPLOYEE_MASTER_ACCESS)),
 ):
     """Update a POSH employee-master record."""
     return await company_service.update_employee_master_record(
@@ -94,7 +97,7 @@ async def update_employee_master(
 async def delete_employee_master(
     employee_master_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, EMPLOYEE_MASTER_ACCESS)),
 ):
     """Delete a POSH employee-master record."""
     return await company_service.delete_employee_master_record(db, employee_master_id, current_user)
@@ -105,7 +108,7 @@ async def update_employee_master_status(
     employee_master_id: int,
     status: str,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, EMPLOYEE_MASTER_ACCESS)),
 ):
     """Activate or deactivate a POSH employee-master record."""
     return await company_service.set_employee_master_status(
@@ -119,7 +122,9 @@ async def update_employee_master_status(
 @router.get("/master-codes/")
 async def list_company_master_codes(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(
+        require_roles_or_matrix(ADMIN_ROLES, WORK_ORDER_ACCESS + REGISTRATION_ACCESS)
+    ),
 ):
     """Read state, city, and scope codes used by the company form."""
     return await company_service.get_company_master_codes(db)
@@ -137,7 +142,7 @@ async def list_assigned_work_orders(
 @router.get("/registration-candidates/", response_model=list[CompanyResponse])
 async def list_registration_candidates(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, REGISTRATION_ACCESS)),
 ):
     """List approved companies available for POSH company registration."""
     return await company_service.get_registration_candidates(db, current_user)
@@ -148,7 +153,7 @@ async def update_company_registration(
     company_id: int,
     data: CompanyUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, REGISTRATION_ACCESS)),
 ):
     """Save POSH company registration details for an approved work-order company."""
     return await company_service.update_registration(db, company_id, data, current_user)
@@ -172,7 +177,9 @@ async def create_company_client_admin(
 async def get_company(
     company_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(
+        require_roles_or_matrix(ADMIN_ROLES, WORK_ORDER_ACCESS + REGISTRATION_ACCESS)
+    ),
 ):
     """Get a company by ID."""
     if current_user.role_id == 2 and current_user.company_id != company_id:
@@ -185,7 +192,9 @@ async def update_company(
     company_id: int,
     data: CompanyUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(
+        require_roles_or_matrix(ADMIN_ROLES, WORK_ORDER_ACCESS + REGISTRATION_ACCESS)
+    ),
 ):
     """Update company details."""
     if current_user.role_id == 2 and not await company_service.can_access_work_order(
@@ -199,7 +208,7 @@ async def update_company(
 async def get_company_languages(
     company_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, REGISTRATION_ACCESS)),
 ):
     """Get enabled language preferences for a company."""
     if current_user.role_id == 2 and current_user.company_id != company_id:
@@ -212,7 +221,7 @@ async def update_company_languages(
     company_id: int,
     data: CompanyLanguageUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(ADMIN_ROLES)),
+    current_user=Depends(require_roles_or_matrix(ADMIN_ROLES, WORK_ORDER_ACCESS)),
 ):
     """Configure a company's training languages and default language."""
     if current_user.role_id == 2 and current_user.company_id != company_id:

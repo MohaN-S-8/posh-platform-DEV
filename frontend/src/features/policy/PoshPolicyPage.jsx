@@ -144,6 +144,7 @@ export function PoshPolicyPage() {
         if (active) {
           setPolicy(nextPolicy);
           setForm(policyToForm(nextPolicy));
+          setAcknowledged(Boolean(nextPolicy.acknowledged));
         }
       } catch (err) {
         if (active) {
@@ -212,6 +213,22 @@ export function PoshPolicyPage() {
       setError(apiErrorMessage(err, "Policy document has not been uploaded yet."));
     } finally {
       setDownloadingDoc(false);
+    }
+  };
+
+  const acknowledgePolicy = async () => {
+    if (acknowledged) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      await apiClient.post("/policy/acknowledge");
+      setAcknowledged(true);
+      setMessage("Policy acknowledged.");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to acknowledge policy."));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -410,7 +427,8 @@ export function PoshPolicyPage() {
         <button
           type="button"
           className={acknowledged ? "portal-outline-btn" : "portal-primary-btn"}
-          onClick={() => setAcknowledged(true)}
+          onClick={acknowledgePolicy}
+          disabled={acknowledged || saving}
         >
           {acknowledged ? "Acknowledged" : "I Acknowledge"}
         </button>

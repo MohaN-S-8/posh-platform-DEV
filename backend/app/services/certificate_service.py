@@ -14,7 +14,7 @@ from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -68,6 +68,21 @@ class CertificateService:
         if not video:
             raise HTTPException(404, "Video not found")
 
+        template_result = await db.execute(
+            select(CertificateTemplate)
+            .where(
+                CertificateTemplate.company_id == company_id,
+                CertificateTemplate.status == "Active",
+            )
+            .order_by(
+                case((CertificateTemplate.template_file_path.is_not(None), 0), else_=1),
+                CertificateTemplate.updated_date.desc(),
+                CertificateTemplate.template_id.desc(),
+            )
+            .limit(1)
+        )
+        template = template_result.scalar_one_or_none()
+
         existing_result = await db.execute(
             select(Certificate).where(
                 Certificate.user_id == user_id,
@@ -78,21 +93,30 @@ class CertificateService:
         )
         existing = existing_result.scalar_one_or_none()
         if existing:
-            return existing
+            active_template_id = template.template_id if template else None
+            if existing.template_id == active_template_id and not (
+                template and template.template_file_path
+            ):
+                return existing
 
-        template_result = await db.execute(
-            select(CertificateTemplate)
-            .where(
-                CertificateTemplate.company_id == company_id,
-                CertificateTemplate.status == "Active",
+            employee_name = f"{user.first_name} {user.last_name or ''}".strip()
+            pdf_bytes = self._generate_pdf(
+                employee_name=employee_name,
+                course_name=video.title,
+                cert_number=existing.certificate_number,
+                completion_date=existing.completion_date or date.today(),
+                template=template,
             )
-            .order_by(
-                CertificateTemplate.updated_date.desc(),
-                CertificateTemplate.template_id.desc(),
+            pdf_path = (
+                existing.pdf_path
+                or f"certificates/{company_id}/pdf/{existing.certificate_number}.pdf"
             )
-            .limit(1)
-        )
-        template = template_result.scalar_one_or_none()
+            upload_file(pdf_bytes, CERT_BUCKET, pdf_path, "application/pdf")
+            existing.pdf_path = pdf_path
+            existing.template_id = active_template_id
+            await db.commit()
+            await db.refresh(existing)
+            return existing
 
         # 2. Generate unique certificate number
         year = datetime.now().year
@@ -438,7 +462,7 @@ class CertificateService:
         c.save()
         overlay_reader = PdfReader(
             io.BytesIO(
-                self._template_overlay_pdf(
+                self._image_template_overlay_pdf(
                     width,
                     height,
                     employee_name,
@@ -459,6 +483,39 @@ class CertificateService:
         writer.write(merged)
         return merged.getvalue()
 
+    def _image_template_overlay_pdf(
+        self,
+        width: float,
+        height: float,
+        employee_name: str,
+        course_name: str,
+        cert_number: str,
+        completion_date: date,
+        template: CertificateTemplate,
+    ) -> bytes:
+        """Overlay only dynamic values on image templates; keep the uploaded design intact."""
+        overlay = io.BytesIO()
+        c = canvas.Canvas(overlay, pagesize=(width, height))
+        brand_color = template.color_code or "#1a3c5e"
+        font_name = template.font_name or "Helvetica"
+        try:
+            c.setFillColor(colors.HexColor(brand_color))
+        except Exception:
+            c.setFillColor(colors.HexColor("#1a3c5e"))
+
+        c.setFont(font_name, 26)
+        c.drawCentredString(width / 2, height * 0.455, employee_name)
+        c.setFillColor(colors.HexColor("#1f2430"))
+        c.setFont(font_name, 8)
+        c.drawCentredString(
+            width / 2,
+            height * 0.08,
+            f"Certificate No: {cert_number} | Date: {completion_date.strftime('%d %B %Y')}",
+        )
+        c.save()
+        overlay.seek(0)
+        return overlay.read()
+
     def _verification_url(self, cert_number: str) -> str:
         """Return the public frontend verification page for a certificate."""
         return f"{settings.PUBLIC_APP_URL.rstrip('/')}/certificates/verify/{cert_number}"
@@ -475,6 +532,45 @@ class CertificateService:
         cert = result.scalar_one_or_none()
         if not cert:
             raise HTTPException(404, "Certificate not found.")
+
+        template_result = await db.execute(
+            select(CertificateTemplate)
+            .where(
+                CertificateTemplate.company_id == cert.company_id,
+                CertificateTemplate.status == "Active",
+            )
+            .order_by(
+                case((CertificateTemplate.template_file_path.is_not(None), 0), else_=1),
+                CertificateTemplate.updated_date.desc(),
+                CertificateTemplate.template_id.desc(),
+            )
+            .limit(1)
+        )
+        template = template_result.scalar_one_or_none()
+        if cert.video_id and template and (
+            cert.template_id != template.template_id or template.template_file_path
+        ):
+            user_result = await db.execute(
+                select(UserMaster).where(UserMaster.user_id == cert.user_id)
+            )
+            user = user_result.scalar_one_or_none()
+            if user:
+                employee_name = f"{user.first_name} {user.last_name or ''}".strip()
+                pdf_bytes = self._generate_pdf(
+                    employee_name=employee_name,
+                    course_name=cert.course_name,
+                    cert_number=cert.certificate_number,
+                    completion_date=cert.completion_date or date.today(),
+                    template=template,
+                )
+                pdf_path = (
+                    cert.pdf_path
+                    or f"certificates/{cert.company_id}/pdf/{cert.certificate_number}.pdf"
+                )
+                upload_file(pdf_bytes, CERT_BUCKET, pdf_path, "application/pdf")
+                cert.pdf_path = pdf_path
+                cert.template_id = template.template_id
+                await db.commit()
 
         url = generate_presigned_url(CERT_BUCKET, cert.pdf_path, 300)
         return {"download_url": url, "certificate_number": cert.certificate_number}
@@ -537,79 +633,102 @@ class CertificateService:
         )
         return result.scalars().all()
 
-    async def list_templates(self, db, company_id: int) -> list:
+    async def list_templates(self, db, company_id: Optional[int]) -> list:
+        filters = []
+        if company_id is not None:
+            filters.append(CertificateTemplate.company_id == company_id)
         result = await db.execute(
             select(CertificateTemplate)
-            .where(CertificateTemplate.company_id == company_id)
+            .where(*filters)
             .order_by(CertificateTemplate.created_date.desc())
         )
         return result.scalars().all()
 
-    async def create_template(self, db, data, company_id: int) -> CertificateTemplate:
+    async def create_template(
+        self, db, data, company_id: int, initial_status: str = "Pending"
+    ) -> CertificateTemplate:
         template = CertificateTemplate(
             template_name=data.template_name.strip(),
             font_name=data.font_name or "Helvetica",
             color_code=data.color_code or "#1a3c5e",
             company_id=company_id,
-            status="Active",
+            status=initial_status,
         )
         db.add(template)
         await db.commit()
         await db.refresh(template)
         return template
 
-    async def update_template(self, db, template_id: int, data, company_id: int):
+    async def _get_template(
+        self, db, template_id: int, company_id: Optional[int]
+    ) -> CertificateTemplate:
+        filters = [CertificateTemplate.template_id == template_id]
+        if company_id is not None:
+            filters.append(CertificateTemplate.company_id == company_id)
         result = await db.execute(
-            select(CertificateTemplate).where(
-                CertificateTemplate.template_id == template_id,
-                CertificateTemplate.company_id == company_id,
-            )
+            select(CertificateTemplate).where(*filters)
         )
         template = result.scalar_one_or_none()
         if not template:
             raise HTTPException(404, "Certificate template not found.")
+        return template
 
+    async def update_template(
+        self,
+        db,
+        template_id: int,
+        data,
+        company_id: Optional[int],
+        require_reapproval: bool = False,
+    ):
+        template = await self._get_template(db, template_id, company_id)
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
+            if field == "status":
+                continue
             setattr(template, field, value)
+        if require_reapproval:
+            template.status = "Pending"
         await db.commit()
         await db.refresh(template)
         return template
 
     async def set_template_status(
-        self, db, template_id: int, new_status: str, company_id: int
+        self, db, template_id: int, new_status: str, company_id: Optional[int]
     ) -> dict:
-        result = await db.execute(
-            select(CertificateTemplate).where(
-                CertificateTemplate.template_id == template_id,
-                CertificateTemplate.company_id == company_id,
+        template = await self._get_template(db, template_id, company_id)
+        if new_status == "Active":
+            await db.execute(
+                update(CertificateTemplate)
+                .where(
+                    CertificateTemplate.company_id == template.company_id,
+                    CertificateTemplate.template_id != template.template_id,
+                    CertificateTemplate.status == "Active",
+                )
+                .values(status="Inactive")
             )
-        )
-        template = result.scalar_one_or_none()
-        if not template:
-            raise HTTPException(404, "Certificate template not found.")
         template.status = new_status
         await db.commit()
         return {"message": f"Template {new_status.lower()} successfully."}
 
     async def upload_template_asset(
-        self, db, template_id: int, company_id: int, file, asset_type: str
+        self,
+        db,
+        template_id: int,
+        company_id: Optional[int],
+        file,
+        asset_type: str,
+        require_reapproval: bool = False,
     ) -> CertificateTemplate:
         if asset_type not in ["logo", "signature", "template"]:
             raise HTTPException(400, "asset_type must be logo, signature, or template.")
-        result = await db.execute(
-            select(CertificateTemplate).where(
-                CertificateTemplate.template_id == template_id,
-                CertificateTemplate.company_id == company_id,
-            )
-        )
-        template = result.scalar_one_or_none()
-        if not template:
-            raise HTTPException(404, "Certificate template not found.")
+        template = await self._get_template(db, template_id, company_id)
 
         file_bytes = await file.read()
         extension = (file.filename or f"{asset_type}.png").split(".")[-1].lower()
-        object_key = f"certificate-templates/{company_id}/{template_id}/{asset_type}.{extension}"
+        object_key = (
+            f"certificate-templates/{template.company_id}/{template_id}/{asset_type}.{extension}"
+        )
         upload_file(
             file_bytes,
             CERT_BUCKET,
@@ -623,25 +742,39 @@ class CertificateService:
             template.signature_path = object_key
         else:
             template.template_file_path = object_key
+        if require_reapproval:
+            template.status = "Pending"
+        elif asset_type == "template":
+            await db.execute(
+                update(CertificateTemplate)
+                .where(
+                    CertificateTemplate.company_id == template.company_id,
+                    CertificateTemplate.template_id != template.template_id,
+                    CertificateTemplate.status == "Active",
+                )
+                .values(status="Inactive")
+            )
+            template.status = "Active"
         await db.commit()
         await db.refresh(template)
         return template
 
-    async def delete_template(self, db, template_id: int, company_id: int) -> dict:
-        result = await db.execute(
-            select(CertificateTemplate).where(
-                CertificateTemplate.template_id == template_id,
-                CertificateTemplate.company_id == company_id,
-            )
-        )
-        template = result.scalar_one_or_none()
-        if not template:
-            raise HTTPException(404, "Certificate template not found.")
+    async def delete_template(
+        self,
+        db,
+        template_id: int,
+        company_id: Optional[int],
+        allow_active_delete: bool = False,
+    ) -> dict:
+        template = await self._get_template(db, template_id, company_id)
+        if template.status == "Active" and not allow_active_delete:
+            raise HTTPException(403, "Approved certificate templates can only be deleted by Super Admin.")
+        template_company_id = template.company_id
 
         replacement_result = await db.execute(
             select(CertificateTemplate)
             .where(
-                CertificateTemplate.company_id == company_id,
+                CertificateTemplate.company_id == template_company_id,
                 CertificateTemplate.template_id != template_id,
                 CertificateTemplate.status == "Active",
             )
@@ -661,7 +794,7 @@ class CertificateService:
                 .join(UserMaster, Certificate.user_id == UserMaster.user_id)
                 .where(
                     Certificate.template_id == template_id,
-                    Certificate.company_id == company_id,
+                    Certificate.company_id == template_company_id,
                     Certificate.status == "Valid",
                 )
             )
@@ -676,7 +809,7 @@ class CertificateService:
                 )
                 pdf_path = (
                     certificate.pdf_path
-                    or f"certificates/{company_id}/pdf/{certificate.certificate_number}.pdf"
+                    or f"certificates/{template_company_id}/pdf/{certificate.certificate_number}.pdf"
                 )
                 upload_file(pdf_bytes, CERT_BUCKET, pdf_path, "application/pdf")
                 certificate.pdf_path = pdf_path
@@ -687,7 +820,7 @@ class CertificateService:
             update(Certificate)
             .where(
                 Certificate.template_id == template_id,
-                Certificate.company_id == company_id,
+                Certificate.company_id == template_company_id,
             )
             .values(template_id=replacement_template_id)
         )
@@ -695,7 +828,7 @@ class CertificateService:
         await db.execute(
             delete(CertificateTemplate).where(
                 CertificateTemplate.template_id == template_id,
-                CertificateTemplate.company_id == company_id,
+                CertificateTemplate.company_id == template_company_id,
             )
         )
         await db.commit()

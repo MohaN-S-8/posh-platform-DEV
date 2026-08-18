@@ -6,6 +6,7 @@ import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
+import { useAuthStore } from "../../store/authStore";
 
 const inputStyle = {
   width: "100%",
@@ -23,6 +24,7 @@ const initialForm = {
 };
 
 export function CertificateTemplatePage() {
+  const { user } = useAuthStore();
   const [templates, setTemplates] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [showForm, setShowForm] = useState(false);
@@ -31,6 +33,7 @@ export function CertificateTemplatePage() {
   const [assetUploading, setAssetUploading] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const canApproveTemplates = user?.role_id === 1;
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -59,7 +62,11 @@ export function CertificateTemplatePage() {
     setSuccess("");
     try {
       await apiClient.post("/certificates/templates", form);
-      setSuccess("Certificate template created successfully.");
+      setSuccess(
+        canApproveTemplates
+          ? "Certificate template created successfully."
+          : "Certificate template uploaded and sent for Super Admin approval.",
+      );
       setForm(initialForm);
       setShowForm(false);
       await loadTemplates();
@@ -70,8 +77,7 @@ export function CertificateTemplatePage() {
     }
   };
 
-  const toggleStatus = async (template) => {
-    const nextStatus = template.status === "Active" ? "Inactive" : "Active";
+  const updateStatus = async (template, nextStatus) => {
     setSaving(true);
     setError("");
     setSuccess("");
@@ -107,6 +113,9 @@ export function CertificateTemplatePage() {
             ? "Signature"
             : "Ready-made certificate template";
       setSuccess(`${label} uploaded successfully.`);
+      if (!canApproveTemplates) {
+        setSuccess(`${label} uploaded and sent for Super Admin approval.`);
+      }
       await loadTemplates();
     } catch (err) {
       setError(apiErrorMessage(err, "Unable to upload template asset."));
@@ -137,7 +146,11 @@ export function CertificateTemplatePage() {
   return (
     <PortalShell
       title="Certificate Setup"
-      subtitle="Design certificate layout templates, uploaded images, and signature positioning."
+      subtitle={
+        canApproveTemplates
+          ? "Review and approve company certificate templates."
+          : "Upload certificate templates for Super Admin approval."
+      }
     >
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "20px" }}>
         <button
@@ -219,7 +232,16 @@ export function CertificateTemplatePage() {
         <table className="portal-table" style={{ minWidth: "920px" }}>
           <thead>
             <tr>
-              {["Template", "Font", "Color", "Status", "Ready Template", "Assets", "Actions"].map((heading) => (
+              {[
+                "Template",
+                "Company",
+                "Font",
+                "Color",
+                "Status",
+                "Ready Template",
+                "Assets",
+                "Actions",
+              ].map((heading) => (
                 <th key={heading} style={thStyle}>
                   {heading}
                 </th>
@@ -233,6 +255,7 @@ export function CertificateTemplatePage() {
                   <td style={{ ...tdStyle, color: "var(--portal-purple)", fontWeight: 700 }}>
                     {template.template_name}
                   </td>
+                  <td style={tdStyle}>{template.company_id || "-"}</td>
                   <td style={tdStyle}>{template.font_name}</td>
                   <td style={tdStyle}>
                     <span
@@ -249,7 +272,9 @@ export function CertificateTemplatePage() {
                     />
                     {template.color_code}
                   </td>
-                  <td style={tdStyle}>{template.status}</td>
+                  <td style={tdStyle}>
+                    <span style={statusBadgeStyle(template.status)}>{template.status}</span>
+                  </td>
                   <td style={tdStyle}>
                     <label style={fileButtonStyle}>
                       <UploadFileIcon fontSize="small" />
@@ -294,28 +319,55 @@ export function CertificateTemplatePage() {
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        onClick={() => toggleStatus(template)}
-                        style={secondaryButtonStyle}
-                      >
-                        {template.status === "Active" ? "Deactivate" : "Activate"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteTemplate(template)}
-                        style={dangerButtonStyle}
-                      >
-                        <DeleteIcon fontSize="small" />
-                        Delete
-                      </button>
+                      {canApproveTemplates && template.status === "Pending" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(template, "Active")}
+                            style={secondaryButtonStyle}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(template, "Rejected")}
+                            style={dangerButtonStyle}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {canApproveTemplates && template.status !== "Pending" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateStatus(
+                              template,
+                              template.status === "Active" ? "Inactive" : "Active",
+                            )
+                          }
+                          style={secondaryButtonStyle}
+                        >
+                          {template.status === "Active" ? "Deactivate" : "Activate"}
+                        </button>
+                      )}
+                      {(canApproveTemplates || template.status !== "Active") && (
+                        <button
+                          type="button"
+                          onClick={() => deleteTemplate(template)}
+                          style={dangerButtonStyle}
+                        >
+                          <DeleteIcon fontSize="small" />
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={7} style={{ padding: "28px", color: "#64748b" }}>
+                <td colSpan={8} style={{ padding: "28px", color: "#64748b" }}>
                   No certificate templates created yet.
                 </td>
               </tr>
@@ -401,6 +453,25 @@ const tdStyle = {
   padding: "12px 14px",
   color: "#64748b",
   fontSize: "13px",
+};
+
+const statusBadgeStyle = (status) => {
+  const palette = {
+    Active: { background: "#e8f5ee", color: "#1f7a4d", border: "#b9dfca" },
+    Pending: { background: "#fff8e8", color: "#704600", border: "#f0d7a8" },
+    Rejected: { background: "#fff7f6", color: "#c0392b", border: "#f3b4ae" },
+    Inactive: { background: "#eef2f7", color: "#475569", border: "#d8e1ea" },
+  };
+  const colors = palette[status] || palette.Inactive;
+  return {
+    display: "inline-flex",
+    padding: "4px 8px",
+    borderRadius: "999px",
+    border: `1px solid ${colors.border}`,
+    background: colors.background,
+    color: colors.color,
+    fontWeight: 700,
+  };
 };
 
 const errorStyle = {

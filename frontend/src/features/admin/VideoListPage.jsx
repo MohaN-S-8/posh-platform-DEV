@@ -11,6 +11,7 @@ export function VideoListPage() {
   // const location = useLocation();
   const { user } = useAuthStore();
   const fileInputRef = useRef(null);
+  const questionDocInputRef = useRef(null);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -99,6 +100,18 @@ export function VideoListPage() {
       const res = await apiClient.post("/videos/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+      let importedQuestions = null;
+      const questionDoc = questionDocInputRef.current?.files?.[0];
+      if (questionDoc) {
+        const questionFormData = new FormData();
+        questionFormData.append("file", questionDoc);
+        const questionRes = await apiClient.post(
+          `/assessments/${res.data.video_id}/questions/import`,
+          questionFormData,
+          { headers: { "Content-Type": "multipart/form-data" } },
+        );
+        importedQuestions = questionRes.data?.imported ?? 0;
+      }
       setLastUploadedVideo(res.data);
       setVideos((current) => {
         const withoutDuplicate = current.filter(
@@ -107,9 +120,10 @@ export function VideoListPage() {
         return [res.data, ...withoutDuplicate];
       });
       setUploadProgress(
-        canManageVideos
+        `${canManageVideos
           ? "Upload successful. Video is saved as Draft. Publish it now so employees can watch it."
-          : "Upload successful. Video is saved as Draft for Admin or Management review.",
+          : "Upload successful. Video is saved as Draft for Admin or Management review."
+        }${importedQuestions !== null ? ` Imported ${importedQuestions} questions.` : ""}`,
       );
       setForm({
         title: "",
@@ -120,6 +134,7 @@ export function VideoListPage() {
         transcript_text: "",
       });
       fileInputRef.current.value = "";
+      if (questionDocInputRef.current) questionDocInputRef.current.value = "";
       await fetchVideos();
     } catch (err) {
       setError(apiErrorMessage(err, "Upload failed."));
@@ -497,6 +512,19 @@ export function VideoListPage() {
               accept=".mp4,.avi,.mov"
               style={{ fontSize: "14px" }}
             />
+          </div>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={labelStyle}>Assessment Questions DOCX</label>
+            <input
+              type="file"
+              ref={questionDocInputRef}
+              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              style={{ fontSize: "14px" }}
+            />
+            <p style={{ color: "#667085", fontSize: "12px", margin: "8px 0 0" }}>
+              Format: Question 1..., A) option, B) option, C) option, D) option,
+              Correct Answer: A.
+            </p>
           </div>
           {uploadProgress && (
             <div

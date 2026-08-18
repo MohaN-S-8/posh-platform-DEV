@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"  # reads from the .env file automatically
         case_sensitive = True
+        extra = "ignore"
 
 
 # Create a single instance used throughout the app

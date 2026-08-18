@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_permission, require_role
@@ -20,8 +20,9 @@ async def list_certificate_templates(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("certificates.manage")),
 ):
-    """Admin: list certificate templates for the current company."""
-    return await cert_service.list_templates(db, current_user.company_id)
+    """List certificate templates. Super Admin sees all companies; others see their company."""
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    return await cert_service.list_templates(db, company_id)
 
 
 @router.post("/templates", response_model=CertificateTemplateResponse, status_code=201)
@@ -31,8 +32,11 @@ async def create_certificate_template(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("certificates.manage")),
 ):
-    """Admin: create a certificate template for the current company."""
-    template = await cert_service.create_template(db, data, current_user.company_id)
+    """Create a certificate template. Client/company uploads wait for Super Admin approval."""
+    initial_status = "Active" if current_user.role_id == 1 else "Pending"
+    template = await cert_service.create_template(
+        db, data, current_user.company_id, initial_status
+    )
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -55,7 +59,14 @@ async def update_certificate_template(
     current_user=Depends(require_permission("certificates.manage")),
 ):
     """Admin: update a certificate template."""
-    template = await cert_service.update_template(db, template_id, data, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    template = await cert_service.update_template(
+        db,
+        template_id,
+        data,
+        company_id,
+        require_reapproval=current_user.role_id != 1,
+    )
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -77,13 +88,13 @@ async def update_certificate_template_status(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("certificates.manage")),
 ):
-    """Admin: activate or deactivate a certificate template."""
-    if status not in ["Active", "Inactive"]:
-        from fastapi import HTTPException
-
-        raise HTTPException(400, "Status must be 'Active' or 'Inactive'")
+    """Super Admin: approve, reject, activate, or deactivate a certificate template."""
+    if current_user.role_id != 1:
+        raise HTTPException(403, "Only Super Admin can approve certificate templates.")
+    if status not in ["Active", "Inactive", "Rejected", "Pending"]:
+        raise HTTPException(400, "Status must be Pending, Active, Inactive, or Rejected.")
     result = await cert_service.set_template_status(
-        db, template_id, status, current_user.company_id
+        db, template_id, status, None
     )
     await write_audit_log(
         db,
@@ -107,9 +118,15 @@ async def upload_certificate_template_asset(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("certificates.manage")),
 ):
-    """Admin: upload template logo or signature image."""
+    """Upload template logo, signature, or ready-made file."""
+    company_id = None if current_user.role_id == 1 else current_user.company_id
     template = await cert_service.upload_template_asset(
-        db, template_id, current_user.company_id, file, asset_type
+        db,
+        template_id,
+        company_id,
+        file,
+        asset_type,
+        require_reapproval=current_user.role_id != 1,
     )
     await write_audit_log(
         db,
@@ -132,7 +149,13 @@ async def delete_certificate_template(
     current_user=Depends(require_permission("certificates.manage")),
 ):
     """Admin: delete a template and detach issued certificates from it."""
-    result = await cert_service.delete_template(db, template_id, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    result = await cert_service.delete_template(
+        db,
+        template_id,
+        company_id,
+        allow_active_delete=current_user.role_id == 1,
+    )
     await write_audit_log(
         db,
         user_id=current_user.user_id,

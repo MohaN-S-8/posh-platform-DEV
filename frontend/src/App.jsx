@@ -231,7 +231,7 @@ function App() {
           path="/admin/videos"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="videos.manage" accessItem="POSH Awareness Training">
+              <RoleRoute allowedRoles={[1, 2, 5]} requiredPermission="videos.upload" accessItem="POSH Awareness Training">
                 <VideoListPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -251,7 +251,7 @@ function App() {
           path="/admin/certificates"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2]} requiredPermission="certificates.manage" accessItem="Assessment & Certificate">
+              <RoleRoute allowedRoles={[1, 2, 5]} requiredPermission="certificates.manage" accessItem="Assessment & Certificate">
                 <CertificateTemplatePage />
               </RoleRoute>
             </ProtectedRoute>
@@ -406,7 +406,7 @@ function App() {
           path="/hr/assign"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1, 2, 3]} requiredPermission="training.assign" accessItem="POSH Awareness Training">
+              <RoleRoute allowedRoles={[1, 2, 3, 5]} requiredPermission="training.assign" accessItem="POSH Awareness Training">
                 <TrainingAssignPage />
               </RoleRoute>
             </ProtectedRoute>

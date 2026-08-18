@@ -104,7 +104,7 @@ async def compliance_dashboard(
 @router.get("/reports/employees")
 async def download_employee_report(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     """
     Download employee training report as Excel file.
@@ -122,7 +122,7 @@ async def download_employee_report(
 @router.get("/reports/departments")
 async def download_department_report(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     """Download department compliance report as Excel file."""
     company_id = None if current_user.role_id == 1 else current_user.company_id
@@ -137,7 +137,7 @@ async def download_department_report(
 @router.get("/reports/certificates")
 async def download_certificate_report(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     """Download issued certificate report as Excel file."""
     company_id = None if current_user.role_id == 1 else current_user.company_id
@@ -152,7 +152,7 @@ async def download_certificate_report(
 @router.get("/reports/employees.csv")
 async def download_employee_report_csv(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     company_id = None if current_user.role_id == 1 else current_user.company_id
     csv_bytes = await hr_service.generate_employee_report_csv(db, company_id)
@@ -166,7 +166,7 @@ async def download_employee_report_csv(
 @router.get("/reports/departments.csv")
 async def download_department_report_csv(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     company_id = None if current_user.role_id == 1 else current_user.company_id
     csv_bytes = await hr_service.generate_department_report_csv(db, company_id)
@@ -180,7 +180,7 @@ async def download_department_report_csv(
 @router.get("/reports/certificates.csv")
 async def download_certificate_report_csv(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     company_id = None if current_user.role_id == 1 else current_user.company_id
     csv_bytes = await hr_service.generate_certificate_report_csv(db, company_id)
@@ -194,7 +194,7 @@ async def download_certificate_report_csv(
 @router.get("/reports/employees.pdf")
 async def download_employee_report_pdf(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     company_id = None if current_user.role_id == 1 else current_user.company_id
     pdf_bytes = await hr_service.generate_employee_report_pdf(db, company_id)
@@ -208,7 +208,7 @@ async def download_employee_report_pdf(
 @router.get("/reports/departments.pdf")
 async def download_department_report_pdf(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     company_id = None if current_user.role_id == 1 else current_user.company_id
     pdf_bytes = await hr_service.generate_department_report_pdf(db, company_id)
@@ -222,7 +222,7 @@ async def download_department_report_pdf(
 @router.get("/reports/certificates.pdf")
 async def download_certificate_report_pdf(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("users.manage")),
+    current_user=Depends(require_permission("reports.view")),
 ):
     company_id = None if current_user.role_id == 1 else current_user.company_id
     pdf_bytes = await hr_service.generate_certificate_report_pdf(db, company_id)

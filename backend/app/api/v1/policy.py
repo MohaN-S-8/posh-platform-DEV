@@ -3,7 +3,7 @@ import os
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, require_roles
@@ -98,15 +98,49 @@ def _decode_json(value, fallback):
         return fallback
 
 
-def _serialize(policy: PoshPolicy | None):
+async def _has_acknowledged(
+    db: AsyncSession,
+    current_user,
+    policy_id: int | None,
+    policy_version: str | None,
+) -> bool:
+    if not policy_id:
+        return False
+    result = await db.execute(
+        text(
+            """
+            SELECT 1
+            FROM posh_policy_acknowledgement
+            WHERE user_id = :user_id
+              AND policy_id = :policy_id
+              AND policy_version = :policy_version
+            LIMIT 1
+            """
+        ),
+        {
+            "user_id": current_user.user_id,
+            "policy_id": policy_id,
+            "policy_version": policy_version or "",
+        },
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def _serialize(db: AsyncSession, current_user, policy: PoshPolicy | None):
     if not policy:
-        return {"policy_id": None, "company_id": None, **DEFAULT_POLICY}
+        return {
+            "policy_id": None,
+            "company_id": None,
+            "acknowledged": False,
+            **DEFAULT_POLICY,
+        }
+    policy_version = policy.version or DEFAULT_POLICY["version"]
     return {
         "policy_id": policy.policy_id,
         "company_id": policy.company_id,
         "title": policy.title or DEFAULT_POLICY["title"],
         "overview": policy.overview or DEFAULT_POLICY["overview"],
-        "version": policy.version or DEFAULT_POLICY["version"],
+        "version": policy_version,
         "approved_date": policy.approved_date or DEFAULT_POLICY["approved_date"],
         "document_path": policy.document_path,
         "document_name": policy.document_name,
@@ -118,6 +152,9 @@ def _serialize(policy: PoshPolicy | None):
         ),
         "rights": _decode_json(policy.rights_json, DEFAULT_POLICY["rights"]),
         "faqs": _decode_json(policy.faqs_json, DEFAULT_POLICY["faqs"]),
+        "acknowledged": await _has_acknowledged(
+            db, current_user, policy.policy_id, policy_version
+        ),
     }
 
 
@@ -139,7 +176,7 @@ async def get_policy(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return _serialize(await _policy_for_user(db, current_user))
+    return await _serialize(db, current_user, await _policy_for_user(db, current_user))
 
 
 @router.put("/")
@@ -179,7 +216,7 @@ async def update_policy(
     )
     await db.commit()
     await db.refresh(policy)
-    return _serialize(policy)
+    return await _serialize(db, current_user, policy)
 
 
 @router.post("/document")
@@ -228,7 +265,66 @@ async def upload_policy_document(
     )
     await db.commit()
     await db.refresh(policy)
-    return _serialize(policy)
+    return await _serialize(db, current_user, policy)
+
+
+@router.post("/acknowledge")
+async def acknowledge_policy(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    policy = await _policy_for_user(db, current_user)
+    if not policy:
+        company_id = None if current_user.role_id == 1 else current_user.company_id
+        policy = PoshPolicy(
+            company_id=company_id,
+            title=DEFAULT_POLICY["title"],
+            overview=DEFAULT_POLICY["overview"],
+            version=DEFAULT_POLICY["version"],
+            approved_date=DEFAULT_POLICY["approved_date"],
+            harassment_types_json=json.dumps(DEFAULT_POLICY["harassment_types"]),
+            committee_members_json=json.dumps(DEFAULT_POLICY["committee_members"]),
+            rights_json=json.dumps(DEFAULT_POLICY["rights"]),
+            faqs_json=json.dumps(DEFAULT_POLICY["faqs"]),
+            updated_by=current_user.user_id,
+        )
+        db.add(policy)
+        await db.flush()
+    policy_version = policy.version or DEFAULT_POLICY["version"]
+    await db.execute(
+        text(
+            """
+            INSERT INTO posh_policy_acknowledgement
+                (user_id, company_id, policy_id, policy_version)
+            VALUES
+                (:user_id, :company_id, :policy_id, :policy_version)
+            ON DUPLICATE KEY UPDATE
+                acknowledged_at = acknowledged_at
+            """
+        ),
+        {
+            "user_id": current_user.user_id,
+            "company_id": current_user.company_id,
+            "policy_id": policy.policy_id,
+            "policy_version": policy_version,
+        },
+    )
+    await write_audit_log(
+        db,
+        user_id=current_user.user_id,
+        company_id=current_user.company_id,
+        action="POSH_POLICY_ACKNOWLEDGED",
+        table_name="posh_policy",
+        record_id=policy.policy_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return {
+        "acknowledged": True,
+        "policy_id": policy.policy_id,
+        "version": policy_version,
+    }
 
 
 @router.get("/document/download")

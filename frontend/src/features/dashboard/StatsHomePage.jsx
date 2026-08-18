@@ -50,10 +50,10 @@ function metricSet(user, data) {
   }
   if (user?.role_id === 2) {
     return [
-      { label: "Employees", value: data?.total_employees ?? 0, trend: "Company users" },
-      { label: "Completed", value: data?.completed_training ?? 0, trend: "Training completed" },
-      { label: "Compliance", value: `${data?.compliance_rate ?? 0}%`, trend: "Current rate" },
-      { label: "Certificates", value: data?.certificates_issued ?? 0, trend: "Issued certificates" },
+      { label: "Client Users", value: data?.client_users ?? 0, trend: "Client / Mgmt accounts" },
+      { label: "Active", value: data?.active_client_users ?? 0, trend: "Ready to log in" },
+      { label: "Inactive", value: data?.inactive_client_users ?? 0, trend: "Disabled accounts" },
+      { label: "Company Scope", value: data?.company_scope ?? 0, trend: "Visible companies" },
     ];
   }
   if (user?.role_id === 3 || user?.role_id === 5) {
@@ -74,9 +74,20 @@ function metricSet(user, data) {
 
 function loadEndpoint(user) {
   if (user?.role_id === 1) return "/analytics/overview";
-  if (user?.role_id === 2) return `/analytics/company/${user?.company_id}`;
+  if (user?.role_id === 2) return "/users/";
   if (user?.role_id === 3 || user?.role_id === 5) return "/hr/employees/summary";
   return "/employee/summary";
+}
+
+function normalizeSummary(user, summary) {
+  if (user?.role_id !== 2 || !Array.isArray(summary)) return summary;
+  const clientUsers = summary.filter((row) => row.role_id === 5);
+  return {
+    client_users: clientUsers.length,
+    active_client_users: clientUsers.filter((row) => row.status === "Active").length,
+    inactive_client_users: clientUsers.filter((row) => row.status !== "Active").length,
+    company_scope: new Set(clientUsers.map((row) => row.company_id)).size,
+  };
 }
 
 export function StatsHomePage() {
@@ -94,16 +105,23 @@ export function StatsHomePage() {
       setLoading(true);
       setError("");
       try {
-        const [summaryRes, profileRes] = await Promise.all([
+        const [summaryRes, profileRes] = await Promise.allSettled([
           apiClient.get(loadEndpoint(user)),
           apiClient.get("/auth/me"),
         ]);
         if (active) {
-          setData(summaryRes.data);
-          setProfile(profileRes.data);
+          if (summaryRes.status === "fulfilled") {
+            setData(normalizeSummary(user, summaryRes.value.data));
+          } else {
+            setData(null);
+            setError(apiErrorMessage(summaryRes.reason, "Home metrics are unavailable."));
+          }
+          if (profileRes.status === "fulfilled") {
+            setProfile(profileRes.value.data);
+          }
         }
-      } catch (err) {
-        if (active) setError(apiErrorMessage(err, "Home metrics are unavailable."));
+      } catch {
+        if (active) setError("Home metrics are unavailable.");
       } finally {
         if (active) setLoading(false);
       }

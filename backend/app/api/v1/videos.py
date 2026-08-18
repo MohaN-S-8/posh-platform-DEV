@@ -27,7 +27,8 @@ async def list_videos(
     current_user=Depends(require_any_permission(["videos.upload", "videos.manage"])),
 ):
     """List all videos for current user's company (all statuses)."""
-    return await video_service.list_videos(db, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    return await video_service.list_videos(db, company_id)
 
 
 @router.get("/published", response_model=list[VideoListResponse])
@@ -37,6 +38,15 @@ async def list_published_videos(
 ):
     """List only published videos — used by HR training assignment dropdown."""
     return await video_service.list_published_videos(db, current_user.company_id)
+
+
+@router.get("/assignable", response_model=list[VideoListResponse])
+async def list_assignable_videos(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("training.assign")),
+):
+    """List non-archived videos for assignment screens, including drafts pending approval."""
+    return await video_service.list_assignable_videos(db, current_user.company_id)
 
 
 @router.post("/upload", response_model=VideoResponse, status_code=201)
@@ -94,7 +104,8 @@ async def update_video(
     current_user=Depends(require_permission("videos.manage")),
 ):
     """Admin/Management: edit video metadata and lifecycle status."""
-    result = await video_service.update_video(db, video_id, current_user.company_id, data)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    result = await video_service.update_video(db, video_id, company_id, data)
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -116,7 +127,8 @@ async def publish_video(
     current_user=Depends(require_permission("videos.manage")),
 ):
     """Publish a draft video so employees can watch it."""
-    result = await video_service.publish_video(db, video_id, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    result = await video_service.publish_video(db, video_id, company_id)
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -196,7 +208,8 @@ async def archive_video(
     current_user=Depends(require_permission("videos.manage")),
 ):
     """Archive a published video — removes it from employee view."""
-    video = await video_service.archive_video(db, video_id, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    video = await video_service.archive_video(db, video_id, company_id)
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -218,7 +231,8 @@ async def delete_video(
     current_user=Depends(require_permission("videos.manage")),
 ):
     """Admin/Management: delete an unused video."""
-    result = await video_service.delete_video(db, video_id, current_user.company_id)
+    company_id = None if current_user.role_id == 1 else current_user.company_id
+    result = await video_service.delete_video(db, video_id, company_id)
     await write_audit_log(
         db,
         user_id=current_user.user_id,

@@ -16,6 +16,13 @@ const roleLabels = {
 const defaultAllowed = {
   "Super Admin": new Set([
     "Home",
+    "PoSH Policy",
+    "POSH Awareness Training",
+    "Assessment & Certificate",
+    "POSH Compliance",
+    "POSH Complaints",
+    "POSH Audit",
+    "Analytics & Reports",
     "Create Admin",
     "Masters (State/City/Scope)",
     "Create Company & Work Order",
@@ -30,10 +37,6 @@ const defaultAllowed = {
     "Create Company & Work Order",
     "Company Registration - PoSH",
     "Employee Master - PoSH",
-    "Assessment & Certificate",
-    "POSH Compliance",
-    "POSH Complaints",
-    "Analytics & Reports",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -42,6 +45,7 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
+    "POSH Audit",
     "Analytics & Reports",
     "Employee Master - PoSH",
   ]),
@@ -49,10 +53,6 @@ const defaultAllowed = {
     "Home",
     "PoSH Policy",
     "POSH Awareness Training",
-    "Assessment & Certificate",
-    "POSH Compliance",
-    "POSH Complaints",
-    "Analytics & Reports",
     "Employee Master - PoSH",
   ]),
   Employee: new Set([

@@ -17,7 +17,7 @@ const ROLES = {
 };
 
 const ROLE_CREATE_FLOW = {
-  1: [2],
+  1: [1, 2, 5, 3, 4],
   2: [5],
   5: [3],
   3: [4],
@@ -25,6 +25,19 @@ const ROLE_CREATE_FLOW = {
 
 function defaultRoleFor(user) {
   return ROLE_CREATE_FLOW[user?.role_id]?.[0] || 4;
+}
+
+function emptyMessageFor(user) {
+  if (user?.role_id === 2) {
+    return "No Client / Management users found. Company Admin can only create and manage Client / Management users here.";
+  }
+  if (user?.role_id === 5) {
+    return "No HR / IC users found. Client / Management can only create and manage HR / IC users here.";
+  }
+  if (user?.role_id === 3) {
+    return "No employees found. HR / IC can only create and manage Employee users here.";
+  }
+  return "No users found.";
 }
 
 function cleanUserPayload(payload) {
@@ -622,7 +635,7 @@ export function UserListPage() {
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} style={{ padding: "32px", color: "#64748b" }}>
-                  No users found.
+                  {emptyMessageFor(user)}
                 </td>
               </tr>
             ) : (

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_roles
+from app.core.dependencies import require_permission, require_roles
 from app.db.session import get_db
 from app.models.certificate import Certificate
 from app.models.company import CompanyMaster
@@ -104,7 +104,7 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
 @router.get("/current")
 async def current_analytics(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1, 2])),
+    current_user=Depends(require_permission("reports.view")),
 ):
     """Analytics for the current admin scope."""
     if current_user.role_id == 1:
@@ -125,7 +125,7 @@ async def analytics_overview(
 async def company_analytics(
     company_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1, 2])),
+    current_user=Depends(require_permission("reports.view")),
 ):
     """Analytics for a specific company."""
     if current_user.role_id != 1 and current_user.company_id != company_id:

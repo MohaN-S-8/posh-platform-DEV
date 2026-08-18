@@ -34,6 +34,13 @@ const roleLabels = {
 const defaultAllowed = {
   "Super Admin": new Set([
     "Home",
+    "PoSH Policy",
+    "POSH Awareness Training",
+    "Assessment & Certificate",
+    "POSH Compliance",
+    "POSH Complaints",
+    "POSH Audit",
+    "Analytics & Reports",
     "Create Admin",
     "Masters (State/City/Scope)",
     "Create Company & Work Order",
@@ -48,10 +55,6 @@ const defaultAllowed = {
     "Create Company & Work Order",
     "Company Registration - PoSH",
     "Employee Master - PoSH",
-    "Assessment & Certificate",
-    "POSH Compliance",
-    "POSH Complaints",
-    "Analytics & Reports",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -60,6 +63,7 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
+    "POSH Audit",
     "Analytics & Reports",
     "Employee Master - PoSH",
   ]),
@@ -67,10 +71,6 @@ const defaultAllowed = {
     "Home",
     "PoSH Policy",
     "POSH Awareness Training",
-    "Assessment & Certificate",
-    "POSH Compliance",
-    "POSH Complaints",
-    "Analytics & Reports",
     "Employee Master - PoSH",
   ]),
   Employee: new Set([
@@ -111,28 +111,11 @@ const moduleCatalog = [
     to: (roleId) => {
       if (roleId === 4) return "/employee/courses";
       if (roleId === 3) return "/hr/assign";
+      if (roleId === 5) return "/hr/assign";
       if (roleId === 1) return "/super-admin/videos";
       if (roleId === 2) return "/admin/videos";
       return "/admin/videos";
     },
-    icon: <PlayCircleIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
-  },
-  {
-    accessItem: "IC Training",
-    label: "IC Training",
-    to: (roleId) => {
-      if (roleId === 1) return "/super-admin/videos";
-      if (roleId === 3) return "/hr/assign";
-      return "/admin/videos";
-    },
-    icon: <PlayCircleIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
-  },
-  {
-    accessItem: "Advance Training",
-    label: "Advance Training",
-    to: (roleId) => (roleId === 1 ? "/super-admin/videos" : "/admin/videos"),
     icon: <PlayCircleIcon fontSize="small" />,
     allowedRoles: [1, 2, 3, 4, 5],
   },
@@ -216,7 +199,7 @@ const moduleCatalog = [
       if (roleId === 3) return "/hr/users";
       if (roleId === 5) return "/admin/users";
       if (roleId === 2) return "/admin/users";
-      return "/super-admin/employee-master";
+      return "/admin/users";
     },
     icon: <BadgeIcon fontSize="small" />,
     allowedRoles: [1, 2, 3, 4, 5],
