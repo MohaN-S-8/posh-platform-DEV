@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { SessionTimeout } from "./components/SessionTimeout";
@@ -59,6 +60,20 @@ import { StatsHomePage } from "./features/dashboard/StatsHomePage";
 
 function App() {
   const activeRequests = useLoadingStore((state) => state.activeRequests);
+  const [showGlobalLoader, setShowGlobalLoader] = useState(false);
+
+  useEffect(() => {
+    if (activeRequests === 0) {
+      setShowGlobalLoader(false);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowGlobalLoader(true);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [activeRequests]);
 
   return (
     <BrowserRouter>
@@ -534,9 +549,9 @@ function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
       <LoadingOverlay
-        show={activeRequests > 0}
+        show={showGlobalLoader}
         title="Loading"
-        message="Fetching the latest data."
+        message="Please wait."
       />
     </BrowserRouter>
   );
