@@ -1,5 +1,6 @@
 from typing import List
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -28,6 +29,16 @@ class Settings(BaseSettings):
     ENTRA_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/sso/entra/callback"
     # App
     APP_ENV: str = "development"
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value):
+        if isinstance(value, str):
+            stripped_value = value.strip()
+            if stripped_value.startswith("["):
+                return value
+            return [origin.strip() for origin in stripped_value.split(",") if origin.strip()]
+        return value
 
     class Config:
         env_file = ".env"  # reads from the .env file automatically
