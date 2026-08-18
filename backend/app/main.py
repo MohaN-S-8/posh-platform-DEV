@@ -375,8 +375,8 @@ async def run_seed_on_startup():
             text(
                 """
                 CREATE TABLE IF NOT EXISTS certificate_template (
-                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                    certificate_name VARCHAR(255) NULL,
+                    template_id INT AUTO_INCREMENT PRIMARY KEY,
+                    template_name VARCHAR(100) NULL,
                     created_date DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
                 """

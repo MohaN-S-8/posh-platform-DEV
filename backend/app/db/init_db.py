@@ -1,5 +1,7 @@
 import asyncio
 
+from sqlalchemy import text
+
 from app.db.base import Base
 from app.db.session import engine
 
@@ -29,8 +31,49 @@ from app.models.user import UserMaster  # noqa: F401
 from app.models.video import VideoCategory, VideoLanguage, VideoMaster  # noqa: F401
 
 
+async def repair_legacy_schema(conn) -> None:
+    """Repair tables created by older manual startup SQL before metadata.create_all()."""
+    template_table_result = await conn.execute(
+        text(
+            """
+            SELECT COUNT(*) AS table_count
+            FROM information_schema.tables
+            WHERE table_schema = DATABASE()
+              AND table_name = 'certificate_template'
+            """
+        )
+    )
+    if template_table_result.scalar_one() == 0:
+        return
+
+    column_result = await conn.execute(
+        text(
+            """
+            SELECT
+                SUM(column_name = 'id') AS has_id,
+                SUM(column_name = 'template_id') AS has_template_id
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = 'certificate_template'
+              AND column_name IN ('id', 'template_id')
+            """
+        )
+    )
+    has_id, has_template_id = column_result.one()
+    if has_id and not has_template_id:
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE certificate_template
+                CHANGE COLUMN id template_id INT AUTO_INCREMENT
+                """
+            )
+        )
+
+
 async def init_db() -> None:
     async with engine.begin() as conn:
+        await repair_legacy_schema(conn)
         await conn.run_sync(Base.metadata.create_all)
     await engine.dispose()
 
