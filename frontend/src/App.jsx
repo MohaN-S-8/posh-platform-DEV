@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { LoadingOverlay } from "./components/LoadingOverlay";
 import { SessionTimeout } from "./components/SessionTimeout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RoleRoute } from "./routes/RoleRoute";
@@ -60,17 +59,17 @@ import { StatsHomePage } from "./features/dashboard/StatsHomePage";
 
 function App() {
   const activeRequests = useLoadingStore((state) => state.activeRequests);
-  const [showGlobalLoader, setShowGlobalLoader] = useState(false);
+  const [showNetworkProgress, setShowNetworkProgress] = useState(false);
 
   useEffect(() => {
     if (activeRequests === 0) {
-      setShowGlobalLoader(false);
+      setShowNetworkProgress(false);
       return undefined;
     }
 
     const timer = window.setTimeout(() => {
-      setShowGlobalLoader(true);
-    }, 450);
+      setShowNetworkProgress(true);
+    }, 250);
 
     return () => window.clearTimeout(timer);
   }, [activeRequests]);
@@ -548,12 +547,45 @@ function App() {
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
-      <LoadingOverlay
-        show={showGlobalLoader}
-        title="Loading"
-        message="Please wait."
-      />
+      <GlobalNetworkProgress show={showNetworkProgress} />
     </BrowserRouter>
+  );
+}
+
+function GlobalNetworkProgress({ show }) {
+  if (!show) return null;
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1200,
+        height: "3px",
+        overflow: "hidden",
+        background: "rgba(23, 50, 77, 0.08)",
+      }}
+    >
+      <div
+        style={{
+          width: "38%",
+          height: "100%",
+          background: "linear-gradient(90deg, #17324d, #c93a7a)",
+          animation: "posh-network-progress 1s ease-in-out infinite",
+        }}
+      />
+      <style>
+        {`
+          @keyframes posh-network-progress {
+            0% { transform: translateX(-105%); }
+            100% { transform: translateX(270%); }
+          }
+        `}
+      </style>
+    </div>
   );
 }
 
