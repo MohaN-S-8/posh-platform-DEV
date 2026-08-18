@@ -162,9 +162,9 @@ def _parse_docx_questions(lines: list[str], video_id: int) -> list[AssessmentQue
                 continue
 
             if current["options"]:
-                current["options"][-1]["option_text"] = (
-                    f"{current['options'][-1]['option_text']} {line}".strip()
-                )
+                current["options"][-1][
+                    "option_text"
+                ] = f"{current['options'][-1]['option_text']} {line}".strip()
             else:
                 current["question_text"] = f"{current['question_text']} {line}".strip()
 

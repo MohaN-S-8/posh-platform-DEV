@@ -547,8 +547,10 @@ class CertificateService:
             .limit(1)
         )
         template = template_result.scalar_one_or_none()
-        if cert.video_id and template and (
-            cert.template_id != template.template_id or template.template_file_path
+        if (
+            cert.video_id
+            and template
+            and (cert.template_id != template.template_id or template.template_file_path)
         ):
             user_result = await db.execute(
                 select(UserMaster).where(UserMaster.user_id == cert.user_id)
@@ -665,9 +667,7 @@ class CertificateService:
         filters = [CertificateTemplate.template_id == template_id]
         if company_id is not None:
             filters.append(CertificateTemplate.company_id == company_id)
-        result = await db.execute(
-            select(CertificateTemplate).where(*filters)
-        )
+        result = await db.execute(select(CertificateTemplate).where(*filters))
         template = result.scalar_one_or_none()
         if not template:
             raise HTTPException(404, "Certificate template not found.")
@@ -768,7 +768,9 @@ class CertificateService:
     ) -> dict:
         template = await self._get_template(db, template_id, company_id)
         if template.status == "Active" and not allow_active_delete:
-            raise HTTPException(403, "Approved certificate templates can only be deleted by Super Admin.")
+            raise HTTPException(
+                403, "Approved certificate templates can only be deleted by Super Admin."
+            )
         template_company_id = template.company_id
 
         replacement_result = await db.execute(

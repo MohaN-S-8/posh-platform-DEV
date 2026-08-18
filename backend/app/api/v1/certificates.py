@@ -34,9 +34,7 @@ async def create_certificate_template(
 ):
     """Create a certificate template. Client/company uploads wait for Super Admin approval."""
     initial_status = "Active" if current_user.role_id == 1 else "Pending"
-    template = await cert_service.create_template(
-        db, data, current_user.company_id, initial_status
-    )
+    template = await cert_service.create_template(db, data, current_user.company_id, initial_status)
     await write_audit_log(
         db,
         user_id=current_user.user_id,
@@ -93,9 +91,7 @@ async def update_certificate_template_status(
         raise HTTPException(403, "Only Super Admin can approve certificate templates.")
     if status not in ["Active", "Inactive", "Rejected", "Pending"]:
         raise HTTPException(400, "Status must be Pending, Active, Inactive, or Rejected.")
-    result = await cert_service.set_template_status(
-        db, template_id, status, None
-    )
+    result = await cert_service.set_template_status(db, template_id, status, None)
     await write_audit_log(
         db,
         user_id=current_user.user_id,

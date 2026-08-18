@@ -152,9 +152,7 @@ async def _serialize(db: AsyncSession, current_user, policy: PoshPolicy | None):
         ),
         "rights": _decode_json(policy.rights_json, DEFAULT_POLICY["rights"]),
         "faqs": _decode_json(policy.faqs_json, DEFAULT_POLICY["faqs"]),
-        "acknowledged": await _has_acknowledged(
-            db, current_user, policy.policy_id, policy_version
-        ),
+        "acknowledged": await _has_acknowledged(db, current_user, policy.policy_id, policy_version),
     }
 
 

@@ -6,8 +6,8 @@ from sqlalchemy import create_engine, inspect, text
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.db.base import Base
 import app.models  # noqa: F401
+from app.db.base import Base
 
 
 def sync_database_url() -> str:

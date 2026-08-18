@@ -36,9 +36,7 @@ VIDEO_BUCKET = os.environ.get("MINIO_BUCKET_VIDEOS", "posh-videos")
 
 
 class VideoService:
-    async def _get_company_video(
-        self, db: AsyncSession, video_id: int, company_id: Optional[int]
-    ):
+    async def _get_company_video(self, db: AsyncSession, video_id: int, company_id: Optional[int]):
         filters = [VideoMaster.video_id == video_id]
         if company_id is not None:
             filters.append(VideoMaster.company_id == company_id)
@@ -563,9 +561,7 @@ class VideoService:
         filters = [VideoMaster.video_id == video_id]
         if company_id is not None:
             filters.append(VideoMaster.company_id == company_id)
-        result = await db.execute(
-            select(VideoMaster).where(*filters)
-        )
+        result = await db.execute(select(VideoMaster).where(*filters))
         video = result.scalar_one_or_none()
         if not video:
             raise HTTPException(404, "Video not found.")
@@ -674,9 +670,7 @@ class VideoService:
         if company_id is not None:
             filters.append(VideoMaster.company_id == company_id)
         result = await db.execute(
-            select(VideoMaster)
-            .where(*filters)
-            .order_by(VideoMaster.created_date.desc())
+            select(VideoMaster).where(*filters).order_by(VideoMaster.created_date.desc())
         )
         return result.scalars().all()
 
