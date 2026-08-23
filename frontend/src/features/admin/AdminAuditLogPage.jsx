@@ -3,8 +3,10 @@ import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
+import { useAuthStore } from "../../store/authStore";
 
 export function AdminAuditLogPage() {
+  const { user } = useAuthStore();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -14,10 +16,13 @@ export function AdminAuditLogPage() {
       setLoading(true);
       setError("");
       try {
-        const [actionRes, loginRes] = await Promise.all([
+        const requests = [
           apiClient.get("/admin/audit-logs"),
-          apiClient.get("/admin/audit-logins"),
-        ]);
+        ];
+        if (user?.role_id === 1) {
+          requests.push(apiClient.get("/admin/audit-logins"));
+        }
+        const [actionRes, loginRes] = await Promise.all(requests);
         const actionLogs = (actionRes.data || []).map((log) => ({
           ...log,
           rowId: `action-${log.id}`,
@@ -26,7 +31,7 @@ export function AdminAuditLogPage() {
           successLabel: "-",
           timestamp: log.created_at,
         }));
-        const loginLogs = (loginRes.data || []).map((log) => ({
+        const loginLogs = (loginRes?.data || []).map((log) => ({
           ...log,
           rowId: `login-${log.id}`,
           type: "Login",
@@ -49,12 +54,12 @@ export function AdminAuditLogPage() {
       }
     };
     loadLogs();
-  }, []);
+  }, [user?.role_id]);
 
   return (
     <PortalShell
       title="Audit Logs"
-      subtitle="Recent login attempts and admin/HR actions captured with user, IP, target, and timestamp."
+      subtitle="Recent login attempts and admin/IC actions captured with user, IP, target, and timestamp."
     >
 
       {error && <div style={errorStyle}>{error}</div>}

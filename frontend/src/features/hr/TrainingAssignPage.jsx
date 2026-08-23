@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
+import { useAuthStore } from "../../store/authStore";
 
 const employeeOptionLabel = (employee) => {
   const name = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
@@ -10,7 +11,27 @@ const employeeOptionLabel = (employee) => {
   return `${name} - ${employee.email} - ${employee.role_label || "Employee"}${employeeId}${department}`;
 };
 
+const trainingLevelOptions = ["", "Basic", "Advanced"];
+
+const audienceOptions = [
+  { value: "", label: "All audiences" },
+  { value: "Employee", label: "Employee" },
+  { value: "IC Member", label: "IC Member" },
+  { value: "All", label: "Employee + IC Member" },
+];
+
+const audienceLabel = (audience) =>
+  audienceOptions.find((option) => option.value === audience)?.label || audience || "Employee";
+
+const videoOptionLabel = (video) =>
+  `${video.title}${video.duration_minutes ? ` (${video.duration_minutes} min)` : ""} - ${
+    video.training_level || "Basic"
+  } / ${audienceLabel(video.target_audience)}`;
+
 export function TrainingAssignPage() {
+  const { user } = useAuthStore();
+  const roleLockedAudience =
+    user?.role_id === 5 ? "IC Member" : user?.role_id === 3 ? "Employee" : "";
   const [videos, setVideos] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -19,6 +40,10 @@ export function TrainingAssignPage() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [filters, setFilters] = useState({
+    training_level: "",
+    target_audience: "",
+  });
   const [form, setForm] = useState({
     video_id: "",
     assign_type: "Company-Wide",
@@ -53,8 +78,44 @@ export function TrainingAssignPage() {
     () => videos.find((video) => String(video.video_id) === String(form.video_id)),
     [videos, form.video_id],
   );
-  const publishedVideos = videos.filter((video) => video.status === "Published");
-  const pendingVideos = videos.filter((video) => video.status !== "Published");
+  const activeTargetAudience = roleLockedAudience || filters.target_audience;
+  const filteredVideos = useMemo(
+    () =>
+      videos.filter(
+        (video) =>
+          (!filters.training_level ||
+            (video.training_level || "Basic") === filters.training_level) &&
+          (!activeTargetAudience ||
+            (video.target_audience || "Employee") === activeTargetAudience),
+      ),
+    [activeTargetAudience, filters.training_level, videos],
+  );
+  const publishedVideos = filteredVideos.filter((video) => video.status === "Published");
+  const pendingVideos = filteredVideos.filter((video) => video.status !== "Published");
+  const targetLabel =
+    activeTargetAudience === "IC Member"
+      ? "IC Member"
+      : activeTargetAudience === "Employee"
+        ? "Employee"
+        : "User";
+  const audienceLocked = Boolean(roleLockedAudience);
+
+  const updateFilter = (field, value) => {
+    const nextFilters = { ...filters, [field]: value };
+    setFilters(nextFilters);
+    const selectedStillVisible = videos.some(
+      (video) =>
+        String(video.video_id) === String(form.video_id) &&
+        (!nextFilters.training_level ||
+          (video.training_level || "Basic") === nextFilters.training_level) &&
+        (!(roleLockedAudience || nextFilters.target_audience) ||
+          (video.target_audience || "Employee") ===
+            (roleLockedAudience || nextFilters.target_audience)),
+    );
+    setForm({ ...form, video_id: selectedStillVisible ? form.video_id : "" });
+    setSuccess("");
+    setError("");
+  };
 
   const canSubmit =
     form.video_id &&
@@ -131,6 +192,38 @@ export function TrainingAssignPage() {
       <div className="portal-section-title">Assignment Details</div>
       <div className="portal-card" style={{ maxWidth: "820px" }}>
         <form onSubmit={handleSubmit}>
+          <div style={filterGridStyle}>
+            <div>
+              <label style={labelStyle}>Training Level</label>
+              <select
+                value={filters.training_level}
+                onChange={(e) => updateFilter("training_level", e.target.value)}
+                style={inputStyle}
+              >
+                {trainingLevelOptions.map((level) => (
+                  <option key={level || "all"} value={level}>
+                    {level || "All levels"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Audience</label>
+              <select
+                value={activeTargetAudience}
+                disabled={audienceLocked}
+                onChange={(e) => updateFilter("target_audience", e.target.value)}
+                style={inputStyle}
+              >
+                {audienceOptions.map((option) => (
+                  <option key={option.value || "all"} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div style={{ marginBottom: "18px" }}>
             <label style={labelStyle}>Training Video *</label>
             <select
@@ -144,14 +237,13 @@ export function TrainingAssignPage() {
               style={inputStyle}
             >
               <option value="">Select published video</option>
-              {videos.map((video) => (
+              {filteredVideos.map((video) => (
                 <option
                   key={video.video_id}
                   value={video.video_id}
                   disabled={video.status !== "Published"}
                 >
-                  {video.title}
-                  {video.duration_minutes ? ` (${video.duration_minutes} min)` : ""}
+                  {videoOptionLabel(video)}
                   {video.status !== "Published" ? ` - ${video.status}, waiting for approval` : ""}
                 </option>
               ))}
@@ -161,7 +253,12 @@ export function TrainingAssignPage() {
                 No videos available yet. Upload a POSH video first.
               </p>
             )}
-            {!loadingOptions && videos.length > 0 && publishedVideos.length === 0 && (
+            {!loadingOptions && videos.length > 0 && filteredVideos.length === 0 && (
+              <p style={hintStyle}>
+                No videos match this training level and audience.
+              </p>
+            )}
+            {!loadingOptions && filteredVideos.length > 0 && publishedVideos.length === 0 && (
               <p style={hintStyle}>
                 {pendingVideos.length} video(s) are uploaded and waiting for Super Admin approval.
                 Assignment will unlock after publish.
@@ -179,7 +276,7 @@ export function TrainingAssignPage() {
             )}
             {selectedVideo && (
               <p style={hintStyle}>
-                Selected: {selectedVideo.title}
+                Selected: {videoOptionLabel(selectedVideo)}
                 {selectedVideo.status !== "Published"
                   ? " - waiting for Super Admin approval"
                   : ""}
@@ -219,13 +316,13 @@ export function TrainingAssignPage() {
 
           {form.assign_type === "Individual" && (
             <div style={{ marginBottom: "18px" }}>
-              <label style={labelStyle}>Select Employee *</label>
+              <label style={labelStyle}>Select {targetLabel} *</label>
               <input
                 required
                 type="text"
                 list="training-employee-options"
                 value={employeeSearch}
-                placeholder="Type name, email, or employee ID"
+                placeholder={`Type ${targetLabel.toLowerCase()} name, email, or ID`}
                 onChange={(e) => handleEmployeeSearch(e.target.value)}
                 style={inputStyle}
               />
@@ -235,7 +332,7 @@ export function TrainingAssignPage() {
                 ))}
               </datalist>
               {!loadingOptions && employees.length === 0 && (
-                <p style={hintStyle}>No active employees found for this company.</p>
+                <p style={hintStyle}>No active {targetLabel.toLowerCase()} users found for this company.</p>
               )}
             </div>
           )}
@@ -278,7 +375,7 @@ export function TrainingAssignPage() {
                 fontSize: "14px",
               }}
             >
-              This will assign the selected video to every active employee in this company.
+              This will assign the selected video to every active {targetLabel.toLowerCase()} user in this company.
             </div>
           )}
 
@@ -377,6 +474,13 @@ const hintStyle = {
   margin: "8px 0 0",
   color: "var(--portal-muted)",
   fontSize: "13px",
+};
+
+const filterGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "14px",
+  marginBottom: "18px",
 };
 
 const pendingListStyle = {

@@ -2,7 +2,7 @@ import AssessmentIcon from "@mui/icons-material/Assessment";
 import BadgeIcon from "@mui/icons-material/Badge";
 import DownloadIcon from "@mui/icons-material/Download";
 import GroupsIcon from "@mui/icons-material/Groups";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
@@ -91,9 +91,47 @@ const reports = [
   },
 ];
 
+function buildSummary(analytics) {
+  if (!analytics) return [];
+  return [
+    { label: "Total Users", value: analytics.total_users ?? 0 },
+    { label: "Employees", value: analytics.total_employees ?? 0 },
+    { label: "Completed", value: analytics.completed_training ?? 0 },
+    { label: "In Progress", value: analytics.in_progress_training ?? 0 },
+    { label: "Compliance", value: `${analytics.compliance_rate ?? 0}%` },
+    { label: "Certificates", value: analytics.certificates_issued ?? 0 },
+  ];
+}
+
 export function HRReportsPage() {
+  const [analytics, setAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
   const [downloading, setDownloading] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const loadAnalytics = async () => {
+      setLoadingAnalytics(true);
+      setError("");
+      try {
+        const res = await apiClient.get("/analytics/current");
+        if (active) setAnalytics(res.data);
+      } catch (err) {
+        if (active) {
+          setError(err.response?.data?.detail || "Unable to load analytics.");
+        }
+      } finally {
+        if (active) setLoadingAnalytics(false);
+      }
+    };
+    loadAnalytics();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const summary = useMemo(() => buildSummary(analytics), [analytics]);
 
   const downloadReport = async (report) => {
     if (!report.endpoint) return;
@@ -116,8 +154,8 @@ export function HRReportsPage() {
 
   return (
     <PortalShell
-      title="HR Reports"
-      subtitle="Download employee, department, and certificate reports for your company only."
+      title="IC Analytics & Reports"
+      subtitle="Company-scoped employee compliance analytics and report downloads."
     >
 
       {error && (
@@ -134,6 +172,42 @@ export function HRReportsPage() {
           {error}
         </div>
       )}
+
+      <div className="portal-section-title">Users & Compliance</div>
+      <div className="portal-auto-grid" style={{ marginBottom: "22px" }}>
+        {summary.map((metric) => (
+          <div key={metric.label} className="portal-card">
+            <div className="portal-kpi-value">{loadingAnalytics ? "-" : metric.value}</div>
+            <div className="portal-kpi-label">{metric.label}</div>
+            <div className="portal-kpi-trend">Current company</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="portal-section-title">Department Compliance</div>
+      <div className="portal-card" style={{ marginBottom: "22px", overflowX: "auto" }}>
+        <div style={tableStyle}>
+          <div style={{ ...tableRowStyle, ...tableHeaderRowStyle }}>
+            <span>Department</span>
+            <span>Total</span>
+            <span>Completed</span>
+            <span>Pending</span>
+            <span>Compliance</span>
+          </div>
+          {(analytics?.department_breakdown || []).map((department) => (
+            <div key={department.department} style={tableRowStyle}>
+              <strong>{department.department}</strong>
+              <span>{department.total ?? 0}</span>
+              <span>{department.completed ?? 0}</span>
+              <span>{department.pending ?? 0}</span>
+              <span>{department.compliance_rate ?? 0}%</span>
+            </div>
+          ))}
+          {!loadingAnalytics && !analytics?.department_breakdown?.length && (
+            <div style={emptyRowStyle}>No employee departments available yet.</div>
+          )}
+        </div>
+      </div>
 
       <div className="portal-section-title">Available Downloads</div>
       <div className="portal-auto-grid">
@@ -187,10 +261,39 @@ export function HRReportsPage() {
       </div>
 
       <LoadingOverlay
-        show={Boolean(downloading)}
-        title="Preparing report"
-        message={downloading ? `Downloading ${downloading}.` : ""}
+        show={loadingAnalytics || Boolean(downloading)}
+        title={downloading ? "Preparing report" : "Loading analytics"}
+        message={downloading ? `Downloading ${downloading}.` : "Fetching company compliance metrics."}
       />
     </PortalShell>
   );
 }
+
+const tableStyle = {
+  display: "grid",
+  minWidth: "620px",
+};
+
+const tableRowStyle = {
+  display: "grid",
+  gridTemplateColumns: "minmax(150px, 1.5fr) repeat(4, minmax(82px, 1fr))",
+  gap: "12px",
+  alignItems: "center",
+  borderBottom: "1px solid #eef2f6",
+  color: "#52677a",
+  fontSize: "13px",
+  padding: "12px 0",
+};
+
+const tableHeaderRowStyle = {
+  color: "#17324d",
+  fontSize: "11px",
+  fontWeight: 800,
+  textTransform: "uppercase",
+};
+
+const emptyRowStyle = {
+  color: "#64748b",
+  fontSize: "13px",
+  padding: "14px 0",
+};

@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import (
     require_any_permission,
     require_permission,
-    require_role,
+    require_roles_with_matrix,
 )
 from app.db.session import get_db
 from app.schemas.video import (
@@ -27,6 +27,11 @@ async def list_videos(
     current_user=Depends(require_any_permission(["videos.upload", "videos.manage"])),
 ):
     """List all videos for current user's company (all statuses)."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Company Admin, and Client / Management can upload or manage videos.",
+        )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     return await video_service.list_videos(db, company_id)
 
@@ -36,7 +41,7 @@ async def list_published_videos(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("training.assign")),
 ):
-    """List only published videos — used by HR training assignment dropdown."""
+    """List only published videos — used by IC training assignment dropdown."""
     return await video_service.list_published_videos(db, current_user.company_id)
 
 
@@ -56,6 +61,9 @@ async def upload_video(
     description: str = Form(None),
     category_id: int = Form(None),
     duration_minutes: int = Form(None),
+    service_code: str = Form("POSH"),
+    training_level: str = Form("Basic"),
+    target_audience: str = Form("Employee"),
     quality_label: str = Form("720p"),
     transcript_text: str = Form(None),
     request: Request = None,
@@ -67,11 +75,18 @@ async def upload_video(
     File is stored securely in MinIO — never publicly accessible.
     Status starts as Draft. Publish separately.
     """
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403, "Only Super Admin, Company Admin, and Client / Management can upload videos."
+        )
     metadata = VideoCreate(
         title=title,
         description=description,
         category_id=category_id,
         duration_minutes=duration_minutes,
+        service_code=service_code,
+        training_level=training_level,
+        target_audience=target_audience,
     )
     video = await video_service.upload_video(
         db,
@@ -124,7 +139,7 @@ async def publish_video(
     video_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("videos.manage")),
+    current_user=Depends(require_any_permission(["videos.manage", "videos.publish"])),
 ):
     """Publish a draft video so employees can watch it."""
     company_id = None if current_user.role_id == 1 else current_user.company_id
@@ -250,7 +265,7 @@ async def delete_video(
 async def get_stream_url(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_role(4)),
+    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
 ):
     """
     Get a short-lived signed URL for video streaming.
@@ -266,7 +281,7 @@ async def update_progress(
     video_id: int,
     data: ProgressUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_role(4)),
+    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
 ):
     """
     Update video watch progress (called every 10 seconds by the player).

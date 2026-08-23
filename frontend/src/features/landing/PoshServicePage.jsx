@@ -1,5 +1,4 @@
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import BadgeIcon from "@mui/icons-material/Badge";
 import PolicyIcon from "@mui/icons-material/Policy";
@@ -44,9 +43,6 @@ export function PoshServicePage() {
           <Link to="/login" className="landing-link-btn">
             Login
           </Link>
-          <Link to="/signup" className="landing-primary-btn">
-            Signup <ArrowForwardIcon fontSize="small" />
-          </Link>
         </nav>
       </header>
 
@@ -65,10 +61,7 @@ export function PoshServicePage() {
           </p>
           <div className="landing-hero-actions">
             <Link to="/login" className="landing-primary-btn landing-primary-btn-lg">
-              POSH Login <ArrowForwardIcon fontSize="small" />
-            </Link>
-            <Link to="/signup" className="landing-secondary-btn">
-              Signup
+              POSH Login
             </Link>
           </div>
         </section>

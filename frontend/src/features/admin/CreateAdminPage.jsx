@@ -12,11 +12,20 @@ const emptyForm = {
   password: "",
 };
 
-const providerCompanyId = 1;
+const employeeOptionLabel = (employee) => {
+  const name = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+  const employeeId = employee.employee_id ? ` (${employee.employee_id})` : "";
+  const company = employee.company_id ? ` - Company ${employee.company_id}` : "";
+  return `${name || employee.email} - ${employee.email}${employeeId}${company}`;
+};
 
 export function CreateAdminPage() {
   const [admins, setAdmins] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [form, setForm] = useState(emptyForm);
+  const [editingAdmin, setEditingAdmin] = useState(null);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState("");
@@ -29,7 +38,9 @@ export function CreateAdminPage() {
     setError("");
     try {
       const res = await apiClient.get("/users/");
-      setAdmins((res.data || []).filter((user) => user.role_id === 2));
+      const users = res.data || [];
+      setAdmins(users.filter((user) => user.role_id === 2));
+      setEmployees(users.filter((user) => user.role_id === 4));
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to load company admins."));
     } finally {
@@ -44,6 +55,10 @@ export function CreateAdminPage() {
 
   const createAdmin = async (event) => {
     event.preventDefault();
+    if (!editingAdmin && !selectedEmployee) {
+      setError("Please select an employee from Employee Master before creating admin access.");
+      return;
+    }
     const digits = form.contact.replace(/\D/g, "");
     const mobile = digits.length > 10 ? digits.slice(-10) : digits;
     const [firstName, ...restName] = form.name.trim().split(/\s+/);
@@ -52,27 +67,98 @@ export function CreateAdminPage() {
     setError("");
     setSuccess("");
     try {
-      await apiClient.post("/users/", {
-        company_id: providerCompanyId,
+      const payload = {
         employee_id: form.id_no.trim(),
         first_name: firstName,
         last_name: restName.join(" ") || "Admin",
         email: form.email.trim().toLowerCase(),
         mobile,
         username: form.username.trim(),
-        password: form.password || null,
         role_id: 2,
         department: "Company Administration",
         designation: "Company Admin",
-      });
-      setSuccess("Company Admin created. Login credentials email has been sent.");
+      };
+      if (editingAdmin) {
+        await apiClient.put(`/users/${editingAdmin.user_id}`, payload);
+        if (form.password) {
+          await apiClient.post(`/users/${editingAdmin.user_id}/reset-password`, {
+            new_password: form.password,
+          });
+        }
+        setSuccess("Company Admin updated.");
+      } else {
+        await apiClient.put(`/users/${selectedEmployee.user_id}`, payload);
+        if (form.password) {
+          await apiClient.post(`/users/${selectedEmployee.user_id}/reset-password`, {
+            new_password: form.password,
+          });
+        }
+        setSuccess("Employee upgraded to Company Admin.");
+      }
       setForm(emptyForm);
+      setEditingAdmin(null);
+      setSelectedEmployee(null);
+      setEmployeeSearch("");
       await loadAdmins();
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to create Company Admin."));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEmployeeSearch = (value) => {
+    setEmployeeSearch(value);
+    setError("");
+    const normalized = value.trim().toLowerCase();
+    const match = employees.find((employee) => {
+      const label = employeeOptionLabel(employee).toLowerCase();
+      return (
+        label === normalized ||
+        String(employee.user_id) === value ||
+        String(employee.email || "").toLowerCase() === normalized ||
+        String(employee.employee_id || "").toLowerCase() === normalized
+      );
+    });
+    if (!match) {
+      setSelectedEmployee(null);
+      setForm(emptyForm);
+      return;
+    }
+    setSelectedEmployee(match);
+    setForm({
+      name: `${match.first_name || ""} ${match.last_name || ""}`.trim(),
+      id_no: match.employee_id || "",
+      email: match.email || "",
+      contact: match.mobile || "",
+      username: match.username || match.email || "",
+      password: "",
+    });
+  };
+
+  const startEdit = (admin) => {
+    setEditingAdmin(admin);
+    setSelectedEmployee(null);
+    setEmployeeSearch("");
+    setError("");
+    setSuccess("");
+    setForm({
+      name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim(),
+      id_no: admin.employee_id || "",
+      email: admin.email || "",
+      contact: admin.mobile || "",
+      username: admin.username || admin.email || "",
+      password: "",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingAdmin(null);
+    setSelectedEmployee(null);
+    setEmployeeSearch("");
+    setForm(emptyForm);
+    setError("");
+    setSuccess("");
   };
 
   const deleteAdmin = async (admin) => {
@@ -111,7 +197,7 @@ export function CreateAdminPage() {
   };
 
   return (
-    <PortalShell title="Create Admin" subtitle="Super Admin creates Company Admin logins">
+    <PortalShell title="Create Admin" subtitle="Super Admin upgrades Employee Master users to Company Admin">
       {/* <div style={noticeStyle}>
         Only the Super Admin can create a Company Admin login. This mirrors only Master Admin has rights from the master file.
       </div> */}
@@ -120,11 +206,42 @@ export function CreateAdminPage() {
       {success && <div style={successStyle}>{success}</div>}
 
       <section style={panelStyle}>
-        <h3 style={titleStyle}>Create Admin</h3>
+        <h3 style={titleStyle}>{editingAdmin ? "Edit Admin" : "Create Admin"}</h3>
         <p style={mutedStyle}>
-          Creates a Company Admin login. An automatic email is sent to the member with their credentials.
+          {editingAdmin
+            ? "Update Company Admin details and optionally set a new password."
+            : "Select an existing Employee Master user. Their ID, email, contact, and username are filled automatically before upgrading access."}
         </p>
         <form onSubmit={createAdmin}>
+          {!editingAdmin && (
+            <label style={{ ...labelStyle, marginBottom: "16px" }}>
+              Search Employee *
+              <input
+                required
+                type="text"
+                list="company-admin-employee-options"
+                value={employeeSearch}
+                placeholder="Type employee name, email, employee ID, or user ID"
+                onChange={(e) => handleEmployeeSearch(e.target.value)}
+                style={inputStyle}
+              />
+              <datalist id="company-admin-employee-options">
+                {employees.map((employee) => (
+                  <option key={employee.user_id} value={employeeOptionLabel(employee)} />
+                ))}
+              </datalist>
+              {!loading && employees.length === 0 && (
+                <span style={hintStyle}>
+                  No Employee Master users are available to upgrade.
+                </span>
+              )}
+              {selectedEmployee && (
+                <span style={hintStyle}>
+                  Selected employee will be converted to Company Admin.
+                </span>
+              )}
+            </label>
+          )}
           <div style={formGridStyle}>
             <label style={labelStyle}>
               Name *
@@ -168,7 +285,7 @@ export function CreateAdminPage() {
               />
             </label>
             <label style={labelStyle}>
-              Username (create) *
+              Username *
               <input
                 required
                 value={form.username}
@@ -178,19 +295,36 @@ export function CreateAdminPage() {
               />
             </label>
             <label style={labelStyle}>
-              Password (create) *
+              {editingAdmin ? "New Password" : "New Password"}
               <input
                 type="password"
                 value={form.password}
-                placeholder="Leave blank to auto-generate"
+                placeholder={
+                  editingAdmin
+                    ? "Leave blank to keep current password"
+                    : "Optional. Leave blank to keep employee password"
+                }
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 style={inputStyle}
               />
             </label>
           </div>
-          <button type="submit" disabled={submitting} style={primaryButtonStyle}>
-            {submitting ? "Creating..." : "Create Company Admin"}
-          </button>
+          <div style={actionGroupStyle}>
+            <button type="submit" disabled={submitting} style={primaryButtonStyle}>
+              {submitting
+                ? editingAdmin
+                  ? "Saving..."
+                  : "Upgrading..."
+                : editingAdmin
+                  ? "Save Admin"
+                  : "Upgrade to Company Admin"}
+            </button>
+            {editingAdmin && (
+              <button type="button" onClick={cancelEdit} style={secondaryButtonStyle}>
+                Cancel Edit
+              </button>
+            )}
+          </div>
         </form>
       </section>
 
@@ -215,13 +349,20 @@ export function CreateAdminPage() {
                   <tr key={admin.user_id} style={{ borderTop: "1px solid var(--portal-border)" }}>
                     <td style={tdStyle}>{admin.first_name} {admin.last_name || ""}</td>
                     <td style={tdStyle}>{admin.employee_id}</td>
-                    <td style={tdStyle}>{admin.username || admin.email}</td>
-                    <td style={tdStyle}>{admin.mobile || "-"}</td>
                     <td style={tdStyle}>{admin.email}</td>
+                    <td style={tdStyle}>{admin.mobile || "-"}</td>
+                    <td style={tdStyle}>{admin.username || admin.email}</td>
                     <td style={tdStyle}><span style={roleBadgeStyle}>Company Admin</span></td>
                     <td style={tdStyle}><span style={statusBadgeStyle(admin.status)}>{admin.status}</span></td>
                     <td style={tdStyle}>
                       <div style={actionGroupStyle}>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(admin)}
+                          style={secondaryButtonStyle}
+                        >
+                          Edit
+                        </button>
                         <button
                           type="button"
                           disabled={statusUpdatingId === admin.user_id}
@@ -308,6 +449,12 @@ const inputStyle = {
   padding: "10px 12px",
   color: "var(--portal-text)",
   background: "white",
+};
+
+const hintStyle = {
+  color: "var(--portal-muted)",
+  fontSize: "12px",
+  fontWeight: 600,
 };
 
 const primaryButtonStyle = {

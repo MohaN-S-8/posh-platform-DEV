@@ -6,9 +6,15 @@ import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
+import { useAuthStore } from "../../store/authStore";
 
 export function CoursesPage() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const rolePaths =
+    user?.role_id === 3
+      ? { video: "/ic/video", assessment: "/ic/assessment" }
+      : { video: "/employee/video", assessment: "/employee/assessment" };
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,8 +43,12 @@ export function CoursesPage() {
 
   return (
     <PortalShell
-      title="POSH Awareness Training"
-      subtitle="Watch assigned training videos, resume progress, and unlock assessments."
+      title={user?.role_id === 3 ? "My IC Training" : "POSH Awareness Training"}
+      subtitle={
+        user?.role_id === 3
+          ? "Complete training assigned to you by Client / Management."
+          : "Watch assigned training videos, resume progress, and unlock assessments."
+      }
     >
 
       {error && (
@@ -60,7 +70,9 @@ export function CoursesPage() {
         <div className="portal-card" style={{ padding: "40px", textAlign: "center" }}>
           <h2>No courses assigned yet</h2>
           <p>
-            Your HR team will assign training courses to you.
+            {user?.role_id === 3
+              ? "Client / Management will assign IC training courses to you."
+              : "Your IC team will assign training courses to you."}
           </p>
         </div>
       ) : (
@@ -145,7 +157,7 @@ export function CoursesPage() {
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/employee/video/${course.video_id}`)}
+                    onClick={() => navigate(`${rolePaths.video}/${course.video_id}`)}
                     style={{
                       padding: "9px 14px",
                       background: "var(--portal-pink)",
@@ -165,7 +177,7 @@ export function CoursesPage() {
                   <button
                     type="button"
                     disabled={!canTakeAssessment && !canRetakeAssessment}
-                    onClick={() => navigate(`/employee/assessment/${course.video_id}`)}
+                    onClick={() => navigate(`${rolePaths.assessment}/${course.video_id}`)}
                     style={{
                       padding: "9px 14px",
                       background:

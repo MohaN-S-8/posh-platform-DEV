@@ -36,8 +36,8 @@ class CompanyCreate(BaseModel):
     @classmethod
     def validate_name(cls, v):
         v = v.strip()
-        if len(v) < 2:
-            raise ValueError("Company name must be at least 2 characters")
+        if len(re.sub(r"[^A-Za-z]", "", v)) < 4:
+            raise ValueError("Company name must contain at least 4 letters")
         return v
 
     @field_validator(

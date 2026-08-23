@@ -919,6 +919,52 @@ textarea {
   text-decoration: none;
 }
 
+.portal-nav-group {
+  display: grid;
+}
+
+.portal-nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 22px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13.6px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.portal-nav-group-toggle:hover,
+.portal-nav-group-toggle.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.portal-nav-group-toggle.active {
+  border-left-color: var(--portal-amber);
+}
+
+.portal-nav-chevron {
+  margin-left: auto;
+  display: inline-flex;
+}
+
+.portal-nav-subitems {
+  display: grid;
+  padding: 2px 0 6px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.portal-nav-subitem {
+  padding-left: 38px;
+  font-size: 13px;
+}
+
 .portal-nav-item:hover,
 .portal-nav-item.active {
   background: rgba(255, 255, 255, 0.14);

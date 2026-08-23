@@ -66,12 +66,13 @@ class NotificationService:
         *,
         company_id: int,
         assign_type: str,
+        target_role_ids: list[int],
         assigned_to_user_id: int | None = None,
         assigned_to_department: str | None = None,
     ) -> list[int]:
         filters = [
             UserMaster.company_id == company_id,
-            UserMaster.role_id == 4,
+            UserMaster.role_id.in_(target_role_ids),
             UserMaster.status == "Active",
             UserMaster.is_deleted == "N",
         ]

@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import apiClient from "../../api/client";
+import { useAuthStore } from "../../store/authStore";
 
 export function AssessmentPage() {
   const { videoId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const coursePath = user?.role_id === 3 ? "/ic/training" : "/employee/courses";
+  const videoPath = user?.role_id === 3 ? `/ic/video/${videoId}` : `/employee/video/${videoId}`;
+  const certificatePath = user?.role_id === 3 ? "/ic/certificates" : "/employee/certificates";
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
@@ -63,7 +68,7 @@ export function AssessmentPage() {
   return (
     <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
       <button
-        onClick={() => navigate("/employee/courses")}
+        onClick={() => navigate(coursePath)}
         style={{
           background: "none",
           border: "none",
@@ -101,7 +106,7 @@ export function AssessmentPage() {
           )}
           <button
             type="button"
-            onClick={() => navigate(`/employee/video/${videoId}`)}
+            onClick={() => navigate(videoPath)}
             style={{
               marginTop: "12px",
               padding: "10px 18px",
@@ -118,7 +123,7 @@ export function AssessmentPage() {
       ) : questions.length === 0 ? (
         <div style={{ background: "white", borderRadius: "8px", padding: "28px" }}>
           <h3 style={{ color: "#17324d", marginTop: 0 }}>No questions available</h3>
-          <p style={{ color: "#666" }}>Please contact your HR team.</p>
+          <p style={{ color: "#666" }}>Please contact your IC team.</p>
         </div>
       ) : result ? (
         <div style={{ background: "white", borderRadius: "8px", padding: "28px" }}>
@@ -133,8 +138,8 @@ export function AssessmentPage() {
             onClick={() =>
               navigate(
                 result.result === "Pass"
-                  ? "/employee/certificates"
-                  : `/employee/video/${videoId}`,
+                  ? certificatePath
+                  : videoPath,
               )
             }
             style={{

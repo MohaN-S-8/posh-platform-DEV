@@ -10,6 +10,7 @@ const tabs = [
   { key: "City Code", label: "City Code", addLabel: "+ Add City" },
   { key: "Scope of Work ID", label: "Scope of Work", addLabel: "+ Add Scope" },
   { key: "Deliverables", label: "Deliverables", addLabel: "+ Add Deliverable" },
+  { key: "Office Master", label: "Office Master", addLabel: "+ Add Office" },
 ];
 
 const emptyByTab = {
@@ -18,6 +19,12 @@ const emptyByTab = {
   "City Code": { country: "IN", state: "", name: "", code: "" },
   "Scope of Work ID": { name: "", code: "" },
   Deliverables: { scope: "", name: "" },
+};
+
+const emptyOffice = {
+  office_name: "",
+  office_address: "",
+  is_active: true,
 };
 
 const parseDescription = (description) => {
@@ -39,6 +46,8 @@ const codeFromName = (name) =>
 export function MastersPage() {
   const [activeTab, setActiveTab] = useState("Country Code");
   const [rows, setRows] = useState([]);
+  const [offices, setOffices] = useState([]);
+  const [officeDraft, setOfficeDraft] = useState(emptyOffice);
   const [drafts, setDrafts] = useState(emptyByTab);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -51,6 +60,7 @@ export function MastersPage() {
     try {
       const res = await apiClient.get("/admin-config/");
       setRows(res.data?.master_codes || []);
+      setOffices((res.data?.offices || []).filter((office) => office.is_active));
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to load masters."));
     } finally {
@@ -156,8 +166,63 @@ export function MastersPage() {
     }
   };
 
+  const createOffice = async () => {
+    if (!officeDraft.office_name.trim() || !officeDraft.office_address.trim()) {
+      setError("Office name and address are required.");
+      return;
+    }
+    setSaving("office-create");
+    setError("");
+    setSuccess("");
+    try {
+      await apiClient.post("/admin-config/offices", {
+        ...officeDraft,
+        office_name: officeDraft.office_name.trim().toUpperCase(),
+        office_address: officeDraft.office_address.trim(),
+      });
+      setOfficeDraft(emptyOffice);
+      setSuccess("Office added.");
+      await fetchMasters();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to add office."));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const updateOffice = async (office, patch) => {
+    setSaving(`office-${office.id}`);
+    setError("");
+    setSuccess("");
+    try {
+      await apiClient.put(`/admin-config/offices/${office.id}`, patch);
+      setSuccess("Office updated.");
+      await fetchMasters();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to update office."));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const deleteOffice = async (office) => {
+    if (!window.confirm(`Delete ${office.office_name}?`)) return;
+    setSaving(`office-${office.id}`);
+    setError("");
+    setSuccess("");
+    try {
+      await apiClient.delete(`/admin-config/offices/${office.id}`);
+      setSuccess("Office deleted.");
+      await fetchMasters();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to delete office."));
+    } finally {
+      setSaving("");
+    }
+  };
+
   return (
-    <PortalShell title="Masters" subtitle="State Code, City Code, Scope of Work, Deliverables">
+    <PortalShell title="Masters" subtitle="State, city, scope, deliverables, and office master setup.">
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
@@ -176,6 +241,16 @@ export function MastersPage() {
 
       {loading ? (
         <div style={emptyStyle}>Loading masters...</div>
+      ) : activeTab === "Office Master" ? (
+        <OfficeMasterTab
+          offices={offices}
+          draft={officeDraft}
+          onDraft={setOfficeDraft}
+          onCreate={createOffice}
+          onUpdate={updateOffice}
+          onDelete={deleteOffice}
+          saving={saving}
+        />
       ) : activeTab === "Deliverables" ? (
         <DeliverablesTab
           scopes={scopes}
@@ -201,6 +276,90 @@ export function MastersPage() {
         />
       )}
     </PortalShell>
+  );
+}
+
+function OfficeMasterTab({ offices, draft, onDraft, onCreate, onUpdate, onDelete, saving }) {
+  return (
+    <>
+      <div style={tableWrapStyle}>
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Office Name</th>
+              <th style={thStyle}>Address</th>
+              <th style={thStyle} />
+            </tr>
+          </thead>
+          <tbody>
+            {offices.map((office) => (
+              <tr key={office.id} style={trStyle}>
+                <td style={tdStyle}>
+                  <input
+                    defaultValue={office.office_name}
+                    onBlur={(event) => {
+                      const value = event.target.value.trim().toUpperCase();
+                      if (value && value !== office.office_name) {
+                        onUpdate(office, { office_name: value });
+                      }
+                    }}
+                    style={inputStyle}
+                  />
+                </td>
+                <td style={tdStyle}>
+                  <input
+                    defaultValue={office.office_address}
+                    onBlur={(event) => {
+                      const value = event.target.value.trim();
+                      if (value && value !== office.office_address) {
+                        onUpdate(office, { office_address: value });
+                      }
+                    }}
+                    style={inputStyle}
+                  />
+                </td>
+                <td style={tdStyle}>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(office)}
+                    disabled={saving === `office-${office.id}`}
+                    style={deleteButtonStyle}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+            <tr style={trStyle}>
+              <td style={tdStyle}>
+                <input
+                  value={draft.office_name}
+                  placeholder="Office Name"
+                  onChange={(event) =>
+                    onDraft({ ...draft, office_name: event.target.value.toUpperCase() })
+                  }
+                  style={inputStyle}
+                />
+              </td>
+              <td style={tdStyle}>
+                <input
+                  value={draft.office_address}
+                  placeholder="Office Address"
+                  onChange={(event) =>
+                    onDraft({ ...draft, office_address: event.target.value })
+                  }
+                  style={inputStyle}
+                />
+              </td>
+              <td style={tdStyle} />
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <button type="button" onClick={onCreate} disabled={saving === "office-create"} style={primaryButtonStyle}>
+        {saving === "office-create" ? "Adding..." : "+ Add Office"}
+      </button>
+    </>
   );
 }
 
@@ -336,6 +495,13 @@ const masterRowShape = PropTypes.shape({
   is_active: PropTypes.bool,
 });
 
+const officeShape = PropTypes.shape({
+  id: PropTypes.number.isRequired,
+  office_name: PropTypes.string.isRequired,
+  office_address: PropTypes.string.isRequired,
+  is_active: PropTypes.bool,
+});
+
 StandardTab.propTypes = {
   activeTab: PropTypes.string.isRequired,
   countries: PropTypes.arrayOf(masterRowShape).isRequired,
@@ -363,6 +529,20 @@ DeliverablesTab.propTypes = {
   }).isRequired,
   onDraft: PropTypes.func.isRequired,
   onCreate: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
+  saving: PropTypes.string.isRequired,
+};
+
+OfficeMasterTab.propTypes = {
+  offices: PropTypes.arrayOf(officeShape).isRequired,
+  draft: PropTypes.shape({
+    office_name: PropTypes.string.isRequired,
+    office_address: PropTypes.string.isRequired,
+    is_active: PropTypes.bool,
+  }).isRequired,
+  onDraft: PropTypes.func.isRequired,
+  onCreate: PropTypes.func.isRequired,
+  onUpdate: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
   saving: PropTypes.string.isRequired,
 };

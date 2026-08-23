@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class CompanyService:
+    def _company_code_from_name(self, company_name: str) -> str:
+        return re.sub(r"[^A-Z]", "", (company_name or "").upper())[:4]
+
     async def get_all(self, db: AsyncSession) -> list:
         result = await db.execute(
             select(CompanyMaster).where(
@@ -53,9 +56,12 @@ class CompanyService:
     ) -> CompanyMaster:
         data_dict = data.model_dump()
 
-        # Normalize company_code
-        if "company_code" in data_dict and data_dict["company_code"]:
-            data_dict["company_code"] = data_dict["company_code"].upper()
+        data_dict["company_code"] = self._company_code_from_name(data_dict.get("company_name", ""))
+        if len(data_dict["company_code"]) != 4:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Company name must contain at least 4 letters to generate the company code.",
+            )
         data_dict = await self._normalize_service_details(db, data_dict)
         if current_user and current_user.role_id != 1:
             data_dict = self._mark_service_owner(data_dict, current_user.user_id)
@@ -131,6 +137,12 @@ class CompanyService:
                 400,
                 "Assign every work-order service before approval.",
             )
+        missing_registration = self._missing_registration_fields(company)
+        if missing_registration:
+            raise HTTPException(
+                400,
+                "Complete company registration before approval: " + ", ".join(missing_registration),
+            )
         company.approval_status = "Approved"
         await db.commit()
         await db.refresh(company)
@@ -141,6 +153,32 @@ class CompanyService:
             "approval_status": company.approval_status,
             "email_summary": email_summary,
         }
+
+    def _missing_registration_fields(self, company: CompanyMaster) -> list[str]:
+        missing = []
+        if not company.industry_type or company.industry_type == "Pending Registration":
+            missing.append("industry")
+
+        corporate = self._json_object(company.corp_address_json)
+        billing = self._json_object(company.billing_address_json)
+        account = self._json_object(company.account_contact_json)
+        coordinator = self._json_object(company.coordinator_contact_json)
+
+        for label, address in [
+            ("corporate address", corporate),
+            ("billing address", billing),
+        ]:
+            if not all(address.get(key) for key in ["address1", "city", "state", "pincode"]):
+                missing.append(label)
+
+        for label, contact in [
+            ("account contact", account),
+            ("coordinator contact", coordinator),
+        ]:
+            if not all(contact.get(key) for key in ["name", "designation", "contact_no", "email"]):
+                missing.append(label)
+
+        return missing
 
     async def set_status(self, db: AsyncSession, company_id: int, new_status: str) -> CompanyMaster:
         company = await self.get_by_id(db, company_id)
@@ -255,7 +293,7 @@ class CompanyService:
             1: "Super Admin",
             2: "Company Admin",
             5: "Client Admin (Mgmt)",
-            3: "HR",
+            3: "IC",
             4: "Employee",
         }
         assignable_roles = {
@@ -690,6 +728,17 @@ class CompanyService:
         except (TypeError, json.JSONDecodeError):
             return []
         return parsed if isinstance(parsed, list) else []
+
+    def _json_object(self, value) -> dict:
+        if not value:
+            return {}
+        if isinstance(value, dict):
+            return value
+        try:
+            parsed = json.loads(value)
+        except (TypeError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
 
     async def _next_client_sequence(self, db: AsyncSession) -> int:
         result = await db.execute(

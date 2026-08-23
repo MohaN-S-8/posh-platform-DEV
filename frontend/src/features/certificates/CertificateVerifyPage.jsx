@@ -80,7 +80,7 @@ export function CertificateVerifyPage() {
           Certificate Verification
         </h1>
         <p style={{ color: "#64748b", margin: "0 0 24px", lineHeight: 1.6 }}>
-          This public page checks the certificate number against the POSH Training Platform
+          This public page checks the certificate number against XYZ Portal
           records.
         </p>
 

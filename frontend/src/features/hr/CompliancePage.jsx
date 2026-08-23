@@ -11,9 +11,10 @@ const complianceContextForRole = (roleId) => {
     return {
       path: "/super-admin/compliance",
       backTarget: "/dashboard",
-      backLabel: "Back to Super Admin Dashboard",
+      backLabel: "",
       title: "Super Admin Compliance",
-      subtitle: "Platform-wide training status, department compliance, and overdue employees.",
+      subtitle:
+        "Platform-wide training status, department compliance, and overdue employees.",
     };
   }
 
@@ -23,16 +24,18 @@ const complianceContextForRole = (roleId) => {
       backTarget: "/admin",
       backLabel: "Back to Admin Dashboard",
       title: "Admin Compliance",
-      subtitle: "Company training compliance, department progress, and pending actions.",
+      subtitle:
+        "Company training compliance, department progress, and pending actions.",
     };
   }
 
   return {
     path: "/hr/compliance",
     backTarget: "/hr",
-    backLabel: "Back to HR Dashboard",
-    title: "HR Compliance",
-    subtitle: "Employee training compliance and department progress for your company.",
+    backLabel: "Back to IC Dashboard",
+    title: "IC Compliance",
+    subtitle:
+      "Employee training compliance and department progress for your company.",
   };
 };
 
@@ -62,7 +65,10 @@ export function CompliancePage() {
         if (active) setData(res.data);
       } catch (err) {
         if (active) {
-          setError(err.response?.data?.detail || "Unable to load compliance dashboard.");
+          setError(
+            err.response?.data?.detail ||
+              "Unable to load compliance dashboard.",
+          );
         }
       } finally {
         if (active) setLoading(false);
@@ -95,17 +101,40 @@ export function CompliancePage() {
   };
 
   const stats = [
-    { label: "Total Employees", value: data?.total_employees ?? 0, trend: "Assigned users" },
-    { label: "Completed", value: data?.completed ?? 0, trend: "Finished training" },
-    { label: "In Progress", value: data?.in_progress ?? 0, trend: "Currently active" },
-    { label: "Not Started", value: data?.not_started ?? 0, trend: "Awaiting start" },
+    {
+      label: "Total Employees",
+      value: data?.total_employees ?? 0,
+      trend: "Assigned users",
+    },
+    {
+      label: "Completed",
+      value: data?.completed ?? 0,
+      trend: "Finished training",
+    },
+    {
+      label: "In Progress",
+      value: data?.in_progress ?? 0,
+      trend: "Currently active",
+    },
+    {
+      label: "Not Started",
+      value: data?.not_started ?? 0,
+      trend: "Awaiting start",
+    },
   ];
   const complianceRate = data?.compliance_rate ?? 0;
   const complianceBadge =
-    complianceRate >= 80 ? "portal-badge-green" : complianceRate >= 50 ? "portal-badge-amber" : "portal-badge-purple";
+    complianceRate >= 80
+      ? "portal-badge-green"
+      : complianceRate >= 50
+        ? "portal-badge-amber"
+        : "portal-badge-purple";
 
   return (
-    <PortalShell title={complianceContext.title} subtitle={complianceContext.subtitle}>
+    <PortalShell
+      title={complianceContext.title}
+      subtitle={complianceContext.subtitle}
+    >
       <div
         style={{
           display: "flex",
@@ -116,13 +145,13 @@ export function CompliancePage() {
           marginBottom: "20px",
         }}
       >
-        <button
+        {/* <button
           type="button"
           onClick={() => navigate(complianceContext.backTarget)}
           className="portal-outline-btn"
         >
           {complianceContext.backLabel}
-        </button>
+        </button> */}
         <button
           type="button"
           onClick={downloadReport}
@@ -182,38 +211,50 @@ export function CompliancePage() {
                 Completion percentage across assigned training.
               </p>
             </div>
-            <span className={`portal-badge ${complianceBadge}`} style={{ fontSize: "14px" }}>
+            <span
+              className={`portal-badge ${complianceBadge}`}
+              style={{ fontSize: "14px" }}
+            >
               {complianceRate}%
             </span>
           </div>
           <div className="portal-progress" style={{ height: "14px" }}>
             <div
               className="portal-progress-bar"
-              style={{ width: `${Math.min(100, Math.max(0, complianceRate))}%` }}
+              style={{
+                width: `${Math.min(100, Math.max(0, complianceRate))}%`,
+              }}
             />
           </div>
         </div>
       </section>
 
-      <section className="portal-card" style={{ marginBottom: "28px", overflowX: "auto" }}>
+      <section
+        className="portal-card"
+        style={{ marginBottom: "28px", overflowX: "auto" }}
+      >
         <div className="portal-section-title" style={{ marginTop: 0 }}>
           Department Compliance
         </div>
         <table className="portal-table" style={{ minWidth: "640px" }}>
           <thead>
             <tr>
-              {["Department", "Employees", "Completed", "Pending", "Compliance"].map(
-                (h, index) => (
-                  <th
-                    key={h}
-                    style={{
-                      textAlign: index === 0 ? "left" : "right",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
+              {[
+                "Department",
+                "Employees",
+                "Completed",
+                "Pending",
+                "Compliance",
+              ].map((h, index) => (
+                <th
+                  key={h}
+                  style={{
+                    textAlign: index === 0 ? "left" : "right",
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -221,20 +262,23 @@ export function CompliancePage() {
               data.department_breakdown.map((dept) => (
                 <tr key={dept.department}>
                   <td>{dept.department}</td>
-                  {[dept.total, dept.completed, dept.pending, `${dept.compliance_rate}%`].map(
-                    (value, index) => (
-                      <td
-                        key={index}
-                        style={{
-                          textAlign: "right",
-                          fontWeight: 700,
-                          color: "var(--portal-purple)",
-                        }}
-                      >
-                        {value}
-                      </td>
-                    ),
-                  )}
+                  {[
+                    dept.total,
+                    dept.completed,
+                    dept.pending,
+                    `${dept.compliance_rate}%`,
+                  ].map((value, index) => (
+                    <td
+                      key={index}
+                      style={{
+                        textAlign: "right",
+                        fontWeight: 700,
+                        color: "var(--portal-purple)",
+                      }}
+                    >
+                      {value}
+                    </td>
+                  ))}
                 </tr>
               ))
             ) : (
@@ -250,7 +294,10 @@ export function CompliancePage() {
 
       {data?.overdue_employees?.length > 0 && (
         <section className="portal-card" style={{ overflowX: "auto" }}>
-          <div className="portal-section-title" style={{ marginTop: 0, color: "#c0392b" }}>
+          <div
+            className="portal-section-title"
+            style={{ marginTop: 0, color: "#c0392b" }}
+          >
             Overdue Employees ({data.overdue_employees.length})
           </div>
           <table className="portal-table" style={{ minWidth: "520px" }}>

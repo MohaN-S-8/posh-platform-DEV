@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_permission, require_role
+from app.core.dependencies import require_permission, require_roles_with_matrix
 from app.db.session import get_db
 from app.schemas.certificate import (
     CertificateTemplateCreate,
@@ -21,6 +21,11 @@ async def list_certificate_templates(
     current_user=Depends(require_permission("certificates.manage")),
 ):
     """List certificate templates. Super Admin sees all companies; others see their company."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+        )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     return await cert_service.list_templates(db, company_id)
 
@@ -33,6 +38,11 @@ async def create_certificate_template(
     current_user=Depends(require_permission("certificates.manage")),
 ):
     """Create a certificate template. Client/company uploads wait for Super Admin approval."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+        )
     initial_status = "Active" if current_user.role_id == 1 else "Pending"
     template = await cert_service.create_template(db, data, current_user.company_id, initial_status)
     await write_audit_log(
@@ -57,6 +67,11 @@ async def update_certificate_template(
     current_user=Depends(require_permission("certificates.manage")),
 ):
     """Admin: update a certificate template."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+        )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     template = await cert_service.update_template(
         db,
@@ -115,6 +130,11 @@ async def upload_certificate_template_asset(
     current_user=Depends(require_permission("certificates.manage")),
 ):
     """Upload template logo, signature, or ready-made file."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+        )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     template = await cert_service.upload_template_asset(
         db,
@@ -145,6 +165,11 @@ async def delete_certificate_template(
     current_user=Depends(require_permission("certificates.manage")),
 ):
     """Admin: delete a template and detach issued certificates from it."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+        )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     result = await cert_service.delete_template(
         db,
@@ -168,7 +193,7 @@ async def delete_certificate_template(
 @router.get("/my")
 async def my_certificates(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_role(4)),
+    current_user=Depends(require_roles_with_matrix([3, 4], ["Assessment & Certificate"])),
 ):
     """Employee: list all my certificates."""
     return await cert_service.list_user_certificates(db, current_user.user_id)
@@ -178,7 +203,7 @@ async def my_certificates(
 async def download_certificate(
     certificate_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_role(4)),
+    current_user=Depends(require_roles_with_matrix([3, 4], ["Assessment & Certificate"])),
 ):
     """Employee: get a signed URL to download a certificate PDF."""
     return await cert_service.get_download_url(db, certificate_id, current_user.user_id)
@@ -205,6 +230,8 @@ async def revoke_certificate(
     current_user=Depends(require_permission("certificates.manage")),
 ):
     """Super Admin: revoke a certificate."""
+    if current_user.role_id != 1:
+        raise HTTPException(403, "Only Super Admin can revoke certificates.")
     result = await cert_service.revoke_certificate(db, certificate_id)
     await write_audit_log(
         db,

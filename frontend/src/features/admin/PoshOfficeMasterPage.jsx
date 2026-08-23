@@ -91,14 +91,14 @@ export function PoshOfficeMasterPage() {
 
   return (
     <PortalShell
-      title="PoSH Office Master"
+      title="Office Master"
       subtitle="Regional PoSH support office directory."
     >
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
       <section style={panelStyle}>
-        <h3 style={panelTitleStyle}>PoSH Office Master</h3>
+        <h3 style={panelTitleStyle}>Office Master</h3>
         <p style={helperTextStyle}>Regional PoSH support office directory used across client work.</p>
 
         {loading ? (

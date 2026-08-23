@@ -48,12 +48,12 @@ DEFAULT_POLICY = {
         {
             "role": "Presiding Officer",
             "name": "Gomathi Subramaniam",
-            "detail": "Senior Manager - HR, Chennai HQ",
+            "detail": "Senior Manager - IC, Chennai HQ",
         },
         {
             "role": "Member",
             "name": "Priya Raman",
-            "detail": "HR Business Partner, Chennai HQ",
+            "detail": "IC Business Partner, Chennai HQ",
         },
         {
             "role": "Member",
@@ -79,7 +79,7 @@ DEFAULT_POLICY = {
         },
         {
             "question": "Can a man file a complaint?",
-            "answer": "The PoSH Act specifically protects women; all employees can escalate other workplace misconduct through HR's general grievance channel.",
+            "answer": "The PoSH Act specifically protects women; all employees can escalate other workplace misconduct through IC's general grievance channel.",
         },
         {
             "question": "What if the respondent is a senior leader?",

@@ -6,6 +6,22 @@ import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
 
+const trainingLevelOptions = ["Basic", "Advanced"];
+
+const audienceOptions = [
+  { value: "Employee", label: "Employee" },
+  { value: "IC Member", label: "IC Member" },
+  { value: "All", label: "Employee + IC Member" },
+];
+
+const videoMetaLabel = (video) =>
+  [
+    video.training_level || "Basic",
+    audienceOptions.find((option) => option.value === video.target_audience)?.label ||
+      video.target_audience ||
+      "Employee",
+  ].join(" / ");
+
 export function VideoListPage() {
   // const navigate = useNavigate();
   // const location = useLocation();
@@ -28,6 +44,8 @@ export function VideoListPage() {
     title: "",
     description: "",
     duration_minutes: "",
+    training_level: "Basic",
+    target_audience: "Employee",
     status: "Draft",
   });
   const [form, setForm] = useState({
@@ -35,13 +53,16 @@ export function VideoListPage() {
     description: "",
     category_id: "",
     duration_minutes: "",
+    training_level: "Basic",
+    target_audience: "Employee",
     quality_label: "720p",
     transcript_text: "",
   });
   // const isHrRoute = location.pathname.startsWith("/hr/");
-  const canManageVideos = [1, 2].includes(user?.role_id);
+  const canPublishVideos = [1, 2].includes(user?.role_id);
+  const canManageVideos = user?.role_id === 1;
   // const dashboardPath = isHrRoute ? "/hr" : "/admin";
-  const pageTitle = canManageVideos ? "Video Management" : "Video Upload";
+  const pageTitle = canPublishVideos ? "Video Management" : "Video Upload";
 
   const fetchVideos = async ({ showLoading = true } = {}) => {
     if (showLoading) {
@@ -91,6 +112,9 @@ export function VideoListPage() {
     if (form.duration_minutes) {
       formData.append("duration_minutes", form.duration_minutes);
     }
+    formData.append("service_code", "POSH");
+    formData.append("training_level", form.training_level);
+    formData.append("target_audience", form.target_audience);
     formData.append("quality_label", form.quality_label);
     if (form.transcript_text) {
       formData.append("transcript_text", form.transcript_text);
@@ -120,7 +144,7 @@ export function VideoListPage() {
         return [res.data, ...withoutDuplicate];
       });
       setUploadProgress(
-        `${canManageVideos
+        `${canPublishVideos
           ? "Upload successful. Video is saved as Draft. Publish it now so employees can watch it."
           : "Upload successful. Video is saved as Draft for Admin or Management review."
         }${importedQuestions !== null ? ` Imported ${importedQuestions} questions.` : ""}`,
@@ -130,6 +154,8 @@ export function VideoListPage() {
         description: "",
         category_id: "",
         duration_minutes: "",
+        training_level: "Basic",
+        target_audience: "Employee",
         quality_label: "720p",
         transcript_text: "",
       });
@@ -282,6 +308,8 @@ export function VideoListPage() {
       title: video.title || "",
       description: video.description || "",
       duration_minutes: video.duration_minutes || "",
+      training_level: video.training_level || "Basic",
+      target_audience: video.target_audience || "Employee",
       status: video.status || "Draft",
     });
   };
@@ -298,6 +326,8 @@ export function VideoListPage() {
         duration_minutes: editForm.duration_minutes
           ? Number(editForm.duration_minutes)
           : null,
+        training_level: editForm.training_level,
+        target_audience: editForm.target_audience,
         status: editForm.status,
       });
       setEditingVideo(null);
@@ -406,6 +436,34 @@ export function VideoListPage() {
                 ))}
               </select>
             </label>
+            <label style={labelStyle}>
+              Training Level
+              <select
+                value={editForm.training_level}
+                onChange={(e) => setEditForm({ ...editForm, training_level: e.target.value })}
+                style={inputStyle}
+              >
+                {trainingLevelOptions.map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={labelStyle}>
+              Audience
+              <select
+                value={editForm.target_audience}
+                onChange={(e) => setEditForm({ ...editForm, target_audience: e.target.value })}
+                style={inputStyle}
+              >
+                {audienceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <label style={labelStyle}>
             Description
@@ -484,6 +542,34 @@ export function VideoListPage() {
                 ))}
               </select>
             </div>
+            <div>
+              <label style={labelStyle}>Training Level *</label>
+              <select
+                value={form.training_level}
+                onChange={(e) => setForm({ ...form, training_level: e.target.value })}
+                style={inputStyle}
+              >
+                {trainingLevelOptions.map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Audience *</label>
+              <select
+                value={form.target_audience}
+                onChange={(e) => setForm({ ...form, target_audience: e.target.value })}
+                style={inputStyle}
+              >
+                {audienceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div style={{ marginBottom: "16px" }}>
             <label style={labelStyle}>Description</label>
@@ -538,7 +624,7 @@ export function VideoListPage() {
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: "8px" }}>{uploadProgress}</div>
-              {canManageVideos && lastUploadedVideo?.status === "Draft" && (
+              {canPublishVideos && lastUploadedVideo?.status === "Draft" && (
                 <button
                   type="button"
                   onClick={() => publishVideo(lastUploadedVideo.video_id)}
@@ -559,7 +645,7 @@ export function VideoListPage() {
                     : "Publish Now"}
                 </button>
               )}
-              {canManageVideos && lastUploadedVideo?.status === "Published" && (
+              {canPublishVideos && lastUploadedVideo?.status === "Published" && (
                 <div style={{ color: "#1f7a4d", fontWeight: 700 }}>
                   Published. Employees can watch it after assignment.
                 </div>
@@ -647,6 +733,9 @@ export function VideoListPage() {
                     {video.duration_minutes
                       ? ` - ${video.duration_minutes} min`
                       : ""}
+                  </p>
+                  <p style={{ color: "#344054", margin: "6px 0 0", fontSize: "13px" }}>
+                    {videoMetaLabel(video)}
                   </p>
                   {canManageVideos && (
                     <div style={toolsGridStyle}>
@@ -806,7 +895,7 @@ export function VideoListPage() {
                       Edit
                     </button>
                   )}
-                  {canManageVideos && video.status === "Draft" && (
+                  {canPublishVideos && video.status === "Draft" && (
                     <button
                       type="button"
                       onClick={() => publishVideo(video.video_id)}

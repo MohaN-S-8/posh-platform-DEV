@@ -1,9 +1,36 @@
 import { useCallback, useEffect, useState } from "react";
-// import { useNavigate } from "react-router-dom";
+import PropTypes from "prop-types";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
+
+const emptyAddress = {
+  address1: "",
+  address2: "",
+  address3: "",
+  city: "",
+  state: "",
+  pincode: "",
+  country: "IN",
+};
+
+const emptyContact = {
+  name: "",
+  designation: "",
+  contact_no: "",
+  email: "",
+};
+
+const emptyBranch = {
+  branch_name: "",
+  branch_id: "",
+  address1: "",
+  address2: "",
+  city: "",
+  state: "",
+  country: "IN",
+};
 
 const emptyForm = {
   company_code: "",
@@ -35,7 +62,7 @@ const emptyForm = {
 const fields = [
   { label: "Reference No", key: "reference_no", required: true, placeholder: "01/2026" },
   { label: "Company Name", key: "company_name", required: true, placeholder: "Select or enter company name" },
-  { label: "Company Code (auto, editable)", key: "company_code", required: true, createOnly: true, placeholder: "Auto-fills from name" },
+  { label: "Company Code (first 4 letters)", key: "company_code", required: true, createOnly: true, placeholder: "Auto-fills from company name" },
   { label: "Company Status", key: "company_status_type", type: "select", options: ["Client", "Master"] },
 ];
 
@@ -72,6 +99,20 @@ const getJsonArray = (form, key) => {
   return Array.isArray(rows) && rows.length ? rows : [{}];
 };
 
+const getJsonObject = (form, key, fallback) => {
+  const row = parseJson(form[key], fallback);
+  return row && typeof row === "object" && !Array.isArray(row)
+    ? { ...fallback, ...row }
+    : fallback;
+};
+
+const setJsonObjectValue = (setForm, key, fallback, field, value) => {
+  setForm((current) => {
+    const row = getJsonObject(current, key, fallback);
+    return { ...current, [key]: JSON.stringify({ ...row, [field]: value }) };
+  });
+};
+
 const setJsonArrayValue = (setForm, key, index, field, value) => {
   setForm((current) => {
     const rows = getJsonArray(current, key).map((row) => ({ ...row }));
@@ -102,13 +143,21 @@ const removeJsonArrayRow = (setForm, key, index) => {
   });
 };
 
+const addJsonArrayRow = (setForm, key, emptyRow) => {
+  setForm((current) => {
+    const rows = getJsonArray(current, key).filter((row) =>
+      Object.values(row).some(Boolean),
+    );
+    return { ...current, [key]: JSON.stringify([...rows, emptyRow]) };
+  });
+};
+
 const generateCompanyCode = (name) =>
   name
     .trim()
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 4)
-    .padEnd(4, "X");
+    .replace(/[^A-Z]/g, "")
+    .slice(0, 4);
 
 const nextClientSequence = (companies) =>
   companies.reduce((maxValue, company) => {
@@ -138,7 +187,6 @@ const nextReferenceNo = (companies) => {
 };
 
 export function CompanyListPage() {
-  // const navigate = useNavigate();
   const { user } = useAuthStore();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -216,19 +264,30 @@ export function CompanyListPage() {
   const normalizePayload = () => ({
     ...form,
     reference_no: form.reference_no || nextReferenceNo(companies),
-    company_code: form.company_code || generateCompanyCode(form.company_name),
+    company_code: generateCompanyCode(form.company_name),
     company_type: form.company_type || "Work Order",
     company_status_type: form.company_status_type || "Client",
-    industry_type: form.industry_type || "Pending Registration",
+    industry_type: form.industry_type,
     scope_codes_json: form.scope_codes_json || JSON.stringify([]),
     service_details_json: form.service_details_json || JSON.stringify([]),
-    corp_address_json: form.corp_address_json || "{}",
-    billing_address_json: form.billing_address_json || "{}",
-    account_contact_json: form.account_contact_json || "{}",
-    coordinator_contact_json: form.coordinator_contact_json || "{}",
+    corp_address_json: form.corp_address_json || JSON.stringify(emptyAddress),
+    billing_address_json: form.billing_address_json || JSON.stringify(emptyAddress),
+    account_contact_json: form.account_contact_json || JSON.stringify(emptyContact),
+    coordinator_contact_json: form.coordinator_contact_json || JSON.stringify(emptyContact),
     branches_json: form.branches_json || JSON.stringify([]),
     employee_strength: form.employee_strength ? Number(form.employee_strength) : null,
-    contact_email: form.contact_email || null,
+    contact_person:
+      form.contact_person ||
+      getJsonObject(form, "coordinator_contact_json", emptyContact).name ||
+      null,
+    contact_email:
+      form.contact_email ||
+      getJsonObject(form, "coordinator_contact_json", emptyContact).email ||
+      null,
+    contact_mobile:
+      form.contact_mobile ||
+      getJsonObject(form, "coordinator_contact_json", emptyContact).contact_no ||
+      null,
   });
 
   const handleCompanyNameChange = (value) => {
@@ -254,7 +313,7 @@ export function CompanyListPage() {
     setForm((current) => ({
       ...current,
       company_name: value,
-      company_code: !editingCompany && !current.company_code ? generateCompanyCode(value) : current.company_code,
+      company_code: !editingCompany ? generateCompanyCode(value) : current.company_code,
     }));
   };
 
@@ -282,6 +341,15 @@ export function CompanyListPage() {
 
   const saveCompany = async (e) => {
     e.preventDefault();
+    if (!form.industry_type?.trim()) {
+      setError("Industry is required before submitting for approval.");
+      return;
+    }
+    const generatedCompanyCode = generateCompanyCode(form.company_name);
+    if (generatedCompanyCode.length !== 4) {
+      setError("Company name must contain at least 4 letters to generate the company code.");
+      return;
+    }
     const selectedScopes = getJsonArray(form, "service_details_json").filter((row) => row.scope);
     if (!selectedScopes.length) {
       setError("Select at least one Scope of Work.");
@@ -391,8 +459,8 @@ export function CompanyListPage() {
 
   return (
     <PortalShell
-      title="Create Company & Work Order"
-      subtitle="Reference No, Company Code and Client IDs auto-generate."
+      title="Company Setup"
+      subtitle="Create companies, work orders, and registration details from one place."
     >
       {approvingCompanyId && (
         <div style={loadingOverlayStyle}>
@@ -456,7 +524,7 @@ export function CompanyListPage() {
             {editingCompany ? "Edit Company & Work Order" : "Create Company & Work Order"}
           </h3>
           <p style={helperTextStyle}>
-            Reference No auto-generates as Running No / Year. Company Code derives from the name and stays editable for new companies. Selecting one or more scopes generates a Client ID per scope automatically.
+            Reference No auto-generates as Running No / Year. Company Code derives from the first 4 letters of the company name. Selecting one or more scopes generates a Client ID per scope automatically.
           </p>
           <form onSubmit={saveCompany}>
             <div style={formGridStyle}>
@@ -497,7 +565,7 @@ export function CompanyListPage() {
                         min={min}
                         placeholder={placeholder}
                         list={key === "company_name" ? "company-name-options" : undefined}
-                        readOnly={key === "reference_no" || (key === "company_code" && !!selectedExistingCompany)}
+                        readOnly={key === "reference_no" || key === "company_code"}
                         value={key === "reference_no" ? form.reference_no || nextReferenceNo(companies) : form[key] || ""}
                         onChange={(e) => {
                           const value = e.target.value;
@@ -510,7 +578,7 @@ export function CompanyListPage() {
                         style={{
                           ...inputStyle,
                           background:
-                            key === "reference_no" || (key === "company_code" && selectedExistingCompany)
+                            key === "reference_no" || key === "company_code"
                               ? "#f7f3ff"
                               : "white",
                         }}
@@ -700,6 +768,117 @@ export function CompanyListPage() {
                 })}
               </div>
 
+              <div style={sectionStyle}>
+                <h4 style={sectionHeadingStyle}>Company Registration Details</h4>
+                <div style={formGridStyle}>
+                  <label style={labelStyle}>
+                    Company Type
+                    <select
+                      value={form.company_type || "Limited"}
+                      onChange={(event) =>
+                        setForm({ ...form, company_type: event.target.value })
+                      }
+                      style={inputStyle}
+                    >
+                      <option>Limited</option>
+                      <option>Proprietor</option>
+                      <option>Partnership</option>
+                    </select>
+                  </label>
+                  <label style={labelStyle}>
+                    Industry *
+                    <input
+                      required
+                      value={form.industry_type || ""}
+                      onChange={(event) =>
+                        setForm({ ...form, industry_type: event.target.value })
+                      }
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label style={labelStyle}>
+                    CIN / Registration No
+                    <input
+                      value={form.registration_number || ""}
+                      onChange={(event) =>
+                        setForm({ ...form, registration_number: event.target.value })
+                      }
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label style={labelStyle}>
+                    GST No
+                    <input
+                      value={form.gst_number || ""}
+                      onChange={(event) =>
+                        setForm({ ...form, gst_number: event.target.value })
+                      }
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label style={labelStyle}>
+                    Employee Strength
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.employee_strength || ""}
+                      onChange={(event) =>
+                        setForm({ ...form, employee_strength: event.target.value })
+                      }
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label style={labelStyle}>
+                    Website
+                    <input
+                      type="url"
+                      placeholder="https://example.com"
+                      value={form.website || ""}
+                      onChange={(event) =>
+                        setForm({ ...form, website: event.target.value })
+                      }
+                      style={inputStyle}
+                    />
+                  </label>
+                </div>
+
+                <CompanyAddressFields
+                  title="Corporate Office Address"
+                  jsonKey="corp_address_json"
+                  form={form}
+                  setForm={setForm}
+                  masterOptions={masterOptions}
+                />
+                <CompanyAddressFields
+                  title="Billing Address"
+                  jsonKey="billing_address_json"
+                  form={form}
+                  setForm={setForm}
+                  masterOptions={masterOptions}
+                />
+                <CompanyContactFields
+                  title="Account Contact"
+                  jsonKey="account_contact_json"
+                  form={form}
+                  setForm={setForm}
+                />
+                <CompanyContactFields
+                  title="Coordinator Contact"
+                  jsonKey="coordinator_contact_json"
+                  form={form}
+                  setForm={setForm}
+                  onContactSync={(nextContact) =>
+                    setForm((current) => ({
+                      ...current,
+                      contact_person: nextContact.name,
+                      contact_email: nextContact.email,
+                      contact_mobile: nextContact.contact_no,
+                    }))
+                  }
+                />
+                <CompanyBranchFields form={form} setForm={setForm} />
+              </div>
+
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <button type="submit" disabled={submitting} style={primaryButtonStyle}>
@@ -799,9 +978,183 @@ export function CompanyListPage() {
         </div>
         </>
       )}
+
     </PortalShell>
   );
 }
+
+function CompanyAddressFields({ title, jsonKey, form, setForm, masterOptions }) {
+  const values = getJsonObject(form, jsonKey, emptyAddress);
+  const update = (field, value) =>
+    setJsonObjectValue(setForm, jsonKey, emptyAddress, field, value);
+
+  return (
+    <div style={panelInsetStyle}>
+      <h4 style={sectionHeadingStyle}>{title}</h4>
+      <div style={formGridStyle}>
+        <label style={labelStyle}>
+          Address Line 1 *
+          <input required value={values.address1 || ""} onChange={(event) => update("address1", event.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Address Line 2
+          <input value={values.address2 || ""} onChange={(event) => update("address2", event.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          City *
+          <input required list="city-code-options" value={values.city || ""} onChange={(event) => update("city", event.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          State *
+          <input required list="state-code-options" value={values.state || ""} onChange={(event) => update("state", event.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Pincode *
+          <input required value={values.pincode || ""} onChange={(event) => update("pincode", event.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Country
+          <select value={values.country || "IN"} onChange={(event) => update("country", event.target.value)} style={inputStyle}>
+            {masterOptions("Country Code").map((item) => (
+              <option key={item.id} value={item.code}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function CompanyContactFields({ title, jsonKey, form, setForm, onContactSync }) {
+  const values = getJsonObject(form, jsonKey, emptyContact);
+  const update = (field, value) => {
+    const nextContact = { ...values, [field]: value };
+    setForm((current) => ({
+      ...current,
+      [jsonKey]: JSON.stringify(nextContact),
+    }));
+    if (onContactSync) onContactSync(nextContact);
+  };
+
+  return (
+    <div style={panelInsetStyle}>
+      <h4 style={sectionHeadingStyle}>{title}</h4>
+      <div style={formGridStyle}>
+        <label style={labelStyle}>
+          Name *
+          <input required value={values.name || ""} onChange={(event) => update("name", event.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Designation *
+          <input required value={values.designation || ""} onChange={(event) => update("designation", event.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Contact No *
+          <input required value={values.contact_no || ""} onChange={(event) => update("contact_no", event.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Email *
+          <input required type="email" value={values.email || ""} onChange={(event) => update("email", event.target.value)} style={inputStyle} />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function CompanyBranchFields({ form, setForm }) {
+  const branches = getJsonArray(form, "branches_json");
+  return (
+    <div style={panelInsetStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
+        <h4 style={sectionHeadingStyle}>Branches</h4>
+        <button
+          type="button"
+          onClick={() => addJsonArrayRow(setForm, "branches_json", emptyBranch)}
+          style={secondaryButtonStyle}
+        >
+          Add Branch
+        </button>
+      </div>
+      {branches.map((branch, index) => (
+        <div key={`branch-${index}`} style={{ ...panelInsetStyle, background: "white", marginBottom: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
+            <strong style={{ color: "var(--portal-purple)" }}>Branch {index + 1}</strong>
+            {branches.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeJsonArrayRow(setForm, "branches_json", index)}
+                style={secondaryButtonStyle}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <div style={formGridStyle}>
+            {[
+              ["branch_name", "Branch Name"],
+              ["branch_id", "Branch ID"],
+              ["address1", "Address 1"],
+              ["address2", "Address 2"],
+              ["city", "City"],
+              ["state", "State"],
+              ["country", "Country"],
+            ].map(([field, label]) => (
+              <label key={field} style={labelStyle}>
+                {label}
+                <input
+                  value={branch[field] || ""}
+                  onChange={(event) =>
+                    setJsonArrayValue(
+                      setForm,
+                      "branches_json",
+                      index,
+                      field,
+                      event.target.value,
+                    )
+                  }
+                  style={inputStyle}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const companyFormShape = PropTypes.shape({
+  corp_address_json: PropTypes.string,
+  billing_address_json: PropTypes.string,
+  account_contact_json: PropTypes.string,
+  coordinator_contact_json: PropTypes.string,
+  branches_json: PropTypes.string,
+});
+
+CompanyAddressFields.propTypes = {
+  title: PropTypes.string.isRequired,
+  jsonKey: PropTypes.string.isRequired,
+  form: companyFormShape.isRequired,
+  setForm: PropTypes.func.isRequired,
+  masterOptions: PropTypes.func.isRequired,
+};
+
+CompanyContactFields.propTypes = {
+  title: PropTypes.string.isRequired,
+  jsonKey: PropTypes.string.isRequired,
+  form: companyFormShape.isRequired,
+  setForm: PropTypes.func.isRequired,
+  onContactSync: PropTypes.func,
+};
+
+CompanyContactFields.defaultProps = {
+  onContactSync: null,
+};
+
+CompanyBranchFields.propTypes = {
+  form: companyFormShape.isRequired,
+  setForm: PropTypes.func.isRequired,
+};
 
 // const headerStyle = {
 //   display: "flex",

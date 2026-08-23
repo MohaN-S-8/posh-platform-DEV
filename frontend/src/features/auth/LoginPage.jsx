@@ -141,7 +141,7 @@ export function LoginPage() {
           <div className="auth-dev-box">
             <div>Default development logins</div>
             <div>Admin: admin@posh.com / Admin@1234</div>
-            <div>HR: hr@posh.com / Admin@1234</div>
+            <div>IC: ic@posh.com / Admin@1234</div>
           </div>
         )}
 
@@ -245,9 +245,6 @@ export function LoginPage() {
 
         <div className="auth-footer-links">
           <Link to="/forgot-password">Forgot password?</Link>
-          <span>
-            New here? <Link to="/signup">Create account</Link>
-          </span>
         </div>
         <LoadingOverlay
           show={loading && !error}

@@ -36,7 +36,7 @@ class TrainingHistory(Base):
 
 
 class CourseAssignment(Base):
-    """HR assigns videos to users/departments/company-wide."""
+    """IC assigns videos to users/departments/company-wide."""
 
     __tablename__ = "course_assignment"
 

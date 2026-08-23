@@ -90,6 +90,9 @@ class VideoService:
             description=metadata.description,
             category_id=metadata.category_id,
             duration_minutes=metadata.duration_minutes,
+            service_code=metadata.service_code or "POSH",
+            training_level=metadata.training_level or "Basic",
+            target_audience=metadata.target_audience or "Employee",
             video_url=object_key,  # path only — never a public URL
             storage_type="MinIO",
             status="Draft",
@@ -301,6 +304,15 @@ class VideoService:
         user = user_result.scalar_one_or_none()
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        audience_role_ids = {"IC Member": [3], "All": [3, 4]}.get(
+            video.target_audience or "Employee",
+            [4],
+        )
+        if user.role_id not in audience_role_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This training is not assigned to your user type.",
+            )
 
         assignment_matches = [
             and_(
@@ -675,7 +687,7 @@ class VideoService:
         return result.scalars().all()
 
     async def list_published_videos(self, db: AsyncSession, company_id: int) -> list:
-        """List only published videos — used by HR assignment dropdown."""
+        """List only published videos — used by IC assignment dropdown."""
         result = await db.execute(
             select(VideoMaster)
             .where(

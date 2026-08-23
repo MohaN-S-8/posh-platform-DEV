@@ -79,6 +79,10 @@ const employeeOptionLabel = (employee) =>
   `${employeeName(employee)} - ${employee.email}${employee.employee_id ? ` (${employee.employee_id})` : ""}`;
 
 export function CompanyRegistrationPage() {
+  return <CompanyRegistrationContent />;
+}
+
+export function CompanyRegistrationContent({ embedded = false }) {
   const { user } = useAuthStore();
   const [companies, setCompanies] = useState([]);
   const [masters, setMasters] = useState([]);
@@ -253,16 +257,13 @@ export function CompanyRegistrationPage() {
     }
   };
 
-  return (
-    <PortalShell
-      title="Company Registration - PoSH"
-      subtitle="Company Admin registers clients and creates their Client Admin login."
-    >
+  const content = (
+    <>
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
       <form style={panelStyle} onSubmit={saveRegistration}>
-        <h3 style={panelTitleStyle}>Company Registration - PoSH</h3>
+        <h3 style={panelTitleStyle}>Company Registration</h3>
         <p style={helperTextStyle}>
           Only approved companies from Create Company & Work Order appear below. Coordinator Contact becomes the client&apos;s Client Admin login when saved by a Company Admin.
         </p>
@@ -457,9 +458,26 @@ export function CompanyRegistrationPage() {
       <datalist id="country-options">
         {masterOptions("Country Code").map((item) => <option key={item.id} value={item.code}>{item.name}</option>)}
       </datalist>
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <PortalShell
+      title="Company Registration"
+      subtitle="Company Admin registers clients, then assigns services such as PoSH separately."
+    >
+      {content}
     </PortalShell>
   );
 }
+
+CompanyRegistrationContent.propTypes = {
+  embedded: PropTypes.bool,
+};
 
 function AddressSection({ title, section, values, onChange, masterOptions }) {
   return (

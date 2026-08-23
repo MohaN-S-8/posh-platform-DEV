@@ -9,7 +9,7 @@ const roleLabels = {
   1: "Super Admin",
   2: "Company Admin",
   5: "Client Admin (Mgmt)",
-  3: "HR",
+  3: "IC",
   4: "Employee",
 };
 
@@ -21,22 +21,18 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
-    "POSH Audit",
     "Analytics & Reports",
     "Create Admin",
-    "Masters (State/City/Scope)",
-    "Create Company & Work Order",
-    "Company Registration - PoSH",
-    "Employee Master - PoSH",
-    "PoSH Office Master",
+    "Masters",
+    "Company Setup",
+    "Employee Master",
     "Role & Access Matrix",
   ]),
   "Company Admin": new Set([
     "Home",
     "PoSH Policy",
-    "Create Company & Work Order",
-    "Company Registration - PoSH",
-    "Employee Master - PoSH",
+    "Company Setup",
+    "Employee Master",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -45,15 +41,19 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
-    "POSH Audit",
+    "Audit",
     "Analytics & Reports",
-    "Employee Master - PoSH",
+    "Employee Master",
   ]),
-  HR: new Set([
+  IC: new Set([
     "Home",
     "PoSH Policy",
     "POSH Awareness Training",
-    "Employee Master - PoSH",
+    "Assessment & Certificate",
+    "POSH Compliance",
+    "POSH Complaints",
+    "Analytics & Reports",
+    "Employee Master",
   ]),
   Employee: new Set([
     "Home",
@@ -66,15 +66,33 @@ const defaultAllowed = {
 
 const accessAliases = {
   Home: ["Home", "Home Page"],
-  "Assessment & Certificate": ["Assessment & Certificate", "Assessment & Certificates"],
+  "Assessment & Certificate": [
+    "Assessment & Certificate",
+    "Assessment & Certificates",
+  ],
   "POSH Complaints": ["POSH Complaints", "Raise POSH Complaints"],
+  Audit: ["Audit", "POSH Audit", "PoSH Audit"],
+  "Company Setup": [
+    "Company Setup",
+    "Create Company & Work Order",
+    "Company Registration",
+    "Company Registration - PoSH",
+  ],
+  "Employee Master": ["Employee Master", "Employee Master - PoSH"],
+  Masters: ["Masters", "Masters (State/City/Scope)", "PoSH Office Master"],
 };
 
-const accessNamesFor = (accessItem) => accessAliases[accessItem] || [accessItem];
+const accessNamesFor = (accessItem) =>
+  accessAliases[accessItem] || [accessItem];
 
 // allowedRoles: array of numbers.
-// Role IDs: 1=Super Admin, 2=Admin, 5=Client / Management, 3=HR / IC, 4=Employee
-export function RoleRoute({ children, allowedRoles, requiredPermission, accessItem }) {
+// Role IDs: 1=Super Admin, 2=Admin, 5=Client / Management, 3=IC, 4=Employee
+export function RoleRoute({
+  children,
+  allowedRoles,
+  requiredPermission,
+  accessItem,
+}) {
   const { user } = useAuthStore();
   const [matrixDecision, setMatrixDecision] = useState(null);
   const [checkingMatrix, setCheckingMatrix] = useState(Boolean(accessItem));
@@ -91,8 +109,8 @@ export function RoleRoute({ children, allowedRoles, requiredPermission, accessIt
       try {
         const res = await apiClient.get("/admin-config/my-role-access");
         const names = accessNamesFor(accessItem);
-        const accessRecord = (res.data || []).find(
-          (record) => names.includes(record.access_item),
+        const accessRecord = (res.data || []).find((record) =>
+          names.includes(record.access_item),
         );
         if (isMounted) {
           setMatrixDecision(
@@ -120,14 +138,19 @@ export function RoleRoute({ children, allowedRoles, requiredPermission, accessIt
   }
 
   const allowedByRole = allowedRoles.includes(user.role_id);
-  const allowedByDefault = Boolean(defaultAllowed[roleLabels[user.role_id]]?.has(accessItem));
+  const allowedByDefault = Boolean(
+    defaultAllowed[roleLabels[user.role_id]]?.has(accessItem),
+  );
   const allowedByMatrix = matrixDecision === true;
   const deniedByMatrix = matrixDecision === false;
-  const permissionAllowed = allowedByMatrix || hasPermission(user, requiredPermission);
+  const accessAllowed = !accessItem || allowedByDefault || allowedByMatrix;
+  const permissionAllowed =
+    allowedByMatrix || hasPermission(user, requiredPermission);
 
   if (
+    !allowedByRole ||
     deniedByMatrix ||
-    (!allowedByRole && !allowedByDefault && !allowedByMatrix) ||
+    !accessAllowed ||
     !permissionAllowed
   ) {
     return <Navigate to="/unauthorized" replace />;

@@ -2,6 +2,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
   1: [
     "users.manage",
     "videos.upload",
+    "videos.publish",
     "videos.manage",
     "certificates.manage",
     "reports.view",
@@ -10,6 +11,8 @@ const ROLE_DEFAULT_PERMISSIONS = {
   ],
   2: [
     "users.manage",
+    "videos.upload",
+    "videos.publish",
   ],
   5: [
     "users.manage",
@@ -18,7 +21,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     "reports.view",
     "training.assign",
   ],
-  3: ["users.manage", "videos.upload", "training.assign"],
+  3: ["users.manage", "reports.view", "training.assign", "courses.watch"],
   4: ["courses.watch"],
 };
 

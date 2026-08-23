@@ -14,19 +14,20 @@ ROLE_ACCESS_LABELS = {
     1: ["Super Admin"],
     2: ["Company Admin", "Corp Admin", "Admin"],
     5: ["Client Admin (Mgmt)", "Client / Management"],
-    3: ["HR", "HR / IC", "PO / Member"],
+    3: ["IC", "HR", "HR / IC", "PO / Member"],
     4: ["Employee"],
 }
 
 PERMISSION_ACCESS_ITEMS = {
-    "users.manage": ["Employee Master - PoSH"],
+    "users.manage": ["Employee Master", "Employee Master - PoSH"],
     "videos.upload": ["POSH Awareness Training"],
+    "videos.publish": ["POSH Awareness Training"],
     "certificates.manage": ["Assessment & Certificate", "Assessment & Certificates"],
     "reports.view": [
         "Analytics & Reports",
         "POSH Compliance",
         "POSH Complaints",
-        "POSH Audit",
+        "Audit",
     ],
     "training.assign": ["POSH Awareness Training"],
     "courses.watch": ["POSH Awareness Training"],
@@ -147,7 +148,15 @@ def require_permission(permission_key: str):
         if current_user.role_id == 1:
             return current_user
 
-        if await _has_matrix_permission(db, current_user.role_id, permission_key):
+        matrix_decision = await _matrix_permission_decision(
+            db, current_user.role_id, permission_key
+        )
+        if matrix_decision is False:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+        if matrix_decision is True:
             return current_user
 
         result = await db.execute(
@@ -183,9 +192,22 @@ def require_any_permission(permission_keys: list[str]):
         if current_user.role_id == 1:
             return current_user
 
+        fallback_permission_keys = []
         for permission_key in permission_keys:
-            if await _has_matrix_permission(db, current_user.role_id, permission_key):
+            matrix_decision = await _matrix_permission_decision(
+                db, current_user.role_id, permission_key
+            )
+            if matrix_decision is True:
                 return current_user
+            if matrix_decision is False:
+                continue
+            fallback_permission_keys.append(permission_key)
+
+        if not fallback_permission_keys:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
 
         result = await db.execute(
             text(
@@ -198,7 +220,7 @@ def require_any_permission(permission_keys: list[str]):
                 LIMIT 1
                 """
             ).bindparams(bindparam("permission_keys", expanding=True)),
-            {"role_id": current_user.role_id, "permission_keys": permission_keys},
+            {"role_id": current_user.role_id, "permission_keys": fallback_permission_keys},
         )
         if not result.scalar_one_or_none():
             raise HTTPException(
@@ -240,6 +262,38 @@ async def _has_matrix_permission(
     return result.scalar_one_or_none() is not None
 
 
+async def _matrix_permission_decision(
+    db: AsyncSession,
+    role_id: int,
+    permission_key: str,
+) -> bool | None:
+    role_labels = ROLE_ACCESS_LABELS.get(role_id, [])
+    access_items = PERMISSION_ACCESS_ITEMS.get(permission_key, [])
+    if not role_labels or not access_items:
+        return None
+
+    result = await db.execute(
+        text(
+            """
+            SELECT is_allowed
+            FROM posh_role_access
+            WHERE role_label IN :role_labels
+              AND access_item IN :access_items
+            ORDER BY display_order, id
+            LIMIT 1
+            """
+        ).bindparams(
+            bindparam("role_labels", expanding=True),
+            bindparam("access_items", expanding=True),
+        ),
+        {"role_labels": role_labels, "access_items": access_items},
+    )
+    row = result.first()
+    if not row:
+        return None
+    return bool(row.is_allowed)
+
+
 def require_roles_or_matrix(role_ids: list[int], access_items: list[str]):
     """Allow access by fixed role ids or by an enabled Role & Access Matrix item."""
 
@@ -257,6 +311,30 @@ def require_roles_or_matrix(role_ids: list[int], access_items: list[str]):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to access this resource.",
         )
+
+    return checker
+
+
+def require_roles_with_matrix(role_ids: list[int], access_items: list[str]):
+    """Require the correct role scope, then honor explicit matrix allow/deny records."""
+
+    async def checker(
+        current_user: CurrentUser = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ):
+        if current_user.role_id not in role_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+
+        decision = await _matrix_access_decision(db, current_user.role_id, access_items)
+        if decision is False:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+        return current_user
 
     return checker
 
@@ -287,3 +365,34 @@ async def _has_matrix_access_items(
         {"role_labels": role_labels, "access_items": access_items},
     )
     return result.scalar_one_or_none() is not None
+
+
+async def _matrix_access_decision(
+    db: AsyncSession,
+    role_id: int,
+    access_items: list[str],
+) -> bool | None:
+    role_labels = ROLE_ACCESS_LABELS.get(role_id, [])
+    if not role_labels or not access_items:
+        return None
+
+    result = await db.execute(
+        text(
+            """
+            SELECT is_allowed
+            FROM posh_role_access
+            WHERE role_label IN :role_labels
+              AND access_item IN :access_items
+            ORDER BY display_order, id
+            LIMIT 1
+            """
+        ).bindparams(
+            bindparam("role_labels", expanding=True),
+            bindparam("access_items", expanding=True),
+        ),
+        {"role_labels": role_labels, "access_items": access_items},
+    )
+    row = result.first()
+    if not row:
+        return None
+    return bool(row.is_allowed)

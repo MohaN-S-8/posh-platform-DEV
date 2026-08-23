@@ -14,7 +14,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-# ✅ FORCE SYNC DRIVER
+# FORCE SYNC DRIVER
 def get_sync_database_url() -> str:
     url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
     return url.replace("mysql+asyncmy://", "mysql+pymysql://").replace(

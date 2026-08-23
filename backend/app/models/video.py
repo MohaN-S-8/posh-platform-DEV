@@ -30,6 +30,9 @@ class VideoMaster(Base):
     description = Column(Text)
     category_id = Column(Integer, ForeignKey("video_category.category_id"))
     duration_minutes = Column(Integer)
+    service_code = Column(String(50), default="POSH")
+    training_level = Column(String(50), default="Basic")
+    target_audience = Column(String(50), default="Employee")
     video_url = Column(String(500))  # path in MinIO/S3, NOT a public URL
     storage_type = Column(Enum("AWS S3", "Azure Blob", "Local", "MinIO"), default="MinIO")
     status = Column(Enum("Draft", "Published", "Archived"), default="Draft")

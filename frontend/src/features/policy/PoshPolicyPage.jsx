@@ -25,8 +25,8 @@ const defaultPolicy = {
     { title: "Digital", text: "Sexually explicit messages, emails, images, or online communication." },
   ],
   committee_members: [
-    { role: "Presiding Officer", name: "Gomathi Subramaniam", detail: "Senior Manager - HR, Chennai HQ" },
-    { role: "Member", name: "Priya Raman", detail: "HR Business Partner, Chennai HQ" },
+    { role: "Presiding Officer", name: "Gomathi Subramaniam", detail: "Senior Manager - IC, Chennai HQ" },
+    { role: "Member", name: "Priya Raman", detail: "IC Business Partner, Chennai HQ" },
     { role: "Member", name: "Arjun Mehta", detail: "Legal Counsel, Chennai HQ" },
     { role: "External Member", name: "Kavitha Reddy", detail: "Sakhi Foundation" },
   ],
@@ -45,7 +45,7 @@ const defaultPolicy = {
     {
       question: "Can a man file a complaint?",
       answer:
-        "The PoSH Act specifically protects women; all employees can escalate other workplace misconduct through HR's general grievance channel.",
+        "The PoSH Act specifically protects women; all employees can escalate other workplace misconduct through IC's general grievance channel.",
     },
     {
       question: "What if the respondent is a senior leader?",
@@ -362,7 +362,7 @@ export function PoshPolicyPage() {
           ))}
         </div>
         <p className="portal-policy-note">
-          Committees may vary by branch. Use the company or HR records to confirm
+          Committees may vary by branch. Use the company or IC records to confirm
           the Internal Committee applicable to your location.
         </p>
       </section>

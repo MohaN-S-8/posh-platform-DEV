@@ -30,9 +30,9 @@ const emptyAccess = {
 
 const implementationRows = [
   ["Main Page - Login Option", "Done", "Landing page has login/signup and role-based login flow."],
-  ["Signup / Login RBAC", "Done", "Super Admin, Corp Admin, Client / Mgmt, HR / IC, Employee roles exist."],
+  ["Signup / Login RBAC", "Done", "Super Admin, Corp Admin, Client / Mgmt, IC, Employee roles exist."],
   ["Create Admin Login - 1A", "Done", "Only Super Admin can create Corp Admin users."],
-  ["User Creation Flow", "Done", "Corp Admin -> Client/Mgmt -> HR/IC -> Employee is enforced in backend."],
+  ["User Creation Flow", "Done", "Corp Admin -> Client/Mgmt -> IC -> Employee is enforced in backend."],
   ["State / City / Scope / Deliverables - 1A", "Done", "Backend-backed master config is editable here."],
   ["Create Company / Work Order - 1A", "Done", "Company screen captures company registration and work-order/service details."],
   ["Company Registration - 1B", "Done", "Company form captures the pasted 1B fields, contacts, billing/corporate addresses, and branches."],
@@ -272,7 +272,7 @@ export function AdminConfigPage() {
               <h3 style={editorTitleStyle}>{editing.type === "access" ? "Edit Role Access" : "Add Role Access"}</h3>
               <label style={labelStyle}>Role
                 <select value={accessForm.role_label} onChange={(e) => setAccessForm({ ...accessForm, role_label: e.target.value })} style={inputStyle}>
-                  {["Employee", "PO / Member", "Super Admin", "Corp Admin", "Client / Management", "HR / IC"].map((item) => (
+                  {["Employee", "PO / Member", "Super Admin", "Corp Admin", "Client / Management", "IC"].map((item) => (
                     <option key={item}>{item}</option>
                   ))}
                 </select>

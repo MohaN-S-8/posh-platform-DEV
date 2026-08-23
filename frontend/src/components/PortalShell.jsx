@@ -4,11 +4,13 @@ import FolderIcon from "@mui/icons-material/Folder";
 import BusinessIcon from "@mui/icons-material/Business";
 import DescriptionIcon from "@mui/icons-material/Description";
 import BadgeIcon from "@mui/icons-material/Badge";
-import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import LockIcon from "@mui/icons-material/Lock";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MenuIcon from "@mui/icons-material/Menu";
+import MiscellaneousServicesIcon from "@mui/icons-material/MiscellaneousServices";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
@@ -17,7 +19,7 @@ import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 import SearchIcon from "@mui/icons-material/Search";
 import PropTypes from "prop-types";
 import { useEffect, useMemo, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import apiClient from "../api/client";
 import { apiErrorMessage } from "../api/errors";
 import { useAuthStore } from "../store/authStore";
@@ -27,7 +29,7 @@ const roleLabels = {
   1: "Super Admin",
   2: "Company Admin",
   5: "Client Admin (Mgmt)",
-  3: "HR",
+  3: "IC",
   4: "Employee",
 };
 
@@ -39,22 +41,19 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
-    "POSH Audit",
+    "Audit",
     "Analytics & Reports",
     "Create Admin",
-    "Masters (State/City/Scope)",
-    "Create Company & Work Order",
-    "Company Registration - PoSH",
-    "Employee Master - PoSH",
-    "PoSH Office Master",
+    "Masters",
+    "Company Setup",
+    "Employee Master",
     "Role & Access Matrix",
   ]),
   "Company Admin": new Set([
     "Home",
     "PoSH Policy",
-    "Create Company & Work Order",
-    "Company Registration - PoSH",
-    "Employee Master - PoSH",
+    "Company Setup",
+    "Employee Master",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -63,15 +62,18 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
-    "POSH Audit",
     "Analytics & Reports",
-    "Employee Master - PoSH",
+    "Employee Master",
   ]),
-  HR: new Set([
+  IC: new Set([
     "Home",
     "PoSH Policy",
     "POSH Awareness Training",
-    "Employee Master - PoSH",
+    "Assessment & Certificate",
+    "POSH Compliance",
+    "POSH Complaints",
+    "Analytics & Reports",
+    "Employee Master",
   ]),
   Employee: new Set([
     "Home",
@@ -86,9 +88,26 @@ const accessItemAliases = {
   "Home Page": "Home",
   "Assessment & Certificates": "Assessment & Certificate",
   "Raise POSH Complaints": "POSH Complaints",
+  "POSH Audit": "Audit",
+  "PoSH Audit": "Audit",
+  "Company Registration - PoSH": "Company Setup",
+  "Company Registration": "Company Setup",
+  "Create Company & Work Order": "Company Setup",
+  "Employee Master - PoSH": "Employee Master",
+  "Masters (State/City/Scope)": "Masters",
+  "PoSH Office Master": "Masters",
 };
 
-const normalizeAccessItem = (accessItem) => accessItemAliases[accessItem] || accessItem;
+const normalizeAccessItem = (accessItem) =>
+  accessItemAliases[accessItem] || accessItem;
+
+const poshServiceAccessItems = new Set([
+  "PoSH Policy",
+  "POSH Awareness Training",
+  "Assessment & Certificate",
+  "POSH Compliance",
+  "POSH Complaints",
+]);
 
 const moduleCatalog = [
   {
@@ -107,7 +126,19 @@ const moduleCatalog = [
   },
   {
     accessItem: "POSH Awareness Training",
-    label: "POSH Awareness Training",
+    label: "My IC Training",
+    to: (roleId) => (roleId === 3 ? "/ic/training" : ""),
+    icon: <PlayCircleIcon fontSize="small" />,
+    allowedRoles: [3],
+    requiredPermission: "courses.watch",
+  },
+  {
+    accessItem: "POSH Awareness Training",
+    label: (roleId) => {
+      if (roleId === 3) return "Assign Employee Training";
+      if (roleId === 5) return "Assign IC Training";
+      return "POSH Awareness Training";
+    },
     to: (roleId) => {
       if (roleId === 4) return "/employee/courses";
       if (roleId === 3) return "/hr/assign";
@@ -124,6 +155,7 @@ const moduleCatalog = [
     label: "Assessment & Certificates",
     to: (roleId) => {
       if (roleId === 1) return "/super-admin/certificates";
+      if (roleId === 3) return "/ic/certificates";
       return roleId === 4 ? "/employee/certificates" : "/admin/certificates";
     },
     icon: <AssessmentIcon fontSize="small" />,
@@ -138,21 +170,25 @@ const moduleCatalog = [
       return "/hr/compliance";
     },
     icon: <AssessmentIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
+    allowedRoles: [1, 2, 3, 5],
   },
   {
     accessItem: "POSH Complaints",
-    label: "Concerns Received",
-    to: (roleId) => (roleId === 1 ? "/super-admin/concerns" : "/admin/concerns"),
+    label: (roleId) => (roleId === 4 ? "Raise Concern" : "Concerns Received"),
+    to: (roleId) => {
+      if (roleId === 4) return "/employee/concerns";
+      return roleId === 1 ? "/super-admin/concerns" : "/admin/concerns";
+    },
     icon: <ReportProblemIcon fontSize="small" />,
     allowedRoles: [1, 2, 3, 4, 5],
   },
   {
-    accessItem: "POSH Audit",
-    label: "POSH Audit",
-    to: (roleId) => (roleId === 1 ? "/super-admin/audit-logs" : "/admin/audit-logs"),
+    accessItem: "Audit",
+    label: "Audit",
+    to: (roleId) =>
+      roleId === 1 ? "/super-admin/audit-logs" : "/admin/audit-logs",
     icon: <DescriptionIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
+    allowedRoles: [1],
   },
   {
     accessItem: "Analytics & Reports",
@@ -162,7 +198,7 @@ const moduleCatalog = [
       return roleId === 3 ? "/hr/reports" : "/admin/analytics";
     },
     icon: <AssessmentIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
+    allowedRoles: [1, 2, 3, 5],
   },
   {
     accessItem: "Create Admin",
@@ -172,29 +208,23 @@ const moduleCatalog = [
     allowedRoles: [1],
   },
   {
-    accessItem: "Masters (State/City/Scope)",
-    label: "Masters (State/City/Scope)",
+    accessItem: "Masters",
+    label: "Masters",
     to: () => "/super-admin/masters",
     icon: <FolderIcon fontSize="small" />,
     allowedRoles: [1],
   },
   {
-    accessItem: "Create Company & Work Order",
-    label: "Create Company & Work Order",
-    to: (roleId) => (roleId === 1 ? "/super-admin/companies" : "/admin/companies"),
+    accessItem: "Company Setup",
+    label: "Company Setup",
+    to: (roleId) =>
+      roleId === 1 ? "/super-admin/companies" : "/admin/companies",
     icon: <BusinessIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
+    allowedRoles: [1, 2],
   },
   {
-    accessItem: "Company Registration - PoSH",
-    label: "Company Registration - PoSH",
-    to: (roleId) => (roleId === 1 ? "/super-admin/company-registration" : "/admin/company-registration"),
-    icon: <DescriptionIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
-  },
-  {
-    accessItem: "Employee Master - PoSH",
-    label: "Employee Master - PoSH",
+    accessItem: "Employee Master",
+    label: "Employee Master",
     to: (roleId) => {
       if (roleId === 3) return "/hr/users";
       if (roleId === 5) return "/admin/users";
@@ -202,14 +232,7 @@ const moduleCatalog = [
       return "/admin/users";
     },
     icon: <BadgeIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
-  },
-  {
-    accessItem: "PoSH Office Master",
-    label: "PoSH Office Master",
-    to: () => "/super-admin/posh-office-master",
-    icon: <AccountBalanceIcon fontSize="small" />,
-    allowedRoles: [1],
+    allowedRoles: [1, 2, 3, 5],
   },
   {
     accessItem: "Role & Access Matrix",
@@ -228,20 +251,24 @@ function navForRole(roleId, enabledAccessItems) {
         enabledAccessItems.has(item.accessItem),
     )
     .map((item) => ({
-      label: item.label,
+      accessItem: item.accessItem,
+      label: typeof item.label === "function" ? item.label(roleId) : item.label,
       to: item.to(roleId),
       icon: item.icon,
       allowedRoles: [roleId],
+      requiredPermission: item.requiredPermission,
     }))
     .filter((item) => item.to);
 }
 
 export function PortalShell({ title, subtitle, children }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { clearAuth, user } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(() =>
     typeof window === "undefined" ? true : window.innerWidth > 860,
   );
+  const [isServicesOpen, setIsServicesOpen] = useState(false);
   const [activePanel, setActivePanel] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [notifications, setNotifications] = useState([]);
@@ -270,6 +297,17 @@ export function PortalShell({ title, subtitle, children }) {
   }, [roleAccess, roleLabel]);
   const items = navForRole(user?.role_id, enabledAccessItems).filter((item) =>
     canAccess(user, item),
+  );
+  const poshServiceItems = items.filter((item) =>
+    poshServiceAccessItems.has(item.accessItem),
+  );
+  const primaryItems = items.filter(
+    (item) => !poshServiceAccessItems.has(item.accessItem),
+  );
+  const homeItems = primaryItems.filter((item) => item.accessItem === "Home");
+  const adminItems = primaryItems.filter((item) => item.accessItem !== "Home");
+  const isServicesActive = poshServiceItems.some(
+    (item) => item.to === location.pathname,
   );
   const canReportConcern = false;
   const unreadCount = notifications.filter((item) => !item.is_read).length;
@@ -365,10 +403,14 @@ export function PortalShell({ title, subtitle, children }) {
     setConcernError("");
     try {
       await apiClient.post("/concerns/", concern);
-      setConcernMessage("Concern submitted successfully. Your administrator can review it.");
+      setConcernMessage(
+        "Concern submitted successfully. Your administrator can review it.",
+      );
       setConcern({ category: "Workplace concern", message: "" });
     } catch (err) {
-      setConcernError(apiErrorMessage(err, "Unable to submit concern. Please try again."));
+      setConcernError(
+        apiErrorMessage(err, "Unable to submit concern. Please try again."),
+      );
     }
   };
 
@@ -386,7 +428,7 @@ export function PortalShell({ title, subtitle, children }) {
       <aside className={`portal-sidebar ${isMenuOpen ? "open" : ""}`}>
         <div className="portal-logo">
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span /> PoSH Portal
+            <span /> XYZ Portal
           </div>
           <button
             type="button"
@@ -398,7 +440,56 @@ export function PortalShell({ title, subtitle, children }) {
           </button>
         </div>
         <nav className="portal-nav">
-          {items.map((item) => (
+          {homeItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end
+              className="portal-nav-item"
+              onClick={closeMenu}
+            >
+              <span className="portal-nav-icon">{item.icon}</span>
+              {item.label}
+            </NavLink>
+          ))}
+          {poshServiceItems.length > 0 && (
+            <div className="portal-nav-group">
+              <button
+                type="button"
+                className={`portal-nav-group-toggle ${isServicesActive ? "active" : ""}`}
+                onClick={() => setIsServicesOpen((current) => !current)}
+              >
+                <span className="portal-nav-icon">
+                  <MiscellaneousServicesIcon fontSize="small" />
+                </span>
+                <span>PoSH Services</span>
+                <span className="portal-nav-chevron">
+                  {isServicesOpen ? (
+                    <ExpandLessIcon fontSize="small" />
+                  ) : (
+                    <ExpandMoreIcon fontSize="small" />
+                  )}
+                </span>
+              </button>
+              {isServicesOpen && (
+                <div className="portal-nav-subitems">
+                  {poshServiceItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end
+                      className="portal-nav-item portal-nav-subitem"
+                      onClick={closeMenu}
+                    >
+                      <span className="portal-nav-icon">{item.icon}</span>
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {adminItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -412,7 +503,7 @@ export function PortalShell({ title, subtitle, children }) {
           ))}
         </nav>
         <div className="portal-sidebar-foot">
-          POSH Platform
+          {/* XYZ Portal */}
           <br />
           Logged in as {roleLabels[user?.role_id] || "User"}
         </div>
@@ -469,14 +560,18 @@ export function PortalShell({ title, subtitle, children }) {
             >
               Change Password
             </button>
-            <button type="button" className="portal-danger-btn" onClick={logout}>
+            <button
+              type="button"
+              className="portal-danger-btn"
+              onClick={logout}
+            >
               <LogoutIcon fontSize="small" /> Logout
             </button>
             <div className="portal-avatar">{initials}</div>
             <div className="portal-brand">
-              <div className="portal-brand-mark">P</div>
+              <div className="portal-brand-mark">X</div>
               <div>
-                <div className="portal-brand-name">POSH</div>
+                <div className="portal-brand-name">XYZ</div>
                 <div className="portal-brand-tag">PORTAL</div>
               </div>
             </div>
@@ -484,7 +579,10 @@ export function PortalShell({ title, subtitle, children }) {
         </header>
 
         {activePanel === "search" && (
-          <section className="portal-action-panel" aria-label="Search navigation">
+          <section
+            className="portal-action-panel"
+            aria-label="Search navigation"
+          >
             <div className="portal-action-panel-head">
               <strong>Search</strong>
               <button type="button" onClick={() => setActivePanel("")}>
@@ -524,7 +622,10 @@ export function PortalShell({ title, subtitle, children }) {
         )}
 
         {activePanel === "notifications" && (
-          <section className="portal-action-panel portal-notification-panel" aria-label="Notifications">
+          <section
+            className="portal-action-panel portal-notification-panel"
+            aria-label="Notifications"
+          >
             <div className="portal-action-panel-head">
               <strong>Notifications</strong>
               <button type="button" onClick={() => setActivePanel("")}>

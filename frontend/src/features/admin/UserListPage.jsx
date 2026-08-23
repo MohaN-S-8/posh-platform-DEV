@@ -12,19 +12,24 @@ const ROLES = {
   1: "Super Admin",
   2: "Corp Admin",
   5: "Client / Management",
-  3: "HR / IC",
+  3: "IC",
   4: "Employee",
 };
 
 const ROLE_CREATE_FLOW = {
   1: [1, 2, 5, 3, 4],
   2: [5],
-  5: [3],
+  5: [3, 4],
   3: [4],
 };
 
 function defaultRoleFor(user) {
+  if (user?.role_id === 1) return 2;
   return ROLE_CREATE_FLOW[user?.role_id]?.[0] || 4;
+}
+
+function defaultIcRoleFor(roleId) {
+  return Number(roleId) === 3 ? "Admin" : "";
 }
 
 function emptyMessageFor(user) {
@@ -32,10 +37,10 @@ function emptyMessageFor(user) {
     return "No Client / Management users found. Company Admin can only create and manage Client / Management users here.";
   }
   if (user?.role_id === 5) {
-    return "No HR / IC users found. Client / Management can only create and manage HR / IC users here.";
+    return "No IC or Employee users found. Client / Management can only create and manage its own IC and Employee users here.";
   }
   if (user?.role_id === 3) {
-    return "No employees found. HR / IC can only create and manage Employee users here.";
+    return "No employees found. IC can only create and manage Employee users here.";
   }
   return "No users found.";
 }
@@ -157,7 +162,7 @@ export function UserListPage() {
     user?.role_id === 2
       ? "New Client / Mgmt"
       : user?.role_id === 5
-        ? "New HR"
+        ? "New IC / Employee"
         : user?.role_id === 3
           ? "New Employee"
           : "New User";
@@ -176,9 +181,11 @@ export function UserListPage() {
       const [userRes, companyRes] = await Promise.all([userReq, companyReq]);
       setUsers(userRes.data || []);
       setCompanies(companyRes.data || []);
+      const nextRole = defaultRoleFor(user);
       setForm((current) => ({
         ...current,
-        role_id: defaultRoleFor(user),
+        role_id: current.role_id || nextRole,
+        ic_role: current.ic_role || defaultIcRoleFor(current.role_id || nextRole),
         company_id:
           user?.role_id === 1 || user?.role_id === 2
             ? current.company_id || companyRes.data?.[0]?.company_id || ""
@@ -235,7 +242,11 @@ export function UserListPage() {
       setForm({
         ...initialForm,
         role_id: defaultRoleFor(user),
-        company_id: user?.role_id === 1 || user?.role_id === 2 ? "" : user?.company_id || "",
+        ic_role: defaultIcRoleFor(defaultRoleFor(user)),
+        company_id:
+          user?.role_id === 1 || user?.role_id === 2
+            ? companies[0]?.company_id || ""
+            : user?.company_id || "",
       });
       setShowCreate(false);
       await loadData();
@@ -276,6 +287,7 @@ export function UserListPage() {
       transfer_date: target.transfer_date || "",
       role_id: target.role_id,
       company_id: target.company_id || "",
+      ic_role: target.ic_role || defaultIcRoleFor(target.role_id),
     });
   };
 
@@ -357,7 +369,22 @@ export function UserListPage() {
           />
           <button
             type="button"
-            onClick={() => setShowCreate((current) => !current)}
+            onClick={() => {
+              const nextShowCreate = !showCreate;
+              setShowCreate(nextShowCreate);
+              if (nextShowCreate) {
+                const nextRole = defaultRoleFor(user);
+                setForm((current) => ({
+                  ...current,
+                  role_id: nextRole,
+                  ic_role: defaultIcRoleFor(nextRole),
+                  company_id:
+                    user?.role_id === 1 || user?.role_id === 2
+                      ? current.company_id || companies[0]?.company_id || ""
+                      : user?.company_id || "",
+                }));
+              }
+            }}
             style={primaryButtonStyle}
           >
             <AddIcon fontSize="small" />
@@ -399,7 +426,9 @@ export function UserListPage() {
           </div>
           <div style={sectionLabelStyle}>Employment Details</div>
           <div style={formGridStyle}>
-            {employmentFields.map(([field, label, type = "text"]) => (
+            {employmentFields
+              .filter(([field]) => field !== "ic_role" || Number(form.role_id) === 3)
+              .map(([field, label, type = "text"]) => (
               <label key={field} style={labelStyle}>
                 {label}
                 <input
@@ -425,9 +454,14 @@ export function UserListPage() {
               Role
               <select
                 value={form.role_id}
-                onChange={(e) =>
-                  setForm({ ...form, role_id: Number(e.target.value) })
-                }
+                onChange={(e) => {
+                  const nextRole = Number(e.target.value);
+                  setForm({
+                    ...form,
+                    role_id: nextRole,
+                    ic_role: defaultIcRoleFor(nextRole),
+                  });
+                }}
                 style={inputStyle}
               >
                 {roleOptions.map((role) => (
@@ -552,7 +586,9 @@ export function UserListPage() {
           </div>
           <div style={sectionLabelStyle}>Employment Details</div>
           <div style={formGridStyle}>
-            {employmentFields.map(([field, label, type = "text"]) => (
+            {employmentFields
+              .filter(([field]) => field !== "ic_role" || Number(editForm.role_id) === 3)
+              .map(([field, label, type = "text"]) => (
               <label key={field} style={labelStyle}>
                 {label}
                 <input
@@ -578,9 +614,14 @@ export function UserListPage() {
               Role
               <select
                 value={editForm.role_id}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, role_id: Number(e.target.value) })
-                }
+                onChange={(e) => {
+                  const nextRole = Number(e.target.value);
+                  setEditForm({
+                    ...editForm,
+                    role_id: nextRole,
+                    ic_role: defaultIcRoleFor(nextRole),
+                  });
+                }}
                 style={inputStyle}
               >
                 {roleOptions.map((role) => (

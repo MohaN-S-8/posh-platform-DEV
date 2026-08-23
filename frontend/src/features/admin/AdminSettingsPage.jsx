@@ -7,9 +7,9 @@ import { LoadingOverlay } from "../../components/LoadingOverlay";
 // const implementedItems = [
 //   "Management APIs enforce permission_master and role_permission checks.",
 //   "company_languages table is created and seeded for the default company.",
-//   "Audit Logs shows login attempts and sensitive admin/HR action logging.",
+//   "Audit Logs shows login attempts and sensitive admin/IC action logging.",
 //   "Employee, department, and certificate reports export as Excel, CSV, and PDF.",
-//   "HR can create due and overdue training reminder notifications.",
+//   "IC can create due and overdue training reminder notifications.",
 //   "video_quality table stores uploaded quality variants.",
 //   "Video transcript text is stored as English WebVTT subtitles.",
 //   "Certificate templates support color, font, logo, and signature assets.",

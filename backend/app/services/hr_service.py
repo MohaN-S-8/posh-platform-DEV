@@ -26,12 +26,29 @@ REQUIRED_COLUMNS = {"employee_id", "first_name", "email", "mobile"}
 
 
 class HRService:
-    async def list_assignable_employees(self, db: AsyncSession, company_id: int) -> dict:
+    def _audience_role_ids(self, target_audience: str | None) -> list[int]:
+        if target_audience == "IC Member":
+            return [3]
+        if target_audience == "All":
+            return [3, 4]
+        return [4]
+
+    def _assigner_allowed_role_ids(self, assigned_by_role_id: int) -> list[int]:
+        if assigned_by_role_id == 5:
+            return [3]
+        if assigned_by_role_id == 3:
+            return [4]
+        return [3, 4]
+
+    async def list_assignable_employees(
+        self, db: AsyncSession, company_id: int, requester_role_id: int
+    ) -> dict:
+        role_ids = self._assigner_allowed_role_ids(requester_role_id)
         result = await db.execute(
             select(UserMaster)
             .where(
                 UserMaster.company_id == company_id,
-                UserMaster.role_id == 4,
+                UserMaster.role_id.in_(role_ids),
                 UserMaster.status == "Active",
                 UserMaster.is_deleted == "N",
             )
@@ -50,7 +67,7 @@ class HRService:
                     "department": employee.department,
                     "designation": employee.designation,
                     "role_id": employee.role_id,
-                    "role_label": "Employee",
+                    "role_label": "IC" if employee.role_id == 3 else "Employee",
                 }
                 for employee in employees
             ],
@@ -241,6 +258,7 @@ class HRService:
         data: TrainingAssignRequest,
         company_id: int,
         assigned_by: int,
+        assigned_by_role_id: int,
     ) -> dict:
         """Assign a video course to individual / department / entire company."""
 
@@ -255,6 +273,16 @@ class HRService:
         video = video_result.scalar_one_or_none()
         if not video:
             raise HTTPException(404, "Published video not found for this company.")
+        target_role_ids = self._audience_role_ids(video.target_audience)
+        allowed_role_ids = self._assigner_allowed_role_ids(assigned_by_role_id)
+        assignable_role_ids = [
+            role_id for role_id in target_role_ids if role_id in allowed_role_ids
+        ]
+        if not assignable_role_ids:
+            raise HTTPException(
+                403,
+                "This role cannot assign training for the selected video audience.",
+            )
 
         if data.assign_type == "Individual":
             if not data.assigned_to_user_id:
@@ -268,8 +296,11 @@ class HRService:
                     UserMaster.is_deleted == "N",
                 )
             )
-            if not target_result.scalar_one_or_none():
-                raise HTTPException(404, "Employee not found for this company.")
+            target_user = target_result.scalar_one_or_none()
+            if not target_user:
+                raise HTTPException(404, "User not found for this company.")
+            if target_user.role_id not in assignable_role_ids:
+                raise HTTPException(403, "Selected user is not allowed for this video audience.")
 
             # Check already assigned
             existing = await db.execute(
@@ -297,6 +328,7 @@ class HRService:
                 db,
                 company_id=company_id,
                 assign_type="Individual",
+                target_role_ids=assignable_role_ids,
                 assigned_to_user_id=data.assigned_to_user_id,
             )
             notifications_created = await notification_service.create_for_user_ids(
@@ -308,7 +340,7 @@ class HRService:
             )
             await db.commit()
             return {
-                "message": "Course assigned to employee successfully.",
+                "message": "Course assigned successfully.",
                 "assignments_created": 1,
                 "notifications_created": notifications_created,
             }
@@ -323,6 +355,7 @@ class HRService:
                 select(func.count()).where(
                     UserMaster.company_id == company_id,
                     UserMaster.department == data.assigned_to_department,
+                    UserMaster.role_id.in_(assignable_role_ids),
                     UserMaster.status == "Active",
                     UserMaster.is_deleted == "N",
                 )
@@ -355,6 +388,7 @@ class HRService:
                 db,
                 company_id=company_id,
                 assign_type="Department",
+                target_role_ids=assignable_role_ids,
                 assigned_to_department=data.assigned_to_department,
             )
             notifications_created = await notification_service.create_for_user_ids(
@@ -395,6 +429,7 @@ class HRService:
                 db,
                 company_id=company_id,
                 assign_type="Company-Wide",
+                target_role_ids=assignable_role_ids,
             )
             notifications_created = await notification_service.create_for_user_ids(
                 db,
@@ -405,7 +440,7 @@ class HRService:
             )
             await db.commit()
             return {
-                "message": "Course assigned to all employees company-wide.",
+                "message": "Course assigned company-wide for the selected audience.",
                 "assignments_created": 1,
                 "notifications_created": notifications_created,
             }

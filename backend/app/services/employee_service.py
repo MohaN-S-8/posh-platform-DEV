@@ -29,6 +29,12 @@ class EmployeeService:
         user = user_result.scalar_one()
 
         assignment_match = self.assignment_match_for_user(user)
+        audience_matches = [
+            VideoMaster.target_audience == "All",
+            VideoMaster.target_audience == ("IC Member" if user.role_id == 3 else "Employee"),
+        ]
+        if user.role_id == 4:
+            audience_matches.append(VideoMaster.target_audience.is_(None))
 
         result = await db.execute(
             select(CourseAssignment, VideoMaster, TrainingHistory)
@@ -50,6 +56,7 @@ class EmployeeService:
             .where(
                 CourseAssignment.company_id == company_id,
                 assignment_match,
+                or_(*audience_matches),
             )
             .order_by(CourseAssignment.due_date.asc(), VideoMaster.title.asc())
         )

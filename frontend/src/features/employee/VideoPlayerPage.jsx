@@ -8,6 +8,7 @@ import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import apiClient from "../../api/client";
+import { useAuthStore } from "../../store/authStore";
 
 const buttonStyle = {
   border: "1px solid #d8e1ea",
@@ -42,6 +43,10 @@ function formatTime(value) {
 export function VideoPlayerPage() {
   const { videoId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const coursePath = user?.role_id === 3 ? "/ic/training" : "/employee/courses";
+  const assessmentPath =
+    user?.role_id === 3 ? `/ic/assessment/${videoId}` : `/employee/assessment/${videoId}`;
   const videoRef = useRef(null);
   const audioRef = useRef(null);
   const playerRef = useRef(null);
@@ -342,7 +347,7 @@ export function VideoPlayerPage() {
   return (
     <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
       <button
-        onClick={() => navigate("/employee/courses")}
+        onClick={() => navigate(coursePath)}
         style={{
           background: "none",
           border: "none",
@@ -645,7 +650,7 @@ export function VideoPlayerPage() {
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               disabled={!canOpenAssessment}
-              onClick={() => navigate(`/employee/assessment/${videoId}`)}
+              onClick={() => navigate(assessmentPath)}
               style={{
                 padding: "10px 18px",
                 background: canOpenAssessment ? "#17324d" : "#b8c2cc",

@@ -16,6 +16,8 @@ class UserService:
         company_id: Optional[int] = None,
         role_ids: Optional[set[int]] = None,
     ) -> list:
+        if role_ids is not None and not role_ids:
+            return []
         query = select(UserMaster).where(UserMaster.is_deleted == "N")
         if company_id:
             query = query.where(UserMaster.company_id == company_id)
@@ -30,7 +32,7 @@ class UserService:
         company_ids: list[int],
         role_ids: Optional[set[int]] = None,
     ) -> list:
-        if not company_ids:
+        if not company_ids or (role_ids is not None and not role_ids):
             return []
         query = select(UserMaster).where(
             UserMaster.is_deleted == "N",
@@ -170,7 +172,22 @@ class UserService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already registered.",
                 )
-            update_data["username"] = update_data["email"]
+            if "username" not in update_data:
+                update_data["username"] = update_data["email"]
+
+        if "username" in update_data and update_data["username"] != user.username:
+            existing = await db.execute(
+                select(UserMaster).where(
+                    UserMaster.username == update_data["username"],
+                    UserMaster.user_id != user_id,
+                    UserMaster.is_deleted == "N",
+                )
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already registered.",
+                )
 
         if "employee_id" in update_data and update_data["employee_id"] != user.employee_id:
             existing = await db.execute(

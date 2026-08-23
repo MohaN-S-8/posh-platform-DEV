@@ -1,5 +1,5 @@
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
@@ -12,6 +12,21 @@ export function AdminConcernsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
+  const canUpdateStatus = [3, 5].includes(user?.role_id);
+  const groupedConcernSections = useMemo(() => {
+    if (![1, 2].includes(user?.role_id)) {
+      return [{ title: "", concerns }];
+    }
+    const groups = new Map();
+    concerns.forEach((concern) => {
+      const title =
+        concern.company_name ||
+        (concern.company_id ? `Company ID ${concern.company_id}` : "Unassigned Organization");
+      if (!groups.has(title)) groups.set(title, []);
+      groups.get(title).push(concern);
+    });
+    return Array.from(groups.entries()).map(([title, rows]) => ({ title, concerns: rows }));
+  }, [concerns, user?.role_id]);
 
   useEffect(() => {
     let active = true;
@@ -61,8 +76,10 @@ export function AdminConcernsPage() {
       title="Concerns Received"
       subtitle={
         user?.role_id === 1
-          ? "Review concerns submitted across all companies."
-          : "Review concerns submitted by users in your company."
+          ? "View concerns across all organizations."
+          : user?.role_id === 2
+            ? "View concerns grouped by assigned organization."
+            : "Review and close concerns submitted in your organization."
       }
     >
       {error && (
@@ -83,9 +100,17 @@ export function AdminConcernsPage() {
           </p>
         </div>
       ) : (
-        <section className="portal-grid">
-          {concerns.map((concern) => (
-            <article key={concern.id} className="portal-card">
+        <div style={{ display: "grid", gap: "20px" }}>
+          {groupedConcernSections.map((section) => (
+            <section key={section.title || "concerns"} style={{ display: "grid", gap: "12px" }}>
+              {section.title && (
+                <div className="portal-section-title" style={{ margin: 0 }}>
+                  {section.title}
+                </div>
+              )}
+              <div className="portal-grid">
+                {section.concerns.map((concern) => (
+                  <article key={concern.id} className="portal-card">
               <div
                 style={{
                   display: "flex",
@@ -102,9 +127,10 @@ export function AdminConcernsPage() {
                   <div style={{ color: "var(--portal-muted)", fontSize: "13px" }}>
                     {concern.reporter_name || "User"} - {concern.reporter_email || "-"}
                   </div>
-                  {user?.role_id === 1 && (
+                  {[1, 2].includes(user?.role_id) && (
                     <div style={{ color: "var(--portal-muted)", fontSize: "13px", marginTop: "4px" }}>
-                      Company ID: {concern.company_id}
+                      Organization: {concern.company_name || `Company ID ${concern.company_id}`}
+                      {concern.company_code ? ` (${concern.company_code})` : ""}
                     </div>
                   )}
                 </div>
@@ -118,38 +144,43 @@ export function AdminConcernsPage() {
                   Submitted {new Date(concern.created_date).toLocaleString()}
                 </div>
               )}
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  flexWrap: "wrap",
-                  marginTop: "16px",
-                }}
-              >
-                {concern.status !== "Reviewed" && concern.status !== "Closed" && (
-                  <button
-                    type="button"
-                    className="portal-outline-btn"
-                    disabled={updatingId === concern.id}
-                    onClick={() => updateConcernStatus(concern.id, "Reviewed")}
-                  >
-                    Mark Reviewed
-                  </button>
-                )}
-                {concern.status !== "Closed" && (
-                  <button
-                    type="button"
-                    className="portal-primary-btn"
-                    disabled={updatingId === concern.id}
-                    onClick={() => updateConcernStatus(concern.id, "Closed")}
-                  >
-                    Close
-                  </button>
-                )}
+              {canUpdateStatus && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                    marginTop: "16px",
+                  }}
+                >
+                  {concern.status !== "Reviewed" && concern.status !== "Closed" && (
+                    <button
+                      type="button"
+                      className="portal-outline-btn"
+                      disabled={updatingId === concern.id}
+                      onClick={() => updateConcernStatus(concern.id, "Reviewed")}
+                    >
+                      Mark Reviewed
+                    </button>
+                  )}
+                  {concern.status !== "Closed" && (
+                    <button
+                      type="button"
+                      className="portal-primary-btn"
+                      disabled={updatingId === concern.id}
+                      onClick={() => updateConcernStatus(concern.id, "Closed")}
+                    >
+                      Close
+                    </button>
+                  )}
+                </div>
+              )}
+                  </article>
+                ))}
               </div>
-            </article>
+            </section>
           ))}
-        </section>
+        </div>
       )}
 
       <LoadingOverlay

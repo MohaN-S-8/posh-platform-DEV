@@ -15,7 +15,7 @@ from app.db.base import Base
 class EmployeeUploadBatch(Base):
     """
     Tracks every bulk employee upload.
-    Lets HR see status of their upload (Processing / Completed / Failed).
+    Lets IC see status of their upload (Processing / Completed / Failed).
     """
 
     __tablename__ = "employee_upload_batch"

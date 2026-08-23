@@ -41,10 +41,10 @@ async def send_email(to: str, subject: str, html_body: str, cc: list[str] | None
 
 async def send_otp_email(to: str, first_name: str, otp: str) -> None:
     """Send OTP verification email."""
-    subject = "Your POSH Platform Verification Code"
+    subject = "Your XYZ Portal Verification Code"
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a3c5e;">POSH Training Platform</h2>
+        <h2 style="color: #1a3c5e;">XYZ Portal</h2>
         <p>Dear {first_name},</p>
         <p>Your verification code is:</p>
         <div style="background: #f5f5f5; padding: 20px; text-align: center;
@@ -55,7 +55,7 @@ async def send_otp_email(to: str, first_name: str, otp: str) -> None:
         <p>This code expires in <strong>10 minutes</strong>.</p>
         <p>If you did not request this, please ignore this email.</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #999; font-size: 12px;">POSH Training Platform</p>
+        <p style="color: #999; font-size: 12px;">XYZ Portal</p>
     </div>
     """
     await send_email(to, subject, html)
@@ -64,7 +64,7 @@ async def send_otp_email(to: str, first_name: str, otp: str) -> None:
 async def send_password_reset_email(to: str, first_name: str, reset_token: str) -> None:
     """Send password reset email with a link."""
     reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
-    subject = "Reset Your POSH Platform Password"
+    subject = "Reset Your XYZ Portal Password"
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #1a3c5e;">Password Reset Request</h2>
@@ -81,7 +81,7 @@ async def send_password_reset_email(to: str, first_name: str, reset_token: str) 
         <p>Or copy this link: <a href="{reset_url}">{reset_url}</a></p>
         <p>If you did not request a password reset, please ignore this email.</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #999; font-size: 12px;">POSH Training Platform</p>
+        <p style="color: #999; font-size: 12px;">XYZ Portal</p>
     </div>
     """
     await send_email(to, subject, html)
@@ -90,10 +90,10 @@ async def send_password_reset_email(to: str, first_name: str, reset_token: str) 
 async def send_welcome_email(to: str, first_name: str, temp_password: str) -> None:
     """Send welcome email with temporary password to new employee."""
     login_url = f"{FRONTEND_URL}/login"
-    subject = "Welcome to POSH Training Platform"
+    subject = "Welcome to XYZ Portal"
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1a3c5e;">Welcome to POSH Training Platform</h2>
+        <h2 style="color: #1a3c5e;">Welcome to XYZ Portal</h2>
         <p>Dear {first_name},</p>
         <p>Your account has been created. Please log in using the details below
            and change your password immediately.</p>
@@ -110,7 +110,7 @@ async def send_welcome_email(to: str, first_name: str, temp_password: str) -> No
             ⚠️ Please change your password after first login.
         </p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #999; font-size: 12px;">POSH Training Platform</p>
+        <p style="color: #999; font-size: 12px;">XYZ Portal</p>
     </div>
     """
     await send_email(to, subject, html)
@@ -139,7 +139,7 @@ async def send_certificate_email(
             <p><strong>Certificate Number:</strong> {cert_number}</p>
         </div>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-        <p style="color: #999; font-size: 12px;">POSH Training Platform</p>
+        <p style="color: #999; font-size: 12px;">XYZ Portal</p>
     </div>
     """
 

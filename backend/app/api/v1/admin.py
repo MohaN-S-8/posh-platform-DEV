@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_permission
+from app.core.dependencies import require_permission, require_role
 from app.db.session import get_db
 from app.models.auth import LoginAttempts
 from app.models.language import LanguageMaster
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/admin", tags=["Admin Portal"])
 @router.get("/audit-logins")
 async def list_login_audit_logs(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_role(1)),
 ):
     """List recent login audit events."""
     result = await db.execute(
@@ -36,9 +36,9 @@ async def list_login_audit_logs(
 @router.get("/audit-logs")
 async def list_action_audit_logs(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission("reports.view")),
+    current_user=Depends(require_role(1)),
 ):
-    """List recent admin/HR action audit events."""
+    """List recent admin/IC action audit events."""
     result = await db.execute(
         text(
             """

@@ -221,14 +221,14 @@ export function EmployeeMasterPage() {
 
   return (
     <PortalShell
-      title="Employee Master - PoSH"
+      title="Employee Master"
       subtitle="Create employee master records used by Company Registration contacts."
     >
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
       <form style={panelStyle} onSubmit={saveEmployee}>
-        <h3 style={panelTitleStyle}>Employee Master - PoSH</h3>
+        <h3 style={panelTitleStyle}>Employee Master</h3>
         {editingId && (
           <div style={editNoticeStyle}>
             Editing employee master record. Save to update or cancel to create a new record.

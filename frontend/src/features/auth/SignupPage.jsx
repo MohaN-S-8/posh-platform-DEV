@@ -122,7 +122,7 @@ export function SignupPage() {
         <div className="auth-card-header">
           <p className="auth-eyebrow">Client onboarding</p>
           <h1>Create account</h1>
-          <p>Join the POSH Training Platform and verify your account with OTP.</p>
+          <p>Join XYZ Portal and verify your account with OTP.</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>

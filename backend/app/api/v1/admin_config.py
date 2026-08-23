@@ -23,14 +23,14 @@ ROLE_ACCESS_LABELS = {
     1: "Super Admin",
     2: "Company Admin",
     5: "Client Admin (Mgmt)",
-    3: "HR",
+    3: "IC",
     4: "Employee",
 }
 ROLE_ACCESS_ALIASES = {
     1: ["Super Admin"],
     2: ["Company Admin", "Corp Admin", "Admin"],
     5: ["Client Admin (Mgmt)", "Client / Management"],
-    3: ["HR", "HR / IC", "PO / Member"],
+    3: ["IC", "HR", "HR / IC", "PO / Member"],
     4: ["Employee"],
 }
 

@@ -1,4 +1,3 @@
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import PolicyIcon from "@mui/icons-material/Policy";
 import ShieldIcon from "@mui/icons-material/Shield";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
@@ -65,9 +64,6 @@ export function LandingPage() {
           <Link to="/login" className="landing-link-btn">
             Login
           </Link>
-          <Link to="/signup" className="landing-primary-btn">
-            Signup <ArrowForwardIcon fontSize="small" />
-          </Link>
         </nav>
       </header>
 
@@ -78,17 +74,14 @@ export function LandingPage() {
           </div>
           <div className="landing-hero-content">
             <p className="landing-eyebrow">Workplace safety and compliance services</p>
-            <h1>POSH Training Platform</h1>
+            <h1>XYZ Portal</h1>
             <p className="landing-hero-copy">
               A role-based compliance platform for prevention of sexual harassment
               training, employee certification, reporting, and governance.
             </p>
             <div className="landing-hero-actions">
               <Link to="/login" className="landing-primary-btn landing-primary-btn-lg">
-                POSH Login <ArrowForwardIcon fontSize="small" />
-              </Link>
-              <Link to="/signup" className="landing-secondary-btn">
-                Create Account
+                POSH Login
               </Link>
             </div>
           </div>
@@ -113,7 +106,7 @@ export function LandingPage() {
                   <p>{service.text}</p>
                   {service.path && (
                     <span className="landing-card-cta">
-                      View service <ArrowForwardIcon fontSize="small" />
+                      View service
                     </span>
                   )}
                 </CardTag>
@@ -148,7 +141,7 @@ export function LandingPage() {
         <section className="landing-section landing-clients">
           <div className="landing-clients-copy">
             <p className="landing-eyebrow">For clients</p>
-            <h2>Built for leadership, HR teams, and employees.</h2>
+            <h2>Built for leadership, IC teams, and employees.</h2>
             <p>
               The platform keeps sensitive workflows controlled by role while
               giving every stakeholder the information they need to complete

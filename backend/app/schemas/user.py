@@ -74,6 +74,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     employee_id: Optional[str] = None
+    username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None

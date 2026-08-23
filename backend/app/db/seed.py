@@ -31,7 +31,7 @@ async def seed():
                     (1, 'Super Admin'),
                     (2, 'Admin'),
                     (5, 'Client / Management'),
-                    (3, 'HR / IC'),
+                    (3, 'IC'),
                     (4, 'Employee')
                 ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)
             """
@@ -74,6 +74,7 @@ async def seed():
                 VALUES
                     ('users.manage', 'Manage Users'),
                     ('videos.upload', 'Upload Videos'),
+                    ('videos.publish', 'Publish Videos'),
                     ('videos.manage', 'Manage Videos'),
                     ('certificates.manage', 'Manage Certificates'),
                     ('reports.view', 'View Reports'),
@@ -89,8 +90,8 @@ async def seed():
                 DELETE rp FROM role_permission rp
                 JOIN permission_master pm ON pm.permission_id = rp.permission_id
                 WHERE
-                    (rp.role_id = 2 AND pm.permission_key <> 'users.manage')
-                    OR (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','reports.view'))
+                    (rp.role_id = 2 AND pm.permission_key NOT IN ('users.manage','videos.upload','videos.publish'))
+                    OR (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','videos.upload','reports.view'))
                     OR rp.role_id = 5
             """
             )
@@ -101,11 +102,11 @@ async def seed():
                 INSERT IGNORE INTO role_permission (role_id, permission_id)
                 SELECT 1, permission_id FROM permission_master
                 UNION SELECT 2, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage')
+                WHERE permission_key IN ('users.manage','videos.upload','videos.publish')
                 UNION SELECT 5, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage','videos.upload','certificates.manage','reports.view','training.assign')
                 UNION SELECT 3, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','videos.upload','training.assign')
+                WHERE permission_key IN ('users.manage','training.assign','courses.watch')
                 UNION SELECT 4, permission_id FROM permission_master
                 WHERE permission_key IN ('courses.watch')
             """
@@ -123,6 +124,38 @@ async def seed():
                     (4, 'Reporting Procedures'),
                     (5, 'Annual Refresher')
             """
+            )
+        )
+
+        await db.execute(
+            text(
+                """
+                UPDATE user_master
+                SET
+                    employee_id = 'IC001',
+                    first_name = 'IC',
+                    last_name = 'User',
+                    email = 'ic@posh.com',
+                    username = 'ic@posh.com'
+                WHERE
+                    role_id = 3
+                    AND (
+                        email = 'hr@posh.com'
+                        OR username = 'hr@posh.com'
+                        OR employee_id = 'HR001'
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM (
+                            SELECT user_id
+                            FROM user_master
+                            WHERE
+                                email = 'ic@posh.com'
+                                OR username = 'ic@posh.com'
+                                OR employee_id = 'IC001'
+                        ) AS existing_ic_seed
+                    )
+                """
             )
         )
 
@@ -145,7 +178,7 @@ async def seed():
                 "9000000003",
                 5,
             ),
-            ("HR001", "HR", "User", "hr@posh.com", "9000000004", 3),
+            ("IC001", "IC", "User", "ic@posh.com", "9000000004", 3),
             ("EMP001", "Employee", "User", "employee@posh.com", "9000000005", 4),
         ]
         for employee_id, first_name, last_name, email, mobile, role_id in default_users:

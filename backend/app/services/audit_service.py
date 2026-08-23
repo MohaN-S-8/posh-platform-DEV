@@ -14,7 +14,7 @@ async def write_audit_log(
     record_id: Optional[int] = None,
     ip_address: Optional[str] = None,
 ) -> None:
-    """Persist an admin/HR action audit row."""
+    """Persist an admin/IC action audit row."""
     await db.execute(
         text(
             """

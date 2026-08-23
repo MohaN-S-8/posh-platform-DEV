@@ -2,6 +2,9 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/Download";
 import GroupsIcon from "@mui/icons-material/Groups";
+import PlayCircleIcon from "@mui/icons-material/PlayCircle";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
+import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../../api/client";
@@ -14,6 +17,7 @@ export function HRDashboard() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [myTraining, setMyTraining] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -23,8 +27,14 @@ export function HRDashboard() {
       setLoading(true);
       setError("");
       try {
-        const res = await apiClient.get("/hr/employees/summary");
-        if (active) setData(res.data);
+        const [employeeRes, trainingRes] = await Promise.all([
+          apiClient.get("/hr/employees/summary"),
+          apiClient.get("/employee/summary"),
+        ]);
+        if (active) {
+          setData(employeeRes.data);
+          setMyTraining(trainingRes.data);
+        }
       } catch (err) {
         if (active) {
           setError(err.response?.data?.detail || "Employee dashboard metrics are unavailable.");
@@ -50,6 +60,38 @@ export function HRDashboard() {
 
   const modules = [
     {
+      title: "My Training",
+      description: "Complete your own assigned PoSH training and assessment.",
+      path: "/ic/training",
+      icon: <PlayCircleIcon />,
+      status: "Available",
+      requiredPermission: "courses.watch",
+    },
+    {
+      title: "Assign Training",
+      description: "Assign published PoSH training to employees or departments.",
+      path: "/hr/assign",
+      icon: <AssignmentTurnedInIcon />,
+      status: "Available",
+      requiredPermission: "training.assign",
+    },
+    {
+      title: "Raise My Concern",
+      description: "Submit your own workplace or PoSH concern as an IC member.",
+      path: "/employee/concerns",
+      icon: <ReportProblemIcon />,
+      status: "Available",
+      accessItem: "POSH Complaints",
+    },
+    {
+      title: "Concerns Received",
+      description: "Review and close concerns submitted in your organization.",
+      path: "/admin/concerns",
+      icon: <ReportProblemIcon />,
+      status: "Available",
+      accessItem: "POSH Complaints",
+    },
+    {
       title: "Employee Upload",
       description: "Import employee records with Excel or CSV validation.",
       path: "/hr/upload",
@@ -67,8 +109,8 @@ export function HRDashboard() {
       requiredPermission: "users.manage",
     },
     {
-      title: "Reports",
-      description: "Download employee reports for your company only.",
+      title: "Analytics & Reports",
+      description: "View compliance analytics and download company reports.",
       path: "/hr/reports",
       icon: <DownloadIcon />,
       status: "Available",
@@ -88,7 +130,7 @@ export function HRDashboard() {
   const visibleModules = modules.filter((module) => canAccess(user, module));
 
   return (
-    <PortalShell title="HR Portal" subtitle="Employee records and upload controls for HR users.">
+    <PortalShell title="IC Portal" subtitle="Employee records and upload controls for IC users.">
 
       {error && (
         <div
@@ -103,6 +145,27 @@ export function HRDashboard() {
           {error}
         </div>
       )}
+
+      <section style={{ marginBottom: "28px" }}>
+        <div className="portal-section-title">My Assigned Training</div>
+        <div className="portal-auto-grid">
+          {[
+            { label: "Assigned Courses", value: myTraining?.total_courses ?? 0 },
+            { label: "Completed", value: myTraining?.completed ?? 0 },
+            {
+              label: "Pending",
+              value: (myTraining?.in_progress ?? 0) + (myTraining?.not_started ?? 0),
+            },
+            { label: "Certificates", value: myTraining?.certificates ?? 0 },
+          ].map((stat) => (
+            <div key={stat.label} className="portal-card">
+              <div className="portal-kpi-value">{loading ? "-" : stat.value}</div>
+              <div className="portal-kpi-label">{stat.label}</div>
+              <div className="portal-kpi-trend">Assigned to you</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section style={{ marginBottom: "28px" }}>
         <div className="portal-section-title">Employee Snapshot</div>
@@ -178,7 +241,7 @@ export function HRDashboard() {
           </h2>
           <div style={{ display: "grid", gap: "10px" }}>
             <div style={{ color: "#64748b", fontSize: "14px" }}>
-              HR access is restricted to the modules assigned to your role.
+              IC access is restricted to the modules assigned to your role.
             </div>
             <button
               type="button"
@@ -201,7 +264,7 @@ export function HRDashboard() {
       </section>
 
       <section>
-        <div className="portal-section-title">HR Workspace</div>
+        <div className="portal-section-title">IC Workspace</div>
         <div className="portal-auto-grid">
           {visibleModules.map((module) => {
             const enabled = Boolean(module.path);
@@ -244,7 +307,7 @@ export function HRDashboard() {
 
       <LoadingOverlay
         show={loading}
-        title="Loading HR dashboard"
+        title="Loading IC dashboard"
         message="Fetching employee records and department status."
       />
     </PortalShell>

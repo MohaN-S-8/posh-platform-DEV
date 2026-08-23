@@ -6,31 +6,113 @@ import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
 
 const dashboardItems = [
-  { title: "Home", description: "Role-based programme summary.", path: "/dashboard", accessItem: "Home" },
-  { title: "PoSH Policy", description: "Company policy and IC details.", path: "/posh-policy", accessItem: "PoSH Policy" },
-  { title: "Create Company & Work Order", description: "Company setup and work order tracking.", path: "/admin/companies", accessItem: "Create Company & Work Order" },
-  { title: "Company Registration", description: "PoSH registration details and admin setup.", path: "/admin/company-registration", accessItem: "Company Registration - PoSH" },
-  { title: "Create Admin", description: "Create company administrator accounts.", path: "/super-admin/create-admin", accessItem: "Create Admin" },
-  { title: "Employee Master", description: "Manage role-based company users.", path: "/admin/users", accessItem: "Employee Master - PoSH" },
-  { title: "Training Videos", description: "Upload and manage training content.", path: "/admin/videos", accessItem: "POSH Awareness Training" },
-  { title: "Certificates", description: "Certificate templates and verification setup.", path: "/admin/certificates", accessItem: "Assessment & Certificate" },
-  { title: "Compliance", description: "Training completion and compliance dashboard.", path: "/admin/compliance", accessItem: "POSH Compliance" },
-  { title: "Complaints", description: "Review PoSH concerns and cases.", path: "/admin/concerns", accessItem: "POSH Complaints" },
-  { title: "Audit", description: "Login and action audit history.", path: "/super-admin/audit-logs", accessItem: "POSH Audit" },
-  { title: "Analytics", description: "Training and certificate reports.", path: "/admin/analytics", accessItem: "Analytics & Reports" },
-  { title: "Reports", description: "Download audit-ready reports.", path: "/admin/reports", accessItem: "Analytics & Reports" },
-  { title: "Masters", description: "State, city, scope, and platform masters.", path: "/super-admin/masters", accessItem: "Masters (State/City/Scope)" },
-  { title: "PoSH Office Master", description: "Configure PoSH office records.", path: "/super-admin/posh-office-master", accessItem: "PoSH Office Master" },
-  { title: "Role & Access Matrix", description: "Control exactly what each role can see.", path: "/super-admin/role-access", accessItem: "Role & Access Matrix" },
+  {
+    title: "Home",
+    description: "Role-based programme summary.",
+    path: "/dashboard",
+    accessItem: "Home",
+  },
+  {
+    title: "PoSH Policy",
+    description: "Company policy and IC details.",
+    path: "/posh-policy",
+    accessItem: "PoSH Policy",
+  },
+  {
+    title: "Company Setup",
+    description: "Create companies, work orders, and registration details.",
+    path: "/admin/companies",
+    accessItem: "Company Setup",
+  },
+  {
+    title: "Create Admin",
+    description: "Create company administrator accounts.",
+    path: "/super-admin/create-admin",
+    accessItem: "Create Admin",
+  },
+  {
+    title: "Employee Master",
+    description: "Manage role-based company users.",
+    path: "/admin/users",
+    accessItem: "Employee Master",
+  },
+  {
+    title: "Training Videos",
+    description: "Upload and manage training content.",
+    path: "/admin/videos",
+    accessItem: "POSH Awareness Training",
+  },
+  {
+    title: "Certificates",
+    description: "Certificate templates and verification setup.",
+    path: "/admin/certificates",
+    accessItem: "Assessment & Certificate",
+  },
+  {
+    title: "Compliance",
+    description: "Training completion and compliance dashboard.",
+    path: "/admin/compliance",
+    accessItem: "POSH Compliance",
+  },
+  {
+    title: "Complaints",
+    description: "Review PoSH concerns and cases.",
+    path: "/admin/concerns",
+    accessItem: "POSH Complaints",
+  },
+  {
+    title: "Audit",
+    description: "Login and action audit history.",
+    path: "/super-admin/audit-logs",
+    accessItem: "Audit",
+  },
+  {
+    title: "Analytics",
+    description: "Platform and service-level metrics.",
+    path: "/admin/analytics",
+    accessItem: "Analytics & Reports",
+  },
+  {
+    title: "Reports",
+    description: "Download platform and service reports.",
+    path: "/admin/reports",
+    accessItem: "Analytics & Reports",
+  },
+  {
+    title: "Masters",
+    description: "State, city, scope, deliverables, and office masters.",
+    path: "/super-admin/masters",
+    accessItem: "Masters",
+  },
+  {
+    title: "Role & Access Matrix",
+    description: "Control exactly what each role can see.",
+    path: "/super-admin/role-access",
+    accessItem: "Role & Access Matrix",
+  },
 ];
 
 const roleLabels = {
   1: "Super Admin",
   2: "Company Admin",
   5: "Client Admin (Mgmt)",
-  3: "HR",
+  3: "IC",
   4: "Employee",
 };
+
+const accessItemAliases = {
+  "POSH Audit": "Audit",
+  "PoSH Audit": "Audit",
+  "Company Registration - PoSH": "Company Setup",
+  "Company Registration": "Company Setup",
+  "Create Company & Work Order": "Company Setup",
+  "Employee Master - PoSH": "Employee Master",
+  "Masters (State/City/Scope)": "Masters",
+  "PoSH Office Master": "Masters",
+};
+
+const normalizeAccessItem = (accessItem) =>
+  accessItemAliases[accessItem] || accessItem;
 
 const defaultAllowed = {
   "Super Admin": new Set([
@@ -42,22 +124,19 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
-    "POSH Audit",
+    "Audit",
     "Analytics & Reports",
     "Create Admin",
-    "Masters (State/City/Scope)",
-    "Create Company & Work Order",
-    "Company Registration - PoSH",
-    "Employee Master - PoSH",
-    "PoSH Office Master",
+    "Masters",
+    "Company Setup",
+    "Employee Master",
     "Role & Access Matrix",
   ]),
   "Company Admin": new Set([
     "Home",
     "PoSH Policy",
-    "Create Company & Work Order",
-    "Company Registration - PoSH",
-    "Employee Master - PoSH",
+    "Company Setup",
+    "Employee Master",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -66,9 +145,9 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
-    "POSH Audit",
+    "Audit",
     "Analytics & Reports",
-    "Employee Master - PoSH",
+    "Employee Master",
   ]),
 };
 
@@ -107,7 +186,9 @@ export function AdminDashboard() {
         const res = await apiClient.get(endpoint);
         setAnalytics(res.data);
       } catch (err) {
-        setAnalyticsError(apiErrorMessage(err, "Analytics are not available for this account."));
+        setAnalyticsError(
+          apiErrorMessage(err, "Analytics are not available for this account."),
+        );
       } finally {
         setLoadingAnalytics(false);
       }
@@ -132,6 +213,14 @@ export function AdminDashboard() {
         },
       ];
     }
+    if (user?.role_id === 5) {
+      return [
+        { label: "Total Users", value: analytics.total_users ?? 0 },
+        { label: "IC Users", value: analytics.ic_users ?? 0 },
+        { label: "Employees", value: analytics.total_employees ?? 0 },
+        { label: "Compliance", value: `${analytics.compliance_rate ?? 0}%` },
+      ];
+    }
     return [
       { label: "Employees", value: analytics.total_employees ?? 0 },
       { label: "Completed", value: analytics.completed_training ?? 0 },
@@ -142,7 +231,10 @@ export function AdminDashboard() {
 
   const allowedItems = useMemo(() => {
     const accessMap = new Map(
-      roleAccess.map((record) => [record.access_item, Boolean(record.is_allowed)]),
+      roleAccess.map((record) => [
+        normalizeAccessItem(record.access_item),
+        Boolean(record.is_allowed),
+      ]),
     );
     const fallback = defaultAllowed[roleLabels[user?.role_id]] || new Set();
 
@@ -163,15 +255,10 @@ export function AdminDashboard() {
       }
       subtitle="Manage the workflows available to your role."
     >
-
       <section style={{ marginBottom: "28px" }}>
         <div className="portal-section-title">Programme Snapshot</div>
         <div className="portal-auto-grid">
-          {user?.role_id === 5 ? (
-            <div className="portal-card">
-              Your available modules are controlled by the Role & Access Matrix below.
-            </div>
-          ) : loadingAnalytics ? (
+          {loadingAnalytics ? (
             <div className="portal-card">Loading analytics...</div>
           ) : analyticsError ? (
             <div
@@ -227,13 +314,22 @@ export function AdminDashboard() {
               <h3 style={{ margin: "0 0 8px", color: "var(--portal-text)" }}>
                 {item.title}
               </h3>
-              <p style={{ margin: 0, color: "var(--portal-muted)", lineHeight: 1.5 }}>
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--portal-muted)",
+                  lineHeight: 1.5,
+                }}
+              >
                 {item.description}
               </p>
             </button>
           ))}
           {allowedItems.length === 0 && (
-            <div className="portal-card" style={{ color: "var(--portal-muted)" }}>
+            <div
+              className="portal-card"
+              style={{ color: "var(--portal-muted)" }}
+            >
               No modules are assigned to this role yet.
             </div>
           )}

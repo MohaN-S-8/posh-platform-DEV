@@ -8,7 +8,7 @@ from app.schemas.hr import TrainingAssignRequest
 from app.services.audit_service import write_audit_log
 from app.services.hr_service import HRService
 
-router = APIRouter(prefix="/hr", tags=["HR Portal"])
+router = APIRouter(prefix="/hr", tags=["IC Portal"])
 hr_service = HRService()
 
 
@@ -18,7 +18,9 @@ async def list_assignable_employees(
     current_user=Depends(require_permission("users.manage")),
 ):
     """List active employees and departments available for training assignment."""
-    return await hr_service.list_assignable_employees(db, current_user.company_id)
+    return await hr_service.list_assignable_employees(
+        db, current_user.company_id, current_user.role_id
+    )
 
 
 @router.get("/employees/summary")
@@ -26,7 +28,7 @@ async def employee_summary(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("users.manage")),
 ):
-    """Employee-only HR dashboard summary."""
+    """Employee-only IC dashboard summary."""
     return await hr_service.get_employee_summary(db, current_user.company_id)
 
 
@@ -73,7 +75,7 @@ async def assign_training(
     - Entire company (assign_type: Company-Wide)
     """
     result = await hr_service.assign_training(
-        db, data, current_user.company_id, current_user.user_id
+        db, data, current_user.company_id, current_user.user_id, current_user.role_id
     )
     await write_audit_log(
         db,

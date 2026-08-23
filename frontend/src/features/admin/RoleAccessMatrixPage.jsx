@@ -7,7 +7,7 @@ const roles = [
   "Super Admin",
   "Company Admin",
   "Client Admin (Mgmt)",
-  "HR",
+  "IC",
   "Employee",
 ];
 
@@ -18,14 +18,12 @@ const pages = [
   "Assessment & Certificate",
   "POSH Compliance",
   "POSH Complaints",
-  "POSH Audit",
+  "Audit",
   "Analytics & Reports",
   "Create Admin",
-  "Masters (State/City/Scope)",
-  "Create Company & Work Order",
-  "Company Registration - PoSH",
-  "Employee Master - PoSH",
-  "PoSH Office Master",
+  "Masters",
+  "Company Setup",
+  "Employee Master",
   "Role & Access Matrix",
 ];
 
@@ -37,22 +35,19 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
-    "POSH Audit",
+    "Audit",
     "Analytics & Reports",
     "Create Admin",
-    "Masters (State/City/Scope)",
-    "Create Company & Work Order",
-    "Company Registration - PoSH",
-    "Employee Master - PoSH",
-    "PoSH Office Master",
+    "Masters",
+    "Company Setup",
+    "Employee Master",
     "Role & Access Matrix",
   ]),
   "Company Admin": new Set([
     "Home",
     "PoSH Policy",
-    "Create Company & Work Order",
-    "Company Registration - PoSH",
-    "Employee Master - PoSH",
+    "Company Setup",
+    "Employee Master",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -61,15 +56,15 @@ const defaultAllowed = {
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
-    "POSH Audit",
+    "Audit",
     "Analytics & Reports",
-    "Employee Master - PoSH",
+    "Employee Master",
   ]),
-  HR: new Set([
+  IC: new Set([
     "Home",
     "PoSH Policy",
     "POSH Awareness Training",
-    "Employee Master - PoSH",
+    "Employee Master",
   ]),
   Employee: new Set([
     "Home",
@@ -79,6 +74,20 @@ const defaultAllowed = {
     "POSH Complaints",
   ]),
 };
+
+const accessItemAliases = {
+  "POSH Audit": "Audit",
+  "PoSH Audit": "Audit",
+  "Company Registration - PoSH": "Company Setup",
+  "Company Registration": "Company Setup",
+  "Create Company & Work Order": "Company Setup",
+  "Employee Master - PoSH": "Employee Master",
+  "Masters (State/City/Scope)": "Masters",
+  "PoSH Office Master": "Masters",
+};
+
+const normalizeAccessItem = (accessItem) =>
+  accessItemAliases[accessItem] || accessItem;
 
 export function RoleAccessMatrixPage() {
   const [records, setRecords] = useState([]);
@@ -108,7 +117,10 @@ export function RoleAccessMatrixPage() {
   const accessMap = useMemo(() => {
     const map = new Map();
     records.forEach((record) => {
-      map.set(`${record.role_label}::${record.access_item}`, record);
+      map.set(
+        `${record.role_label}::${normalizeAccessItem(record.access_item)}`,
+        record,
+      );
     });
     return map;
   }, [records]);
@@ -134,7 +146,10 @@ export function RoleAccessMatrixPage() {
         display_order: pageIndex + 1,
       };
       if (existing) {
-        await apiClient.put(`/admin-config/role-access/${existing.id}`, payload);
+        await apiClient.put(
+          `/admin-config/role-access/${existing.id}`,
+          payload,
+        );
       } else {
         await apiClient.post("/admin-config/role-access", payload);
       }
@@ -148,14 +163,19 @@ export function RoleAccessMatrixPage() {
   };
 
   return (
-    <PortalShell title="Role & Access Matrix" subtitle="Control exactly what each role can see.">
+    <PortalShell
+      title="Role & Access Matrix"
+      subtitle="Control exactly what each role can see."
+    >
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
       <section style={introStyle}>
         <h3 style={introTitleStyle}>Role & Access Matrix</h3>
         <p style={helperTextStyle}>
-          Tick or untick which pages each role can see. This is the same pattern as the POSH Access role table in the master file, extended to every role and every backend page.
+          Tick or untick which pages each role can see. This is the same pattern
+          as the POSH Access role table in the master file, extended to every
+          role and every backend page.
         </p>
       </section>
 
@@ -168,7 +188,9 @@ export function RoleAccessMatrixPage() {
               <tr>
                 <th style={pageThStyle}>Page</th>
                 {roles.map((role) => (
-                  <th key={role} style={thStyle}>{role}</th>
+                  <th key={role} style={thStyle}>
+                    {role}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -184,7 +206,14 @@ export function RoleAccessMatrixPage() {
                           type="checkbox"
                           checked={isAllowed(role, page)}
                           disabled={savingKey === key}
-                          onChange={(event) => toggleAccess(role, page, event.target.checked, pageIndex)}
+                          onChange={(event) =>
+                            toggleAccess(
+                              role,
+                              page,
+                              event.target.checked,
+                              pageIndex,
+                            )
+                          }
                         />
                       </td>
                     );

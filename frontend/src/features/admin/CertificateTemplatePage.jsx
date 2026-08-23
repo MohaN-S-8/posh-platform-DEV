@@ -103,7 +103,9 @@ export function CertificateTemplatePage() {
     formData.append("asset_type", assetType);
     formData.append("file", file);
     try {
-      await apiClient.post(`/certificates/templates/${template.template_id}/asset`, formData);
+      await apiClient.post(`/certificates/templates/${template.template_id}/asset`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       const label =
         assetType === "logo"
           ? "Logo"

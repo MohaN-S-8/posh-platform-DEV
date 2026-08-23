@@ -6,7 +6,11 @@ from xml.etree import ElementTree
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_any_permission, require_permission, require_role
+from app.core.dependencies import (
+    require_any_permission,
+    require_permission,
+    require_roles_with_matrix,
+)
 from app.db.session import get_db
 from app.schemas.assessment import (
     AssessmentQuestionCreate,
@@ -182,7 +186,7 @@ def _parse_docx_questions(lines: list[str], video_id: int) -> list[AssessmentQue
 async def get_questions(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_role(4)),
+    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
 ):
     """Return assessment questions/options for a published company video."""
     return await assessment_service.questions(
@@ -194,7 +198,7 @@ async def get_questions(
 async def assessment_availability(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_role(4)),
+    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
 ):
     """Return whether the current user can take the assessment."""
     return await assessment_service.availability(
@@ -233,6 +237,11 @@ async def import_assessment_questions(
     current_user=Depends(require_any_permission(["videos.upload", "videos.manage"])),
 ):
     """Import assessment questions from a Word .docx file for a company video."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Company Admin, and Client / Management can import assessment questions.",
+        )
     filename = file.filename or ""
     if not filename.lower().endswith(".docx"):
         raise HTTPException(400, "Assessment questions must be uploaded as a .docx file.")
@@ -285,7 +294,7 @@ async def delete_assessment_question(
 async def submit_assessment(
     data: AssessmentSubmit,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_role(4)),
+    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
 ):
     """
     Submit assessment answers.
