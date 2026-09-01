@@ -134,21 +134,16 @@ const moduleCatalog = [
   },
   {
     accessItem: "POSH Awareness Training",
-    label: (roleId) => {
-      if (roleId === 3) return "Assign Employee Training";
-      if (roleId === 5) return "Assign IC Training";
-      return "POSH Awareness Training";
-    },
+    label: "POSH Awareness Training",
     to: (roleId) => {
       if (roleId === 4) return "/employee/courses";
-      if (roleId === 3) return "/hr/assign";
-      if (roleId === 5) return "/hr/assign";
+      if (roleId === 5) return "/admin/videos";
       if (roleId === 1) return "/super-admin/videos";
       if (roleId === 2) return "/admin/videos";
       return "/admin/videos";
     },
     icon: <PlayCircleIcon fontSize="small" />,
-    allowedRoles: [1, 2, 3, 4, 5],
+    allowedRoles: [1, 2, 4, 5],
   },
   {
     accessItem: "Assessment & Certificate",

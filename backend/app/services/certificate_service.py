@@ -770,7 +770,8 @@ class CertificateService:
         template = await self._get_template(db, template_id, company_id)
         if template.status == "Active" and not allow_active_delete:
             raise HTTPException(
-                403, "Approved certificate templates can only be deleted by Super Admin."
+                403,
+                "Approved certificate templates can only be deleted by Super Admin.",
             )
         template_company_id = template.company_id
 

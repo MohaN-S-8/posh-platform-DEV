@@ -149,7 +149,11 @@ def _parse_docx_questions(lines: list[str], video_id: int) -> list[AssessmentQue
                 continue
 
             if current is None:
-                current = {"question_text": line.strip(), "options": [], "correct_option": ""}
+                current = {
+                    "question_text": line.strip(),
+                    "options": [],
+                    "correct_option": "",
+                }
                 continue
 
             if option_match:
@@ -265,7 +269,10 @@ async def import_assessment_questions(
         ip_address=request.client.host if request.client else None,
     )
     await db.commit()
-    return {"message": f"Imported {imported} assessment questions.", "imported": imported}
+    return {
+        "message": f"Imported {imported} assessment questions.",
+        "imported": imported,
+    }
 
 
 @router.delete("/questions/{question_id}")

@@ -18,6 +18,39 @@ from app.services.notification_service import notification_service
 
 
 class AssessmentService:
+    async def _ensure_video_available_for_user(
+        self, db: AsyncSession, video_id: int, user_id: int, company_id: int
+    ) -> None:
+        video_result = await db.execute(
+            select(VideoMaster).where(
+                VideoMaster.video_id == video_id,
+                VideoMaster.company_id == company_id,
+                VideoMaster.status == "Published",
+            )
+        )
+        video = video_result.scalar_one_or_none()
+        if not video:
+            raise HTTPException(404, "Video not found.")
+
+        user_result = await db.execute(
+            select(UserMaster).where(
+                UserMaster.user_id == user_id,
+                UserMaster.company_id == company_id,
+                UserMaster.status == "Active",
+                UserMaster.is_deleted == "N",
+            )
+        )
+        user = user_result.scalar_one_or_none()
+        audience_role_ids = {"IC Member": [3], "All": [3, 4]}.get(
+            video.target_audience or "Employee",
+            [4],
+        )
+        if not user or user.role_id not in audience_role_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This assessment is not available to your user type.",
+            )
+
     def _attempt_blocks_assessment(self, history, latest_attempt) -> bool:
         if not latest_attempt:
             return False
@@ -32,6 +65,7 @@ class AssessmentService:
     async def availability(
         self, db: AsyncSession, video_id: int, user_id: int, company_id: int
     ) -> dict:
+        await self._ensure_video_available_for_user(db, video_id, user_id, company_id)
         history_result = await db.execute(
             select(TrainingHistory).where(
                 TrainingHistory.user_id == user_id,
@@ -82,15 +116,7 @@ class AssessmentService:
     async def questions(
         self, db: AsyncSession, video_id: int, company_id: int, user_id: int
     ) -> list[dict]:
-        video_result = await db.execute(
-            select(VideoMaster).where(
-                VideoMaster.video_id == video_id,
-                VideoMaster.company_id == company_id,
-                VideoMaster.status == "Published",
-            )
-        )
-        if not video_result.scalar_one_or_none():
-            raise HTTPException(404, "Video not found.")
+        await self._ensure_video_available_for_user(db, video_id, user_id, company_id)
 
         attempt_result = await db.execute(
             select(AssessmentResult)
@@ -146,6 +172,7 @@ class AssessmentService:
         self, db: AsyncSession, user_id: int, data: AssessmentSubmit, company_id: int
     ) -> dict:
         """Submit assessment answers. Video must be completed first."""
+        await self._ensure_video_available_for_user(db, data.video_id, user_id, company_id)
 
         # 1. Verify video is completed
         history_result = await db.execute(
@@ -257,7 +284,7 @@ class AssessmentService:
             title=f"Assessment {result.lower()}",
             message=(
                 f"{user.first_name if user else 'An employee'} scored {score:.1f}%"
-                f" on {video.title if video else 'assigned training'}."
+                f" on {video.title if video else 'available training'}."
             ),
         )
         await db.commit()

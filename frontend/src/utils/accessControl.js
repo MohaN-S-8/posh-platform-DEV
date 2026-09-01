@@ -9,19 +9,9 @@ const ROLE_DEFAULT_PERMISSIONS = {
     "training.assign",
     "courses.watch",
   ],
-  2: [
-    "users.manage",
-    "videos.upload",
-    "videos.publish",
-  ],
-  5: [
-    "users.manage",
-    "videos.upload",
-    "certificates.manage",
-    "reports.view",
-    "training.assign",
-  ],
-  3: ["users.manage", "reports.view", "training.assign", "courses.watch"],
+  2: ["users.manage", "videos.upload", "videos.publish"],
+  5: ["users.manage", "videos.upload", "certificates.manage", "reports.view"],
+  3: ["users.manage", "reports.view", "courses.watch"],
   4: ["courses.watch"],
 };
 
@@ -39,8 +29,12 @@ export function hasPermission(user, permission) {
 
 export function canAccess(user, item) {
   if (!user) return false;
-  if (item.allowedRoles && !item.allowedRoles.includes(user.role_id)) return false;
-  if (item.requiredPermission && !hasPermission(user, item.requiredPermission)) {
+  if (item.allowedRoles && !item.allowedRoles.includes(user.role_id))
+    return false;
+  if (
+    item.requiredPermission &&
+    !hasPermission(user, item.requiredPermission)
+  ) {
     return false;
   }
   return true;

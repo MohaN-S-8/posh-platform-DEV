@@ -25,7 +25,11 @@ user_service = UserService()
 # Role IDs: 1=Super Admin, 2=Admin, 5=Client / Management, 3=IC, 4=Employee
 ADMIN_ROLES = [1, 2]
 WORK_ORDER_ACCESS = ["Company Setup", "Create Company & Work Order"]
-REGISTRATION_ACCESS = ["Company Setup", "Company Registration", "Company Registration - PoSH"]
+REGISTRATION_ACCESS = [
+    "Company Setup",
+    "Company Registration",
+    "Company Registration - PoSH",
+]
 EMPLOYEE_MASTER_ACCESS = ["Employee Master", "Employee Master - PoSH"]
 
 

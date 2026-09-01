@@ -2,7 +2,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.certificate import Certificate
-from app.models.training import AssessmentResult, CourseAssignment, TrainingHistory
+from app.models.training import AssessmentResult, TrainingHistory
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
 
@@ -28,7 +28,6 @@ class EmployeeService:
         )
         user = user_result.scalar_one()
 
-        assignment_match = self.assignment_match_for_user(user)
         audience_matches = [
             VideoMaster.target_audience == "All",
             VideoMaster.target_audience == ("IC Member" if user.role_id == 3 else "Employee"),
@@ -37,33 +36,26 @@ class EmployeeService:
             audience_matches.append(VideoMaster.target_audience.is_(None))
 
         result = await db.execute(
-            select(CourseAssignment, VideoMaster, TrainingHistory)
-            .join(
-                VideoMaster,
-                and_(
-                    VideoMaster.video_id == CourseAssignment.video_id,
-                    VideoMaster.company_id == company_id,
-                    VideoMaster.status == "Published",
-                ),
-            )
+            select(VideoMaster, TrainingHistory)
             .outerjoin(
                 TrainingHistory,
                 and_(
                     TrainingHistory.user_id == user_id,
-                    TrainingHistory.video_id == CourseAssignment.video_id,
+                    TrainingHistory.video_id == VideoMaster.video_id,
+                    TrainingHistory.company_id == company_id,
                 ),
             )
             .where(
-                CourseAssignment.company_id == company_id,
-                assignment_match,
+                VideoMaster.company_id == company_id,
+                VideoMaster.status == "Published",
                 or_(*audience_matches),
             )
-            .order_by(CourseAssignment.due_date.asc(), VideoMaster.title.asc())
+            .order_by(VideoMaster.training_level.asc(), VideoMaster.title.asc())
         )
 
         courses = []
         seen_video_ids = set()
-        for assignment, video, history in result.all():
+        for video, history in result.all():
             if video.video_id in seen_video_ids:
                 continue
             seen_video_ids.add(video.video_id)
@@ -81,14 +73,14 @@ class EmployeeService:
             assessment = assessment_result.scalar_one_or_none()
             courses.append(
                 {
-                    "assignment_id": assignment.id,
+                    "assignment_id": video.video_id,
                     "video_id": video.video_id,
                     "title": video.title,
                     "description": video.description,
                     "duration_minutes": video.duration_minutes,
-                    "assign_type": assignment.assign_type,
-                    "due_date": assignment.due_date,
-                    "passing_score": float(assignment.passing_score or 70),
+                    "assign_type": "Auto",
+                    "due_date": None,
+                    "passing_score": 70.0,
                     "status": status,
                     "completion_percent": completion_percent,
                     "resume_position": history.last_watched_position if history else 0,
@@ -170,20 +162,3 @@ class EmployeeService:
             )
 
         return history_rows
-
-    def assignment_match_for_user(self, user: UserMaster):
-        matches = [
-            and_(
-                CourseAssignment.assign_type == "Individual",
-                CourseAssignment.assigned_to_user_id == user.user_id,
-            ),
-            CourseAssignment.assign_type == "Company-Wide",
-        ]
-        if user.department:
-            matches.append(
-                and_(
-                    CourseAssignment.assign_type == "Department",
-                    CourseAssignment.assigned_to_department == user.department,
-                )
-            )
-        return or_(*matches)

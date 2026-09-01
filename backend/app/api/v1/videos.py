@@ -41,7 +41,7 @@ async def list_published_videos(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("training.assign")),
 ):
-    """List only published videos — used by IC training assignment dropdown."""
+    """List published videos available for direct learner training."""
     return await video_service.list_published_videos(db, current_user.company_id)
 
 
@@ -77,7 +77,8 @@ async def upload_video(
     """
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
-            403, "Only Super Admin, Company Admin, and Client / Management can upload videos."
+            403,
+            "Only Super Admin, Company Admin, and Client / Management can upload videos.",
         )
     metadata = VideoCreate(
         title=title,
@@ -269,7 +270,7 @@ async def get_stream_url(
 ):
     """
     Get a short-lived signed URL for video streaming.
-    URL expires in 5 minutes. Employee must be assigned this course.
+    URL expires in 5 minutes. Learner must match the video's target audience.
     """
     return await video_service.get_stream_url(
         db, video_id, current_user.user_id, current_user.company_id

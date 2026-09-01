@@ -4,6 +4,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.api.v1.admin import router as admin_router
 from app.api.v1.admin_config import router as admin_config_router
@@ -32,6 +33,17 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+if settings.APP_ENV.lower() == "production":
+    app.add_middleware(HTTPSRedirectMiddleware)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(company_router, prefix="/api/v1")
@@ -381,8 +393,8 @@ async def run_seed_on_startup():
             text(
                 """
                 CREATE TABLE IF NOT EXISTS certificate_template (
-                    template_id INT AUTO_INCREMENT PRIMARY KEY,
-                    template_name VARCHAR(100) NULL,
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    certificate_name VARCHAR(255) NULL,
                     created_date DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -440,7 +452,10 @@ async def run_seed_on_startup():
 
         for column_name, column_sql in [
             ("service_code", "ADD COLUMN service_code VARCHAR(50) NULL DEFAULT 'POSH'"),
-            ("training_level", "ADD COLUMN training_level VARCHAR(50) NULL DEFAULT 'Basic'"),
+            (
+                "training_level",
+                "ADD COLUMN training_level VARCHAR(50) NULL DEFAULT 'Basic'",
+            ),
             (
                 "target_audience",
                 "ADD COLUMN target_audience VARCHAR(50) NULL DEFAULT 'Employee'",
@@ -467,7 +482,10 @@ async def run_seed_on_startup():
             ("color_code", "ADD COLUMN color_code VARCHAR(20) NULL DEFAULT '#1a3c5e'"),
             ("company_id", "ADD COLUMN company_id INT NULL"),
             ("status", "ADD COLUMN status VARCHAR(30) NULL DEFAULT 'Pending'"),
-            ("updated_date", "ADD COLUMN updated_date DATETIME DEFAULT CURRENT_TIMESTAMP"),
+            (
+                "updated_date",
+                "ADD COLUMN updated_date DATETIME DEFAULT CURRENT_TIMESTAMP",
+            ),
         ]:
             await ensure_column("certificate_template", column_name, column_sql)
 
@@ -493,12 +511,6 @@ async def run_seed_on_startup():
             ("service_details_json", "ADD COLUMN service_details_json TEXT NULL"),
             ("referral_from", "ADD COLUMN referral_from VARCHAR(100) NULL"),
             ("referral_name", "ADD COLUMN referral_name VARCHAR(150) NULL"),
-            ("industry_type", "ADD COLUMN industry_type VARCHAR(100) NULL"),
-            ("website", "ADD COLUMN website VARCHAR(200) NULL"),
-            ("registration_number", "ADD COLUMN registration_number VARCHAR(50) NULL"),
-            ("gst_number", "ADD COLUMN gst_number VARCHAR(50) NULL"),
-            ("employee_strength", "ADD COLUMN employee_strength INT NULL"),
-            ("address", "ADD COLUMN address TEXT NULL"),
             ("corp_address_json", "ADD COLUMN corp_address_json TEXT NULL"),
             ("billing_address_json", "ADD COLUMN billing_address_json TEXT NULL"),
             ("account_contact_json", "ADD COLUMN account_contact_json TEXT NULL"),
@@ -507,10 +519,6 @@ async def run_seed_on_startup():
                 "ADD COLUMN coordinator_contact_json TEXT NULL",
             ),
             ("branches_json", "ADD COLUMN branches_json TEXT NULL"),
-            ("contact_person", "ADD COLUMN contact_person VARCHAR(100) NULL"),
-            ("contact_email", "ADD COLUMN contact_email VARCHAR(100) NULL"),
-            ("contact_mobile", "ADD COLUMN contact_mobile VARCHAR(20) NULL"),
-            ("updated_date", "ADD COLUMN updated_date DATETIME DEFAULT CURRENT_TIMESTAMP"),
         ]:
             await ensure_column("company_master", column_name, column_sql)
 
@@ -527,8 +535,6 @@ async def run_seed_on_startup():
             ("marital_status", "ADD COLUMN marital_status VARCHAR(20) NULL"),
             ("pan_number", "ADD COLUMN pan_number VARCHAR(20) NULL"),
             ("foreign_national", "ADD COLUMN foreign_national VARCHAR(10) NULL"),
-            ("department", "ADD COLUMN department VARCHAR(100) NULL"),
-            ("designation", "ADD COLUMN designation VARCHAR(100) NULL"),
             ("employment_status", "ADD COLUMN employment_status VARCHAR(50) NULL"),
             ("employee_status", "ADD COLUMN employee_status VARCHAR(50) NULL"),
             ("resignation_date", "ADD COLUMN resignation_date DATE NULL"),
@@ -544,14 +550,6 @@ async def run_seed_on_startup():
             ),
             ("transfer_branch_id", "ADD COLUMN transfer_branch_id VARCHAR(50) NULL"),
             ("ic_role", "ADD COLUMN ic_role VARCHAR(100) NULL"),
-            ("manager_id", "ADD COLUMN manager_id BIGINT NULL"),
-            (
-                "login_type",
-                "ADD COLUMN login_type ENUM('Email', 'SSO', 'Entra ID') DEFAULT 'Email'",
-            ),
-            ("language_preference", "ADD COLUMN language_preference INT NULL"),
-            ("joining_date", "ADD COLUMN joining_date DATE NULL"),
-            ("updated_date", "ADD COLUMN updated_date DATETIME DEFAULT CURRENT_TIMESTAMP"),
         ]:
             await ensure_column("user_master", column_name, column_sql)
 
@@ -779,8 +777,8 @@ async def run_seed_on_startup():
                 JOIN permission_master pm ON pm.permission_id = rp.permission_id
                 WHERE
                     (rp.role_id = 2 AND pm.permission_key NOT IN ('users.manage','videos.upload','videos.publish'))
-                    OR (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','videos.upload','reports.view'))
-                    OR rp.role_id = 5
+                    OR (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','videos.upload','training.assign'))
+                    OR (rp.role_id = 5 AND pm.permission_key NOT IN ('users.manage','videos.upload','certificates.manage','reports.view'))
                 """
             )
         )
@@ -792,9 +790,9 @@ async def run_seed_on_startup():
                 UNION SELECT 2, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage','videos.upload','videos.publish')
                 UNION SELECT 5, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','videos.upload','certificates.manage','reports.view','training.assign')
+                WHERE permission_key IN ('users.manage','videos.upload','certificates.manage','reports.view')
                 UNION SELECT 3, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','training.assign','courses.watch')
+                WHERE permission_key IN ('users.manage','reports.view','courses.watch')
                 UNION SELECT 4, permission_id FROM permission_master
                 WHERE permission_key IN ('courses.watch')
                 """
@@ -940,11 +938,3 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
-
-app = CORSMiddleware(
-    app,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)

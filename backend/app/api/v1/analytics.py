@@ -142,7 +142,13 @@ async def _platform_overview(db: AsyncSession) -> dict:
     }
     services = {}
     organizations = []
-    for company_id, company_name, approval_status, status, scope_codes_json in company_rows:
+    for (
+        company_id,
+        company_name,
+        approval_status,
+        status,
+        scope_codes_json,
+    ) in company_rows:
         try:
             scopes = json.loads(scope_codes_json or "[]")
         except json.JSONDecodeError:

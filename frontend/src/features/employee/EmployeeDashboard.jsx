@@ -57,7 +57,9 @@ export function EmployeeDashboard() {
         }
       } catch (err) {
         if (active) {
-          setError(err.response?.data?.detail || "Unable to load employee dashboard.");
+          setError(
+            err.response?.data?.detail || "Unable to load employee dashboard.",
+          );
         }
       } finally {
         if (active) setLoading(false);
@@ -70,7 +72,7 @@ export function EmployeeDashboard() {
   }, []);
 
   const stats = [
-    { label: "Assigned Courses", value: summary?.total_courses ?? 0 },
+    { label: "Available Courses", value: summary?.total_courses ?? 0 },
     { label: "Completed", value: summary?.completed ?? 0 },
     {
       label: "Pending",
@@ -81,10 +83,7 @@ export function EmployeeDashboard() {
   ];
 
   const currentCourses = useMemo(
-    () =>
-      courses
-        .filter((course) => course.status !== "Completed")
-        .slice(0, 3),
+    () => courses.filter((course) => course.status !== "Completed").slice(0, 3),
     [courses],
   );
 
@@ -108,35 +107,40 @@ export function EmployeeDashboard() {
   const modules = [
     {
       title: "Video Courses",
-      description: "Watch assigned POSH training videos and resume from saved progress.",
+      description:
+        "Watch published POSH training videos and resume from saved progress.",
       path: "/employee/courses",
       icon: <PlayCircleIcon />,
       status: "Available",
     },
     {
       title: "Assessments",
-      description: "Unlocked after video completion with instant score and pass/fail result.",
+      description:
+        "Unlocked after video completion with instant score and pass/fail result.",
       path: "/employee/courses",
       icon: <AssessmentIcon />,
       status: "Available",
     },
     {
       title: "Progress Tracking",
-      description: "Review completion percentage, pending courses, and course status.",
+      description:
+        "Review completion percentage, pending courses, and course status.",
       path: "/employee/history",
       icon: <TrendingUpIcon />,
       status: "Available",
     },
     {
       title: "Certificates",
-      description: "Download valid PDF certificates and verify certificate numbers.",
+      description:
+        "Download valid PDF certificates and verify certificate numbers.",
       path: "/employee/certificates",
       icon: <BadgeIcon />,
       status: "Available",
     },
     {
       title: "Training History",
-      description: "View completed, in-progress, and not-started training records.",
+      description:
+        "View completed, in-progress, and not-started training records.",
       path: "/employee/history",
       icon: <HistoryIcon />,
       status: "Available",
@@ -146,9 +150,8 @@ export function EmployeeDashboard() {
   return (
     <PortalShell
       title="Home"
-      subtitle="Your PoSH programme, assigned training, assessments, and certificates."
+      subtitle="Your PoSH programme, available training, assessments, and certificates."
     >
-
       {error && (
         <div
           style={{
@@ -190,7 +193,9 @@ export function EmployeeDashboard() {
         }}
       >
         <div style={cardStyle}>
-          <h2 style={{ color: "#17324d", margin: "0 0 16px", fontSize: "20px" }}>
+          <h2
+            style={{ color: "#17324d", margin: "0 0 16px", fontSize: "20px" }}
+          >
             Current Courses
           </h2>
           {currentCourses.length ? (
@@ -210,21 +215,31 @@ export function EmployeeDashboard() {
                   }}
                 >
                   <strong style={{ color: "#17324d" }}>{course.title}</strong>
-                  <div style={{ color: "#64748b", fontSize: "13px", marginTop: "4px" }}>
-                    {Math.round(course.completion_percent || 0)}% complete - {course.status}
+                  <div
+                    style={{
+                      color: "#64748b",
+                      fontSize: "13px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {Math.round(course.completion_percent || 0)}% complete -{" "}
+                    {course.status}
                   </div>
                 </button>
               ))}
             </div>
           ) : (
             <p style={{ color: "#64748b", margin: 0 }}>
-              No pending courses. Completed courses remain available in training history.
+              No pending courses. Completed courses remain available in training
+              history.
             </p>
           )}
         </div>
 
         <div style={cardStyle}>
-          <h2 style={{ color: "#17324d", margin: "0 0 16px", fontSize: "20px" }}>
+          <h2
+            style={{ color: "#17324d", margin: "0 0 16px", fontSize: "20px" }}
+          >
             Recent Activity
           </h2>
           {recentActivity.length ? (
@@ -237,7 +252,8 @@ export function EmployeeDashboard() {
             </div>
           ) : (
             <p style={{ color: "#64748b", margin: 0 }}>
-              Activity appears after you watch videos, pass assessments, or earn certificates.
+              Activity appears after you watch videos, pass assessments, or earn
+              certificates.
             </p>
           )}
         </div>
@@ -276,12 +292,15 @@ export function EmployeeDashboard() {
                     marginBottom: "14px",
                   }}
                 >
-                  <span style={{ color: "#17324d", display: "flex" }}>{module.icon}</span>
+                  <span style={{ color: "#17324d", display: "flex" }}>
+                    {module.icon}
+                  </span>
                   <span
                     style={{
                       fontSize: "11px",
                       fontWeight: 800,
-                      color: module.status === "Available" ? "#1f7a4d" : "#64748b",
+                      color:
+                        module.status === "Available" ? "#1f7a4d" : "#64748b",
                       background:
                         module.status === "Available" ? "#e8f5e9" : "#eef2f6",
                       borderRadius: "999px",
@@ -291,10 +310,23 @@ export function EmployeeDashboard() {
                     {module.status}
                   </span>
                 </div>
-                <h3 style={{ color: "#17324d", margin: "0 0 8px", fontSize: "17px" }}>
+                <h3
+                  style={{
+                    color: "#17324d",
+                    margin: "0 0 8px",
+                    fontSize: "17px",
+                  }}
+                >
                   {module.title}
                 </h3>
-                <p style={{ color: "#64748b", margin: 0, fontSize: "13px", lineHeight: 1.5 }}>
+                <p
+                  style={{
+                    color: "#64748b",
+                    margin: 0,
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                  }}
+                >
                   {module.description}
                 </p>
               </button>
@@ -306,7 +338,7 @@ export function EmployeeDashboard() {
       <LoadingOverlay
         show={loading}
         title="Loading employee portal"
-        message="Fetching assigned courses, progress, certificates, and training history."
+        message="Fetching available courses, progress, certificates, and training history."
       />
     </PortalShell>
   );

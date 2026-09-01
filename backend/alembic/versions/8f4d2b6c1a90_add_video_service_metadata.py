@@ -26,7 +26,12 @@ def upgrade() -> None:
     )
     op.add_column(
         "video_master",
-        sa.Column("training_level", sa.String(length=50), nullable=True, server_default="Basic"),
+        sa.Column(
+            "training_level",
+            sa.String(length=50),
+            nullable=True,
+            server_default="Basic",
+        ),
     )
     op.add_column(
         "video_master",

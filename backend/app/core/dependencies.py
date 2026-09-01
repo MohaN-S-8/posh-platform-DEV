@@ -220,7 +220,10 @@ def require_any_permission(permission_keys: list[str]):
                 LIMIT 1
                 """
             ).bindparams(bindparam("permission_keys", expanding=True)),
-            {"role_id": current_user.role_id, "permission_keys": fallback_permission_keys},
+            {
+                "role_id": current_user.role_id,
+                "permission_keys": fallback_permission_keys,
+            },
         )
         if not result.scalar_one_or_none():
             raise HTTPException(

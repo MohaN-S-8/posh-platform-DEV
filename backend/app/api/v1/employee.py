@@ -19,7 +19,7 @@ async def my_courses(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
 ):
-    """List courses assigned to the current employee."""
+    """List published courses available to the current IC or employee."""
     return await employee_service.list_courses(db, current_user.user_id, current_user.company_id)
 
 
@@ -28,7 +28,7 @@ async def my_summary(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
 ):
-    """Return current employee's training summary."""
+    """Return current IC or employee training summary."""
     return await employee_service.summary(db, current_user.user_id, current_user.company_id)
 
 
