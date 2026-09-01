@@ -253,6 +253,7 @@ function navForRole(roleId, enabledAccessItems) {
       allowedRoles: [roleId],
       requiredPermission: item.requiredPermission,
     }))
+    .filter((item) => !([3, 5].includes(roleId) && item.to === "/hr/assign"))
     .filter((item) => item.to);
 }
 

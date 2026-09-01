@@ -91,8 +91,8 @@ async def seed():
                 JOIN permission_master pm ON pm.permission_id = rp.permission_id
                 WHERE
                     (rp.role_id = 2 AND pm.permission_key NOT IN ('users.manage','videos.upload','videos.publish'))
-                    OR (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','videos.upload','reports.view','training.assign'))
-                    OR rp.role_id = 5
+                    OR (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','videos.upload','training.assign'))
+                    OR (rp.role_id = 5 AND pm.permission_key NOT IN ('users.manage','videos.upload','certificates.manage','reports.view'))
             """
             )
         )
@@ -104,9 +104,9 @@ async def seed():
                 UNION SELECT 2, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage','videos.upload','videos.publish')
                 UNION SELECT 5, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','videos.upload','certificates.manage','reports.view','training.assign')
+                WHERE permission_key IN ('users.manage','videos.upload','certificates.manage','reports.view')
                 UNION SELECT 3, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','courses.watch')
+                WHERE permission_key IN ('users.manage','reports.view','courses.watch')
                 UNION SELECT 4, permission_id FROM permission_master
                 WHERE permission_key IN ('courses.watch')
             """
