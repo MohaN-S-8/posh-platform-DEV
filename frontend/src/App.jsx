@@ -416,24 +416,10 @@ function App() {
           element={
             <ProtectedRoute>
               <RoleRoute
-                allowedRoles={[1, 2, 3]}
+                allowedRoles={[1, 2]}
                 requiredPermission="users.manage"
               >
                 <BulkUploadPage />
-              </RoleRoute>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/hr/users"
-          element={
-            <ProtectedRoute>
-              <RoleRoute
-                allowedRoles={[3]}
-                requiredPermission="users.manage"
-                accessItem="Employee Master"
-              >
-                <UserListPage />
               </RoleRoute>
             </ProtectedRoute>
           }

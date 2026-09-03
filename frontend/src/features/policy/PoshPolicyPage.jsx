@@ -121,7 +121,6 @@ function formToPolicy(form) {
 export function PoshPolicyPage() {
   const { user } = useAuthStore();
   const [openFaq, setOpenFaq] = useState(0);
-  const [acknowledged, setAcknowledged] = useState(false);
   const [policy, setPolicy] = useState(defaultPolicy);
   const [form, setForm] = useState(policyToForm(defaultPolicy));
   const [editing, setEditing] = useState(false);
@@ -144,7 +143,6 @@ export function PoshPolicyPage() {
         if (active) {
           setPolicy(nextPolicy);
           setForm(policyToForm(nextPolicy));
-          setAcknowledged(Boolean(nextPolicy.acknowledged));
         }
       } catch (err) {
         if (active) {
@@ -213,22 +211,6 @@ export function PoshPolicyPage() {
       setError(apiErrorMessage(err, "Policy document has not been uploaded yet."));
     } finally {
       setDownloadingDoc(false);
-    }
-  };
-
-  const acknowledgePolicy = async () => {
-    if (acknowledged) return;
-    setSaving(true);
-    setError("");
-    setMessage("");
-    try {
-      await apiClient.post("/policy/acknowledge");
-      setAcknowledged(true);
-      setMessage("Policy acknowledged.");
-    } catch (err) {
-      setError(apiErrorMessage(err, "Unable to acknowledge policy."));
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -417,21 +399,6 @@ export function PoshPolicyPage() {
             <p style={{ marginTop: "10px" }}>No policy PDF uploaded yet.</p>
           )}
         </article>
-      </section>
-
-      <section className="portal-card portal-policy-ack">
-        <div>
-          <h3>Have you read and understood this policy?</h3>
-          <p>Digital sign-off is mandatory within your first week.</p>
-        </div>
-        <button
-          type="button"
-          className={acknowledged ? "portal-outline-btn" : "portal-primary-btn"}
-          onClick={acknowledgePolicy}
-          disabled={acknowledged || saving}
-        >
-          {acknowledged ? "Acknowledged" : "I Acknowledge"}
-        </button>
       </section>
 
       <section>

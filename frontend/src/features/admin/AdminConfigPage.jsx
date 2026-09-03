@@ -33,7 +33,7 @@ const implementationRows = [
   ["Signup / Login RBAC", "Done", "Super Admin, Corp Admin, Client / Mgmt, IC, Employee roles exist."],
   ["Create Admin Login - 1A", "Done", "Only Super Admin can create Corp Admin users."],
   ["User Creation Flow", "Done", "Corp Admin -> Client/Mgmt -> IC -> Employee is enforced in backend."],
-  ["State / City / Scope / Deliverables - 1A", "Done", "Backend-backed master config is editable here."],
+  ["State / City / Scope - 1A", "Done", "Backend-backed master config is editable here."],
   ["Create Company / Work Order - 1A", "Done", "Company screen captures company registration and work-order/service details."],
   ["Company Registration - 1B", "Done", "Company form captures the pasted 1B fields, contacts, billing/corporate addresses, and branches."],
   ["Employee Master - 1C", "Done", "User form captures personal, employment, branch, transfer, reporting, and IC-role fields."],
@@ -53,12 +53,14 @@ export function AdminConfigPage() {
   const [success, setSuccess] = useState("");
 
   const groupedMasters = useMemo(() => {
-    return config.master_codes.reduce((groups, row) => {
-      const key = row.category || "Other";
-      groups[key] = groups[key] || [];
-      groups[key].push(row);
-      return groups;
-    }, {});
+    return config.master_codes
+      .filter((row) => row.category !== "Deliverables")
+      .reduce((groups, row) => {
+        const key = row.category || "Other";
+        groups[key] = groups[key] || [];
+        groups[key].push(row);
+        return groups;
+      }, {});
   }, [config.master_codes]);
 
   const groupedAccess = useMemo(() => {
@@ -226,7 +228,7 @@ export function AdminConfigPage() {
               <h3 style={editorTitleStyle}>{editing.type === "master" ? "Edit 1A Master" : "Add 1A Master"}</h3>
               <label style={labelStyle}>Category
                 <select value={masterForm.category} onChange={(e) => setMasterForm({ ...masterForm, category: e.target.value })} style={inputStyle}>
-                  {["State Code", "City Code", "Scope of Work ID", "Deliverables", "Create Company", "Work Order Form"].map((item) => (
+                  {["State Code", "City Code", "Scope of Work ID", "Create Company", "Work Order Form"].map((item) => (
                     <option key={item}>{item}</option>
                   ))}
                 </select>

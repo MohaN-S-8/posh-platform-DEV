@@ -9,7 +9,6 @@ const tabs = [
   { key: "State Code", label: "State Code", addLabel: "+ Add State" },
   { key: "City Code", label: "City Code", addLabel: "+ Add City" },
   { key: "Scope of Work ID", label: "Scope of Work", addLabel: "+ Add Scope" },
-  { key: "Deliverables", label: "Deliverables", addLabel: "+ Add Deliverable" },
   { key: "Office Master", label: "Office Master", addLabel: "+ Add Office" },
 ];
 
@@ -18,7 +17,6 @@ const emptyByTab = {
   "State Code": { country: "IN", name: "", code: "" },
   "City Code": { country: "IN", state: "", name: "", code: "" },
   "Scope of Work ID": { name: "", code: "" },
-  Deliverables: { scope: "", name: "" },
 };
 
 const emptyOffice = {
@@ -35,13 +33,6 @@ const parseDescription = (description) => {
     return {};
   }
 };
-
-const codeFromName = (name) =>
-  name
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 18);
 
 export function MastersPage() {
   const [activeTab, setActiveTab] = useState("Country Code");
@@ -80,8 +71,6 @@ export function MastersPage() {
 
   const countries = useMemo(() => byCategory("Country Code"), [byCategory]);
   const states = useMemo(() => byCategory("State Code"), [byCategory]);
-  const scopes = useMemo(() => byCategory("Scope of Work ID"), [byCategory]);
-
   const updateDraft = (field, value) => {
     setDrafts((current) => ({
       ...current,
@@ -105,17 +94,6 @@ export function MastersPage() {
     if (activeTab === "Scope of Work ID") {
       payload = { category: activeTab, name: draft.name, code: draft.code, description: "Scope master", is_active: true };
     }
-    if (activeTab === "Deliverables") {
-      const deliverableCode = `${draft.scope}-${codeFromName(draft.name)}`.slice(0, 80);
-      payload = {
-        category: activeTab,
-        name: draft.name,
-        code: deliverableCode,
-        description: JSON.stringify({ scope: draft.scope }),
-        is_active: true,
-      };
-    }
-
     if (!payload?.name?.trim() || !payload?.code?.trim()) {
       setError("Name and code are required.");
       return;
@@ -222,7 +200,7 @@ export function MastersPage() {
   };
 
   return (
-    <PortalShell title="Masters" subtitle="State, city, scope, deliverables, and office master setup.">
+    <PortalShell title="Masters" subtitle="Country, state, city, scope, and office master setup.">
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
@@ -249,16 +227,6 @@ export function MastersPage() {
           onCreate={createOffice}
           onUpdate={updateOffice}
           onDelete={deleteOffice}
-          saving={saving}
-        />
-      ) : activeTab === "Deliverables" ? (
-        <DeliverablesTab
-          scopes={scopes}
-          rows={byCategory("Deliverables")}
-          draft={drafts.Deliverables}
-          onDraft={updateDraft}
-          onCreate={createRow}
-          onDelete={deleteRow}
           saving={saving}
         />
       ) : (
@@ -449,43 +417,6 @@ function StandardTab({ activeTab, countries, states, rows, draft, onDraft, onCre
   );
 }
 
-function DeliverablesTab({ scopes, rows, draft, onDraft, onCreate, onDelete, saving }) {
-  const grouped = scopes.map((scope) => ({
-    ...scope,
-    deliverables: rows.filter((row) => parseDescription(row.description).scope === scope.code),
-  }));
-  const unassigned = rows.filter((row) => !parseDescription(row.description).scope);
-
-  return (
-    <div style={deliverableListStyle}>
-      {[...grouped, ...(unassigned.length ? [{ name: "General", code: "GENERAL", deliverables: unassigned }] : [])].map((scope) => (
-        <section key={scope.code} style={deliverableCardStyle}>
-          <h3 style={scopeTitleStyle}>{scope.name} ({scope.code})</h3>
-          <div style={chipRowStyle}>
-            {scope.deliverables.map((item) => (
-              <button key={item.id} type="button" onClick={() => onDelete(item)} style={chipStyle}>
-                {item.name} x
-              </button>
-            ))}
-          </div>
-          <div style={deliverableAddStyle}>
-            <input
-              value={draft.scope === scope.code ? draft.name : ""}
-              placeholder="Add a deliverable"
-              onChange={(e) => {
-                onDraft("scope", scope.code);
-                onDraft("name", e.target.value);
-              }}
-              style={inputStyle}
-            />
-            <button type="button" onClick={onCreate} disabled={saving === "create"} style={deleteButtonStyle}>+ Add</button>
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
 const masterRowShape = PropTypes.shape({
   id: PropTypes.number.isRequired,
   category: PropTypes.string.isRequired,
@@ -516,19 +447,6 @@ StandardTab.propTypes = {
   onDraft: PropTypes.func.isRequired,
   onCreate: PropTypes.func.isRequired,
   onUpdate: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired,
-  saving: PropTypes.string.isRequired,
-};
-
-DeliverablesTab.propTypes = {
-  scopes: PropTypes.arrayOf(masterRowShape).isRequired,
-  rows: PropTypes.arrayOf(masterRowShape).isRequired,
-  draft: PropTypes.shape({
-    scope: PropTypes.string,
-    name: PropTypes.string,
-  }).isRequired,
-  onDraft: PropTypes.func.isRequired,
-  onCreate: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
   saving: PropTypes.string.isRequired,
 };
@@ -628,47 +546,6 @@ const deleteButtonStyle = {
   padding: "8px 12px",
   fontWeight: 700,
   cursor: "pointer",
-};
-
-const deliverableListStyle = {
-  display: "grid",
-  gap: "14px",
-};
-
-const deliverableCardStyle = {
-  background: "white",
-  border: "1px solid var(--portal-border)",
-  borderRadius: "8px",
-  padding: "18px",
-};
-
-const scopeTitleStyle = {
-  margin: "0 0 12px",
-  color: "var(--portal-purple)",
-  fontSize: "16px",
-};
-
-const chipRowStyle = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "8px",
-  marginBottom: "12px",
-};
-
-const chipStyle = {
-  background: "#f3e8ff",
-  color: "var(--portal-purple)",
-  border: "none",
-  borderRadius: "999px",
-  padding: "5px 10px",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const deliverableAddStyle = {
-  display: "grid",
-  gridTemplateColumns: "1fr auto",
-  gap: "10px",
 };
 
 const emptyStyle = {

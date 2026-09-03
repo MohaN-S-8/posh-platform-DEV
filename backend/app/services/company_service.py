@@ -292,14 +292,14 @@ class CompanyService:
         role_labels = {
             1: "Super Admin",
             2: "Company Admin",
-            5: "Client Admin (Mgmt)",
+            5: "Admin",
             3: "IC",
             4: "Employee",
         }
         assignable_roles = {
             1: [1, 2, 5, 3, 4],
             2: [5, 3, 4],
-            5: [3, 4],
+            5: [4, 3],
             3: [4],
         }.get(current_user.role_id, [])
         if not assignable_roles:

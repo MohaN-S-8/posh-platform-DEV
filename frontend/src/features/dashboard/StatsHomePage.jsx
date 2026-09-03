@@ -9,165 +9,68 @@ import { useAuthStore } from "../../store/authStore";
 const roleContent = {
   1: {
     title: "Super Admin Home",
-    subtitle:
-      "XYZ Portal overview across services, organizations, users, certificates, and approvals.",
+    subtitle: "XYZ Portal overview across services, organizations, users, certificates, and approvals.",
     scope: "All companies",
-    checklist: [
-      "Companies configured",
-      "Services assigned",
-      "Certificates issued",
-      "Reports available",
-    ],
+    checklist: ["Companies configured", "Services assigned", "Certificates issued", "Reports available"],
   },
   2: {
     title: "Admin Home",
-    subtitle:
-      "Company-level PoSH operations, training governance, certificates, and received concerns.",
+    subtitle: "Company-level PoSH operations, training governance, certificates, and received concerns.",
     scope: "Your company",
-    checklist: [
-      "Client / Management users created",
-      "Training videos published",
-      "Certificates configured",
-      "Concerns reviewed",
-    ],
+    checklist: ["Client / Management users created", "Training videos published", "Certificates configured", "Concerns reviewed"],
   },
   5: {
     title: "Client / Management Home",
     subtitle: "Management view for IC setup and company user readiness.",
     scope: "Your company",
-    checklist: [
-      "IC users ready",
-      "Employee data monitored",
-      "Training availability tracked",
-      "Compliance reviewed",
-    ],
+    checklist: ["IC users ready", "Employee data monitored", "Training availability tracked", "Compliance reviewed"],
   },
   3: {
     title: "IC Home",
-    subtitle:
-      "Employee records, direct IC training, IC readiness, and reports.",
+    subtitle: "Employee records, direct IC training, IC readiness, and reports.",
     scope: "Your company",
-    checklist: [
-      "Employees uploaded",
-      "Training available",
-      "Pending users followed up",
-      "Reports downloaded",
-    ],
+    checklist: ["Employees uploaded", "Training available", "Pending users followed up", "Reports downloaded"],
   },
   4: {
     title: "Employee Home",
-    subtitle:
-      "Your PoSH training, assessment, certificates, and confidential concern access.",
+    subtitle: "Your PoSH training, assessment, certificates, and confidential concern access.",
     scope: "My training",
-    checklist: [
-      "Training started",
-      "Video watched",
-      "Assessment completed",
-      "Certificate downloaded",
-    ],
+    checklist: ["Training started", "Video watched", "Assessment completed", "Certificate downloaded"],
   },
 };
 
 function metricSet(user, data) {
   if (user?.role_id === 1) {
     return [
-      {
-        label: "Active Companies",
-        value: data?.total_companies ?? 0,
-        trend: "Platform live data",
-      },
-      {
-        label: "Active Users",
-        value: data?.total_users ?? 0,
-        trend: "Across all companies",
-      },
-      {
-        label: "Certificates",
-        value: data?.total_certificates_issued ?? 0,
-        trend: "Issued certificates",
-      },
-      {
-        label: "Completions",
-        value: data?.total_course_completions ?? 0,
-        trend: "Training completions",
-      },
-      {
-        label: "Compliance",
-        value: `${data?.compliance_rate ?? 0}%`,
-        trend: "Completed employees",
-      },
-      {
-        label: "Pending Approvals",
-        value: totalPendingApprovals(data),
-        trend: "Needs Super Admin action",
-      },
+      { label: "Active Companies", value: data?.total_companies ?? 0, trend: "Platform live data" },
+      { label: "Active Users", value: data?.total_users ?? 0, trend: "Across all companies" },
+      { label: "Certificates", value: data?.total_certificates_issued ?? 0, trend: "Issued certificates" },
+      { label: "Completions", value: data?.total_course_completions ?? 0, trend: "Training completions" },
+      { label: "Compliance", value: `${data?.compliance_rate ?? 0}%`, trend: "Completed employees" },
+      { label: "Pending Approvals", value: totalPendingApprovals(data), trend: "Needs Super Admin action" },
     ];
   }
   if (user?.role_id === 2) {
     return [
-      {
-        label: "Client Users",
-        value: data?.client_users ?? 0,
-        trend: "Client / Mgmt accounts",
-      },
-      {
-        label: "Active",
-        value: data?.active_client_users ?? 0,
-        trend: "Ready to log in",
-      },
-      {
-        label: "Inactive",
-        value: data?.inactive_client_users ?? 0,
-        trend: "Disabled accounts",
-      },
-      {
-        label: "Company Scope",
-        value: data?.company_scope ?? 0,
-        trend: "Visible companies",
-      },
+      { label: "Client Users", value: data?.client_users ?? 0, trend: "Client / Mgmt accounts" },
+      { label: "Active", value: data?.active_client_users ?? 0, trend: "Ready to log in" },
+      { label: "Inactive", value: data?.inactive_client_users ?? 0, trend: "Disabled accounts" },
+      { label: "Company Scope", value: data?.company_scope ?? 0, trend: "Visible companies" },
     ];
   }
   if (user?.role_id === 3 || user?.role_id === 5) {
     return [
-      {
-        label: "Employees",
-        value: data?.total_employees ?? 0,
-        trend: "Company records",
-      },
-      {
-        label: "Departments",
-        value: data?.department_breakdown?.length ?? 0,
-        trend: "Active groups",
-      },
-      {
-        label: "Active Records",
-        value: data?.total_employees ?? 0,
-        trend: "Employee master",
-      },
-      {
-        label: "Pending Follow-Up",
-        value: data?.pending_followup ?? 0,
-        trend: "Needs action",
-      },
+      { label: "Employees", value: data?.total_employees ?? 0, trend: "Company records" },
+      { label: "Departments", value: data?.department_breakdown?.length ?? 0, trend: "Active groups" },
+      { label: "Active Records", value: data?.total_employees ?? 0, trend: "Employee master" },
+      { label: "Pending Follow-Up", value: data?.pending_followup ?? 0, trend: "Needs action" },
     ];
   }
   return [
-    {
-      label: "Available Courses",
-      value: data?.total_courses ?? 0,
-      trend: "My courses",
-    },
+    { label: "Available Courses", value: data?.total_courses ?? 0, trend: "My courses" },
     { label: "Completed", value: data?.completed ?? 0, trend: "Training done" },
-    {
-      label: "Pending",
-      value: (data?.in_progress ?? 0) + (data?.not_started ?? 0),
-      trend: "Still open",
-    },
-    {
-      label: "Certificates",
-      value: data?.certificates ?? 0,
-      trend: `${data?.completion_rate ?? 0}% complete`,
-    },
+    { label: "Pending", value: (data?.in_progress ?? 0) + (data?.not_started ?? 0), trend: "Still open" },
+    { label: "Certificates", value: data?.certificates ?? 0, trend: `${data?.completion_rate ?? 0}% complete` },
   ];
 }
 
@@ -184,8 +87,7 @@ function totalPendingApprovals(data) {
 function loadEndpoint(user) {
   if (user?.role_id === 1) return "/analytics/overview";
   if (user?.role_id === 2) return "/users/";
-  if (user?.role_id === 3 || user?.role_id === 5)
-    return "/hr/employees/summary";
+  if (user?.role_id === 3 || user?.role_id === 5) return "/hr/employees/summary";
   return "/employee/summary";
 }
 
@@ -194,10 +96,8 @@ function normalizeSummary(user, summary) {
   const clientUsers = summary.filter((row) => row.role_id === 5);
   return {
     client_users: clientUsers.length,
-    active_client_users: clientUsers.filter((row) => row.status === "Active")
-      .length,
-    inactive_client_users: clientUsers.filter((row) => row.status !== "Active")
-      .length,
+    active_client_users: clientUsers.filter((row) => row.status === "Active").length,
+    inactive_client_users: clientUsers.filter((row) => row.status !== "Active").length,
     company_scope: new Set(clientUsers.map((row) => row.company_id)).size,
   };
 }
@@ -207,18 +107,16 @@ function trainingLibraryRows(serviceTraining) {
   Object.entries(serviceTraining || {})
     .filter(([service]) => String(service || "").toUpperCase() === "POSH")
     .forEach(([service, levels]) => {
-      Object.entries(levels || {}).forEach(([level, audiences]) => {
-        Object.entries(audiences || {}).forEach(([audience, counts]) => {
-          rows.push([
-            `${service} / ${level} / ${audience}`,
-            `${counts.published || 0} published / ${counts.draft || 0} draft`,
-          ]);
-        });
+    Object.entries(levels || {}).forEach(([level, audiences]) => {
+      Object.entries(audiences || {}).forEach(([audience, counts]) => {
+        rows.push([
+          `${service} / ${level} / ${audience}`,
+          `${counts.published || 0} published / ${counts.draft || 0} draft`,
+        ]);
       });
     });
-  return rows.length
-    ? rows
-    : [["PoSH / Basic / Employee", "0 published / 0 draft"]];
+  });
+  return rows.length ? rows : [["PoSH / Basic / Employee", "0 published / 0 draft"]];
 }
 
 export function StatsHomePage() {
@@ -245,12 +143,7 @@ export function StatsHomePage() {
             setData(normalizeSummary(user, summaryRes.value.data));
           } else {
             setData(null);
-            setError(
-              apiErrorMessage(
-                summaryRes.reason,
-                "Home metrics are unavailable.",
-              ),
-            );
+            setError(apiErrorMessage(summaryRes.reason, "Home metrics are unavailable."));
           }
           if (profileRes.status === "fulfilled") {
             setProfile(profileRes.value.data);
@@ -299,13 +192,11 @@ export function StatsHomePage() {
           ([service]) => String(service || "").toUpperCase() === "POSH",
         ).length
           ? Object.entries(data.services)
-              .filter(
-                ([service]) => String(service || "").toUpperCase() === "POSH",
-              )
+              .filter(([service]) => String(service || "").toUpperCase() === "POSH")
               .map(([service, value]) => [
-                service,
-                `${value.companies} org / ${value.employees} emp / ${value.certificates} cert`,
-              ])
+              service,
+              `${value.companies} org / ${value.employees} emp / ${value.certificates} cert`,
+            ])
           : [["PoSH", "0 org / 0 emp / 0 cert"]],
       },
       {
@@ -327,10 +218,7 @@ export function StatsHomePage() {
         rows: [
           ["Assessment Passed", data?.assessments?.passed ?? 0],
           ["Assessment Failed", data?.assessments?.failed ?? 0],
-          [
-            "Average Pass Score",
-            `${data?.assessments?.average_pass_score ?? 0}%`,
-          ],
+          ["Average Pass Score", `${data?.assessments?.average_pass_score ?? 0}%`],
           ["Certificates Issued", data?.certificates?.issued ?? 0],
           ["Templates Pending", data?.certificates?.templates_pending ?? 0],
         ],
@@ -349,10 +237,7 @@ export function StatsHomePage() {
         rows: [
           ["Company Approval", data?.approvals?.companies_pending ?? 0],
           ["Video Publish", data?.approvals?.videos_pending ?? 0],
-          [
-            "Certificate Template",
-            data?.approvals?.certificate_templates_pending ?? 0,
-          ],
+          ["Certificate Template", data?.approvals?.certificate_templates_pending ?? 0],
           ["Open Concerns", data?.approvals?.open_concerns ?? 0],
         ],
       },
@@ -361,7 +246,11 @@ export function StatsHomePage() {
 
   return (
     <PortalShell title={content.title} subtitle={content.subtitle}>
-      {error && <div className="portal-card portal-home-error">{error}</div>}
+      {error && (
+        <div className="portal-card portal-home-error">
+          {error}
+        </div>
+      )}
 
       {user?.role_id !== 1 && (
         <section className="portal-home-hero">
@@ -369,14 +258,13 @@ export function StatsHomePage() {
             <div className="portal-home-eyebrow">Welcome back</div>
             <h2>{displayName}</h2>
             <p>
-              {companyName} is happy to see your ownership and responsibility in
-              taking the time to learn about the Prevention of Sexual Harassment
-              (PoSH) policy.
+              {companyName} is happy to see your ownership and responsibility in taking
+              the time to learn about the Prevention of Sexual Harassment (PoSH) policy.
             </p>
             <p>
-              Every module you complete and every question you ask helps us
-              build a workplace where everyone feels safe, respected and heard.
-              Thank you for being part of that effort.
+              Every module you complete and every question you ask helps us build a
+              workplace where everyone feels safe, respected and heard. Thank you for
+              being part of that effort.
             </p>
           </div>
           <div className="portal-home-shield">
@@ -389,9 +277,7 @@ export function StatsHomePage() {
       <section className="portal-grid-4 portal-home-kpis">
         {metrics.map((metric) => (
           <div className="portal-card" key={metric.label}>
-            <div className="portal-kpi-value">
-              {loading ? "-" : metric.value}
-            </div>
+            <div className="portal-kpi-value">{loading ? "-" : metric.value}</div>
             <div className="portal-kpi-label">{metric.label}</div>
             <div className="portal-kpi-trend">{metric.trend}</div>
           </div>
@@ -400,9 +286,7 @@ export function StatsHomePage() {
 
       {user?.role_id === 1 && (
         <section style={sectionStyle}>
-          <div className="portal-section-title">
-            XYZ Hierarchy, Services & Organizations
-          </div>
+          <div className="portal-section-title">XYZ Hierarchy, Services & Organizations</div>
           <div className="portal-auto-grid">
             {superAdminSections.map((section) => (
               <article key={section.title} className="portal-card">

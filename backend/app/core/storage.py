@@ -21,7 +21,7 @@ def get_storage_client():
             aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "minioadmin"),
             aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "minioadmin123"),
             config=Config(signature_version="s3v4"),
-            region_name=os.environ.get("S3_REGION", "us-east-1"),
+            region_name="us-east-1",
         )
     return _client
 
@@ -40,7 +40,7 @@ def get_presign_client():
             aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "minioadmin"),
             aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "minioadmin123"),
             config=Config(signature_version="s3v4"),
-            region_name=os.environ.get("S3_REGION", "us-east-1"),
+            region_name="us-east-1",
         )
     return _presign_client
 

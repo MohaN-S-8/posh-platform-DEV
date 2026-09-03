@@ -11,16 +11,16 @@ import { useAuthStore } from "../../store/authStore";
 const ROLES = {
   1: "Super Admin",
   2: "Corp Admin",
-  5: "Client / Management",
+  5: "Admin",
   3: "IC",
   4: "Employee",
 };
 
 const ROLE_CREATE_FLOW = {
   1: [1, 2, 5, 3, 4],
-  2: [5],
-  5: [3, 4],
-  3: [4],
+  2: [5, 3, 4],
+  5: [4, 3],
+  3: [],
 };
 
 function defaultRoleFor(user) {
@@ -34,13 +34,13 @@ function defaultIcRoleFor(roleId) {
 
 function emptyMessageFor(user) {
   if (user?.role_id === 2) {
-    return "No Client / Management users found. Company Admin can only create and manage Client / Management users here.";
+    return "No Client / Management, IC, or Employee users found. Company Admin can create and manage these users here.";
   }
   if (user?.role_id === 5) {
-    return "No IC or Employee users found. Client / Management can only create and manage its own IC and Employee users here.";
+    return "No Employee or IC users found. Admin can create and manage its own Employee and IC users here.";
   }
   if (user?.role_id === 3) {
-    return "No employees found. IC can only create and manage Employee users here.";
+    return "IC cannot create or manage employee accounts.";
   }
   return "No users found.";
 }
@@ -154,15 +154,15 @@ export function UserListPage() {
   const isHrRoute = location.pathname.startsWith("/hr/");
   const pageTitle =
     user?.role_id === 2
-      ? "Client / Management Users"
+      ? "Company Users"
       : isHrRoute
         ? "Employee Management"
         : "User Management";
   const createButtonLabel =
     user?.role_id === 2
-      ? "New Client / Mgmt"
+      ? "New Company User"
       : user?.role_id === 5
-        ? "New IC / Employee"
+        ? "New Employee / IC"
         : user?.role_id === 3
           ? "New Employee"
           : "New User";

@@ -12,7 +12,7 @@ export function AdminConcernsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState(null);
-  const canUpdateStatus = [3, 5].includes(user?.role_id);
+  const canUpdateStatus = [1, 3, 5].includes(user?.role_id);
   const groupedConcernSections = useMemo(() => {
     if (![1, 2].includes(user?.role_id)) {
       return [{ title: "", concerns }];
@@ -76,7 +76,7 @@ export function AdminConcernsPage() {
       title="Concerns Received"
       subtitle={
         user?.role_id === 1
-          ? "View concerns across all organizations."
+          ? "View, review, and close concerns across all organizations."
           : user?.role_id === 2
             ? "View concerns grouped by assigned organization."
             : "Review and close concerns submitted in your organization."

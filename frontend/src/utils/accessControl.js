@@ -11,7 +11,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
   ],
   2: ["users.manage", "videos.upload", "videos.publish"],
   5: ["users.manage", "videos.upload", "certificates.manage", "reports.view"],
-  3: ["users.manage", "reports.view", "courses.watch"],
+  3: ["reports.view", "courses.watch"],
   4: ["courses.watch"],
 };
 

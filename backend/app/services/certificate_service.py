@@ -1,6 +1,5 @@
 import io
 import logging
-import os
 import uuid
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -24,7 +23,7 @@ from app.models.certificate import Certificate, CertificateTemplate
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
 
-CERT_BUCKET = os.environ.get("MINIO_BUCKET_CERTIFICATES", "posh-certificates")
+CERT_BUCKET = "posh-certificates"
 logger = logging.getLogger(__name__)
 
 

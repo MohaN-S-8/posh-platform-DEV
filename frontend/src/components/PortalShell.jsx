@@ -73,7 +73,6 @@ const defaultAllowed = {
     "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
-    "Employee Master",
   ]),
   Employee: new Set([
     "Home",
@@ -221,7 +220,6 @@ const moduleCatalog = [
     accessItem: "Employee Master",
     label: "Employee Master",
     to: (roleId) => {
-      if (roleId === 3) return "/hr/users";
       if (roleId === 5) return "/admin/users";
       if (roleId === 2) return "/admin/users";
       return "/admin/users";

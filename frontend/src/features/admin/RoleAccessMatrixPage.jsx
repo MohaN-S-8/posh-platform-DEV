@@ -68,7 +68,6 @@ const defaultAllowed = {
     "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
-    "Employee Master",
   ]),
   Employee: new Set([
     "Home",

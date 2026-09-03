@@ -150,7 +150,7 @@ async def update_concern_status(
     data: ConcernStatusUpdate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles_with_matrix([5, 3], ["POSH Complaints"])),
+    current_user=Depends(require_roles_with_matrix([1, 5, 3], ["POSH Complaints"])),
 ):
     result = await db.execute(select(Concern).where(Concern.id == concern_id))
     concern = result.scalar_one_or_none()

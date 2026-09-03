@@ -80,7 +80,7 @@ const dashboardItems = [
   },
   {
     title: "Masters",
-    description: "State, city, scope, deliverables, and office masters.",
+    description: "Country, state, city, scope, and office masters.",
     path: "/super-admin/masters",
     accessItem: "Masters",
   },

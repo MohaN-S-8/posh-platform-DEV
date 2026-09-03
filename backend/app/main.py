@@ -777,7 +777,7 @@ async def run_seed_on_startup():
                 JOIN permission_master pm ON pm.permission_id = rp.permission_id
                 WHERE
                     (rp.role_id = 2 AND pm.permission_key NOT IN ('users.manage','videos.upload','videos.publish'))
-                    OR (rp.role_id = 3 AND pm.permission_key IN ('videos.manage','videos.upload','training.assign'))
+                    OR (rp.role_id = 3 AND pm.permission_key IN ('users.manage','videos.manage','videos.upload','training.assign'))
                     OR (rp.role_id = 5 AND pm.permission_key NOT IN ('users.manage','videos.upload','certificates.manage','reports.view'))
                 """
             )
@@ -792,7 +792,7 @@ async def run_seed_on_startup():
                 UNION SELECT 5, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage','videos.upload','certificates.manage','reports.view')
                 UNION SELECT 3, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','reports.view','courses.watch')
+                WHERE permission_key IN ('reports.view','courses.watch')
                 UNION SELECT 4, permission_id FROM permission_master
                 WHERE permission_key IN ('courses.watch')
                 """
@@ -900,14 +900,16 @@ async def run_seed_on_startup():
                     ('IC', 'POSH Compliance', 'Access enabled', TRUE, 4),
                     ('IC', 'POSH Complaints', 'Access enabled', TRUE, 5),
                     ('IC', 'Analytics & Reports', 'Access enabled', TRUE, 6),
-                    ('IC', 'Employee Master', 'Access enabled', TRUE, 7),
+                    ('IC', 'Employee Master', 'NO Access', FALSE, 7),
                     ('Employee', 'Home', 'Access enabled', TRUE, 1),
                     ('Employee', 'PoSH Policy', 'Access enabled', TRUE, 2),
                     ('Employee', 'POSH Awareness Training', 'Access enabled', TRUE, 3),
                     ('Employee', 'Assessment & Certificate', 'Access enabled', TRUE, 4),
                     ('Employee', 'POSH Complaints', 'Access enabled', TRUE, 5)
                 ON DUPLICATE KEY UPDATE
-                    role_label = role_label
+                    access_status = VALUES(access_status),
+                    is_allowed = VALUES(is_allowed),
+                    display_order = VALUES(display_order)
                 """
             )
         )
