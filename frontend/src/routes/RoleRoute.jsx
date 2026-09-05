@@ -33,6 +33,7 @@ const defaultAllowed = {
     "PoSH Policy",
     "Company Setup",
     "Employee Master",
+    "Masters",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",

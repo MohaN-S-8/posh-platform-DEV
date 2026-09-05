@@ -19,6 +19,7 @@ from app.schemas.admin_config import (
 
 router = APIRouter(prefix="/admin-config", tags=["POSH Admin Configuration"])
 SUPER_ADMIN_ROLES = [1]
+MASTER_VIEW_ROLES = [1, 2]
 ROLE_ACCESS_LABELS = {
     1: "Super Admin",
     2: "Company Admin",
@@ -84,7 +85,7 @@ async def _duplicate_exists(db: AsyncSession, query: str, params: dict) -> bool:
 @router.get("/", response_model=AdminConfigResponse)
 async def get_admin_config(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(SUPER_ADMIN_ROLES)),
+    current_user=Depends(require_roles(MASTER_VIEW_ROLES)),
 ):
     master_result = await db.execute(
         text(

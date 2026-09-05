@@ -22,6 +22,9 @@ const emptyContact = {
   email: "",
 };
 
+const POSH_SERVICE_CODE = "POSH";
+const POSH_SERVICE_NAME = "PoSH Training & Compliance";
+
 const emptyBranch = {
   branch_name: "",
   branch_id: "",
@@ -36,7 +39,7 @@ const emptyForm = {
   company_code: "",
   company_name: "",
   reference_no: "",
-  company_type: "",
+  company_type: "Limited",
   company_status_type: "Client",
   client_id: "",
   scope_codes_json: "",
@@ -47,6 +50,9 @@ const emptyForm = {
   website: "",
   registration_number: "",
   gst_number: "",
+  posh_policy: "",
+  posh_policy_version: "",
+  posh_policy_effective_date: "",
   employee_strength: "",
   address: "",
   corp_address_json: "",
@@ -60,23 +66,61 @@ const emptyForm = {
 };
 
 const fields = [
-  { label: "Reference No", key: "reference_no", required: true, placeholder: "01/2026" },
-  { label: "Company Name", key: "company_name", required: true, placeholder: "Select or enter company name" },
-  { label: "Company Code (first 4 letters)", key: "company_code", required: true, createOnly: true, placeholder: "Auto-fills from company name" },
-  { label: "Company Status", key: "company_status_type", type: "select", options: ["Client", "Master"] },
+  {
+    label: "Reference No",
+    key: "reference_no",
+    required: true,
+    placeholder: "01/2026",
+  },
+  {
+    label: "Company Name",
+    key: "company_name",
+    required: true,
+    placeholder: "Select or enter company name",
+  },
+  {
+    label: "Company Code (first 4 letters)",
+    key: "company_code",
+    required: true,
+    createOnly: true,
+    placeholder: "Auto-fills from company name",
+  },
+  {
+    label: "Company Status",
+    key: "company_status_type",
+    type: "select",
+    options: ["Client", "Master"],
+  },
 ];
 
 const clientDataFields = [
-  { label: "Referral From", key: "referral_from", type: "select", options: ["Social Media", "Friends", "BNI", "Vendors", "Client", "Relatives"] },
+  {
+    label: "Referral From",
+    key: "referral_from",
+    type: "select",
+    options: [
+      "Social Media",
+      "Friends",
+      "BNI",
+      "Vendors",
+      "Client",
+      "Relatives",
+    ],
+  },
   { label: "Referral Name", key: "referral_name" },
   { label: "Contact Person Name", key: "contact_person", required: true },
-  { label: "Contact Person Email", key: "contact_email", type: "email", required: true },
+  {
+    label: "Contact Person Email",
+    key: "contact_email",
+    type: "email",
+    required: true,
+  },
   { label: "Contact Person Number", key: "contact_mobile", required: true },
 ];
 
 const workOrderFields = [
   ["client_id", "Client ID", "readonly"],
-  ["deliverables", "Deliverables", "deliverables"],
+  ["deliverables", "Deliverables"],
   ["start_date", "Start Date", "date"],
   ["stop_date", "Stop Date", "date"],
   ["frequency", "Frequency", "frequency"],
@@ -106,6 +150,89 @@ const getJsonObject = (form, key, fallback) => {
     : fallback;
 };
 
+const parseCsvRows = (text) => {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+};
+
+const parseBranchCsv = (text) => {
+  const rows = parseCsvRows(text);
+  if (!rows.length) return [];
+  const normalizeHeader = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  const fieldForHeader = {
+    branchname: "branch_name",
+    branchid: "branch_id",
+    address1: "address1",
+    branchaddress1: "address1",
+    address2: "address2",
+    branchaddress2: "address2",
+    city: "city",
+    branchcity: "city",
+    state: "state",
+    branchstate: "state",
+    country: "country",
+    branchcountry: "country",
+  };
+  const headerRow = rows[0].map(normalizeHeader);
+  const hasHeader = headerRow.some((header) => fieldForHeader[header]);
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  const fallbackOrder = [
+    "branch_name",
+    "branch_id",
+    "address1",
+    "address2",
+    "city",
+    "state",
+    "country",
+  ];
+
+  return dataRows
+    .map((cells) => {
+      const branch = { ...emptyBranch };
+      cells.forEach((value, index) => {
+        const field = hasHeader
+          ? fieldForHeader[headerRow[index]]
+          : fallbackOrder[index];
+        if (field) branch[field] = value;
+      });
+      return branch;
+    })
+    .filter((branch) =>
+      Object.values(branch).some((value) => String(value || "").trim()),
+    );
+};
+
 const setJsonObjectValue = (setForm, key, fallback, field, value) => {
   setForm((current) => {
     const row = getJsonObject(current, key, fallback);
@@ -121,24 +248,11 @@ const setJsonArrayValue = (setForm, key, index, field, value) => {
   });
 };
 
-const toggleJsonArrayMultiValue = (setForm, key, index, field, value) => {
-  setForm((current) => {
-    const rows = getJsonArray(current, key).map((row) => ({ ...row }));
-    const existing = String(rows[index]?.[field] || "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const next = existing.includes(value)
-      ? existing.filter((item) => item !== value)
-      : [...existing, value];
-    rows[index] = { ...rows[index], [field]: next.join(", ") };
-    return { ...current, [key]: JSON.stringify(rows) };
-  });
-};
-
 const removeJsonArrayRow = (setForm, key, index) => {
   setForm((current) => {
-    const rows = getJsonArray(current, key).filter((_, rowIndex) => rowIndex !== index);
+    const rows = getJsonArray(current, key).filter(
+      (_, rowIndex) => rowIndex !== index,
+    );
     return { ...current, [key]: JSON.stringify(rows.length ? rows : [{}]) };
   });
 };
@@ -175,10 +289,37 @@ const generateClientIdPreview = (companyCode, scope, sequence) => {
   return `${companyCode}/${scope}/${year}-${sequence}`;
 };
 
+const fixedPoshServiceRows = (form) => {
+  const rows = getJsonArray(form, "service_details_json");
+  const existing =
+    rows.find((row) => row.scope === POSH_SERVICE_CODE) ||
+    rows.find((row) =>
+      [
+        "assigned_to",
+        "start_date",
+        "stop_date",
+        "frequency",
+        "notes",
+        "billing_amount",
+        "deliverables",
+      ].some((field) => row[field]),
+    ) ||
+    {};
+  return [
+    {
+      ...existing,
+      scope: POSH_SERVICE_CODE,
+      deliverables: existing.deliverables || POSH_SERVICE_NAME,
+    },
+  ];
+};
+
 const nextReferenceNo = (companies) => {
   const year = new Date().getFullYear();
   const maxNumber = companies.reduce((maxValue, company) => {
-    const [numberPart, yearPart] = String(company.reference_no || "").split("/");
+    const [numberPart, yearPart] = String(company.reference_no || "").split(
+      "/",
+    );
     if (Number(yearPart) !== year) return maxValue;
     const parsed = Number(numberPart);
     return Number.isFinite(parsed) ? Math.max(maxValue, parsed) : maxValue;
@@ -206,7 +347,12 @@ export function CompanyListPage() {
       const res = await apiClient.get("/companies/master-codes/");
       setMasters(res.data || []);
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load state, city, and scope masters."));
+      setError(
+        apiErrorMessage(
+          err,
+          "Failed to load country, state, and city masters.",
+        ),
+      );
     }
   }, []);
 
@@ -215,7 +361,9 @@ export function CompanyListPage() {
     setError("");
     try {
       const res = await apiClient.get("/companies/");
-      setCompanies((res.data || []).filter((company) => Number(company.company_id) !== 1));
+      setCompanies(
+        (res.data || []).filter((company) => Number(company.company_id) !== 1),
+      );
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to load companies."));
     } finally {
@@ -248,52 +396,59 @@ export function CompanyListPage() {
   }, [fetchAssignableUsers]);
 
   const masterOptions = useCallback(
-    (category) => masters.filter((item) => item.category === category && item.is_active),
+    (category) =>
+      masters.filter((item) => item.category === category && item.is_active),
     [masters],
   );
 
-  const scopedDeliverables = useCallback(
-    (scopeCode) =>
-      masterOptions("Deliverables").filter((item) => {
-        const description = parseJson(item.description, {});
-        return !description.scope || description.scope === scopeCode;
-      }),
-    [masterOptions],
-  );
-
-  const normalizePayload = () => ({
-    ...form,
-    reference_no: form.reference_no || nextReferenceNo(companies),
-    company_code: generateCompanyCode(form.company_name),
-    company_type: form.company_type || "Work Order",
-    company_status_type: form.company_status_type || "Client",
-    industry_type: form.industry_type,
-    scope_codes_json: form.scope_codes_json || JSON.stringify([]),
-    service_details_json: form.service_details_json || JSON.stringify([]),
-    corp_address_json: form.corp_address_json || JSON.stringify(emptyAddress),
-    billing_address_json: form.billing_address_json || JSON.stringify(emptyAddress),
-    account_contact_json: form.account_contact_json || JSON.stringify(emptyContact),
-    coordinator_contact_json: form.coordinator_contact_json || JSON.stringify(emptyContact),
-    branches_json: form.branches_json || JSON.stringify([]),
-    employee_strength: form.employee_strength ? Number(form.employee_strength) : null,
-    contact_person:
-      form.contact_person ||
-      getJsonObject(form, "coordinator_contact_json", emptyContact).name ||
-      null,
-    contact_email:
-      form.contact_email ||
-      getJsonObject(form, "coordinator_contact_json", emptyContact).email ||
-      null,
-    contact_mobile:
-      form.contact_mobile ||
-      getJsonObject(form, "coordinator_contact_json", emptyContact).contact_no ||
-      null,
-  });
+  const normalizePayload = () => {
+    const serviceRows = fixedPoshServiceRows(form);
+    return {
+      ...form,
+      reference_no: form.reference_no || nextReferenceNo(companies),
+      company_code: generateCompanyCode(form.company_name),
+      company_type:
+        form.company_type && form.company_type !== "Work Order"
+          ? form.company_type
+          : "Limited",
+      company_status_type: form.company_status_type || "Client",
+      industry_type: form.industry_type,
+      scope_codes_json: JSON.stringify([POSH_SERVICE_CODE]),
+      service_details_json: JSON.stringify(serviceRows),
+      corp_address_json: form.corp_address_json || JSON.stringify(emptyAddress),
+      billing_address_json:
+        form.billing_address_json || JSON.stringify(emptyAddress),
+      account_contact_json:
+        form.account_contact_json || JSON.stringify(emptyContact),
+      coordinator_contact_json:
+        form.coordinator_contact_json || JSON.stringify(emptyContact),
+      branches_json: form.branches_json || JSON.stringify([]),
+      employee_strength: form.employee_strength
+        ? Number(form.employee_strength)
+        : null,
+      contact_person:
+        form.contact_person ||
+        getJsonObject(form, "coordinator_contact_json", emptyContact).name ||
+        null,
+      contact_email:
+        form.contact_email ||
+        getJsonObject(form, "coordinator_contact_json", emptyContact).email ||
+        null,
+      contact_mobile:
+        form.contact_mobile ||
+        getJsonObject(form, "coordinator_contact_json", emptyContact)
+          .contact_no ||
+        null,
+    };
+  };
 
   const handleCompanyNameChange = (value) => {
     const match =
       value.trim().length >= 3
-        ? companies.find((company) => company.company_name.toLowerCase() === value.trim().toLowerCase())
+        ? companies.find(
+            (company) =>
+              company.company_name.toLowerCase() === value.trim().toLowerCase(),
+          )
         : null;
     if (match && !editingCompany) {
       setSelectedExistingCompany(match);
@@ -302,8 +457,8 @@ export function CompanyListPage() {
         ...match,
         company_name: match.company_name,
         company_code: match.company_code,
-        service_details_json: JSON.stringify([{}]),
-        scope_codes_json: "",
+        service_details_json: JSON.stringify(fixedPoshServiceRows(match)),
+        scope_codes_json: JSON.stringify([POSH_SERVICE_CODE]),
         client_id: "",
         employee_strength: match.employee_strength || "",
       });
@@ -313,14 +468,21 @@ export function CompanyListPage() {
     setForm((current) => ({
       ...current,
       company_name: value,
-      company_code: !editingCompany ? generateCompanyCode(value) : current.company_code,
+      company_code: !editingCompany
+        ? generateCompanyCode(value)
+        : current.company_code,
     }));
   };
 
   const openCreate = () => {
     setEditingCompany(null);
     setSelectedExistingCompany(null);
-    setForm({ ...emptyForm, reference_no: nextReferenceNo(companies) });
+    setForm({
+      ...emptyForm,
+      reference_no: nextReferenceNo(companies),
+      service_details_json: JSON.stringify(fixedPoshServiceRows(emptyForm)),
+      scope_codes_json: JSON.stringify([POSH_SERVICE_CODE]),
+    });
     setShowForm(true);
     setError("");
     setSuccess("");
@@ -333,6 +495,8 @@ export function CompanyListPage() {
       ...emptyForm,
       ...company,
       employee_strength: company.employee_strength || "",
+      service_details_json: JSON.stringify(fixedPoshServiceRows(company)),
+      scope_codes_json: JSON.stringify([POSH_SERVICE_CODE]),
     });
     setShowForm(true);
     setError("");
@@ -347,17 +511,9 @@ export function CompanyListPage() {
     }
     const generatedCompanyCode = generateCompanyCode(form.company_name);
     if (generatedCompanyCode.length !== 4) {
-      setError("Company name must contain at least 4 letters to generate the company code.");
-      return;
-    }
-    const selectedScopes = getJsonArray(form, "service_details_json").filter((row) => row.scope);
-    if (!selectedScopes.length) {
-      setError("Select at least one Scope of Work.");
-      return;
-    }
-    const missingAssignment = selectedScopes.find((row) => !row.assigned_to);
-    if (missingAssignment) {
-      setError("Assign every selected service before submitting.");
+      setError(
+        "Company name must contain at least 4 letters to generate the company code.",
+      );
       return;
     }
     setSubmitting(true);
@@ -372,7 +528,10 @@ export function CompanyListPage() {
       } else if (selectedExistingCompany) {
         const payload = normalizePayload();
         delete payload.company_code;
-        await apiClient.put(`/companies/${selectedExistingCompany.company_id}`, payload);
+        await apiClient.put(
+          `/companies/${selectedExistingCompany.company_id}`,
+          payload,
+        );
         setSuccess("Company work order submitted for approval.");
       } else {
         await apiClient.post("/companies/", normalizePayload());
@@ -395,7 +554,9 @@ export function CompanyListPage() {
     setError("");
     setSuccess("");
     try {
-      await apiClient.patch(`/companies/${company.company_id}/status?status=${newStatus}`);
+      await apiClient.patch(
+        `/companies/${company.company_id}/status?status=${newStatus}`,
+      );
       setSuccess(`Company ${newStatus.toLowerCase()}.`);
       await fetchCompanies();
     } catch (err) {
@@ -408,7 +569,9 @@ export function CompanyListPage() {
     setSuccess("");
     setApprovingCompanyId(company.company_id);
     try {
-      const res = await apiClient.patch(`/companies/${company.company_id}/approve`);
+      const res = await apiClient.patch(
+        `/companies/${company.company_id}/approve`,
+      );
       const summary = res.data?.email_summary;
       if (summary?.failed) {
         setSuccess(
@@ -428,7 +591,11 @@ export function CompanyListPage() {
   };
 
   const deleteCompany = async (company) => {
-    if (!window.confirm(`Delete ${company.company_name}? This will remove it from company lists.`)) {
+    if (
+      !window.confirm(
+        `Delete ${company.company_name}? This will remove it from company lists.`,
+      )
+    ) {
       return;
     }
     setError("");
@@ -442,20 +609,14 @@ export function CompanyListPage() {
     }
   };
 
-  const toggleScope = (scopeCode) => {
-    setForm((current) => {
-      const rows = getJsonArray(current, "service_details_json").map((row) => ({ ...row }));
-      const exists = rows.some((row) => row.scope === scopeCode);
-      const nextRows = exists
-        ? rows.filter((row) => row.scope !== scopeCode)
-        : [...rows.filter((row) => row.scope), { scope: scopeCode }];
-      return {
-        ...current,
-        scope_codes_json: JSON.stringify(nextRows.map((row) => row.scope)),
-        service_details_json: JSON.stringify(nextRows.length ? nextRows : [{}]),
-      };
-    });
-  };
+  const poshService = fixedPoshServiceRows(form)[0];
+  const poshPreviewClientId =
+    poshService.client_id ||
+    generateClientIdPreview(
+      form.company_code,
+      POSH_SERVICE_CODE,
+      nextClientSequence(companies),
+    );
 
   return (
     <PortalShell
@@ -500,13 +661,6 @@ export function CompanyListPage() {
           </option>
         ))}
       </datalist>
-      <datalist id="scope-code-options">
-        {masterOptions("Scope of Work ID").map((item) => (
-          <option key={item.id} value={item.code}>
-            {item.name}
-          </option>
-        ))}
-      </datalist>
       <datalist id="company-name-options">
         {companies.map((company) => (
           <option key={company.company_id} value={company.company_name}>
@@ -521,10 +675,14 @@ export function CompanyListPage() {
       {showForm && (
         <div style={panelStyle}>
           <h3 style={{ color: "var(--portal-purple)", marginTop: 0 }}>
-            {editingCompany ? "Edit Company & Work Order" : "Create Company & Work Order"}
+            {editingCompany
+              ? "Edit Company & Work Order"
+              : "Create Company & Work Order"}
           </h3>
           <p style={helperTextStyle}>
-            Reference No auto-generates as Running No / Year. Company Code derives from the first 4 letters of the company name. Selecting one or more scopes generates a Client ID per scope automatically.
+            Reference No auto-generates as Running No / Year. Company Code
+            derives from the first 4 letters of the company name. Selecting one
+            or more scopes generates a Client ID per scope automatically.
           </p>
           <form onSubmit={saveCompany}>
             <div style={formGridStyle}>
@@ -542,239 +700,222 @@ export function CompanyListPage() {
                     placeholder,
                     options,
                   }) => (
-                  <label key={key} style={labelStyle}>
-                    {label}
-                    {type === "select" ? (
-                      <select
-                        required={required}
-                        value={form[key] || ""}
-                        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                        style={inputStyle}
-                      >
-                        <option value="">Select</option>
-                        {options.map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type={type}
-                        required={required}
-                        pattern={pattern}
-                        maxLength={maxLength}
-                        min={min}
-                        placeholder={placeholder}
-                        list={key === "company_name" ? "company-name-options" : undefined}
-                        readOnly={key === "reference_no" || key === "company_code"}
-                        value={key === "reference_no" ? form.reference_no || nextReferenceNo(companies) : form[key] || ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (key === "company_name") {
-                            handleCompanyNameChange(value);
-                            return;
-                          }
-                          setForm((current) => ({ ...current, [key]: value }));
-                        }}
-                        style={{
-                          ...inputStyle,
-                          background:
-                            key === "reference_no" || key === "company_code"
-                              ? "#f7f3ff"
-                              : "white",
-                        }}
-                      />
-                    )}
-                  </label>
-                  ),
-                )}
-              <div style={sectionStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
-                  <h4 style={sectionHeadingStyle}>Scope of Work (select one or more)</h4>
-                </div>
-                <div style={scopeGridStyle}>
-                  {masterOptions("Scope of Work ID").map((scope) => {
-                    const selected = getJsonArray(form, "service_details_json").some((row) => row.scope === scope.code);
-                    return (
-                      <label key={scope.id} style={scopeOptionStyle}>
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleScope(scope.code)}
-                        />
-                        <span>{scope.name}</span>
-                        <small>{scope.code}</small>
-                      </label>
-                    );
-                  })}
-                  {masterOptions("Scope of Work ID").length === 0 && (
-                    <span style={{ color: "var(--portal-muted)", fontSize: "13px" }}>
-                      Add scope values in Masters.
-                    </span>
-                  )}
-                </div>
-                <h4 style={sectionHeadingStyle}>Client Data (per service selected)</h4>
-                <p style={helperTextStyle}>
-                  Select one or more scopes above to enter Client Data - Start Date, Stop Date, Frequency, Notes, Billing Amount, Assigned To - for each service.
-                </p>
-                <div style={formGridStyle}>
-                  {clientDataFields.map(({ label, key, type = "text", required, options }) => (
                     <label key={key} style={labelStyle}>
                       {label}
                       {type === "select" ? (
                         <select
                           required={required}
                           value={form[key] || ""}
-                          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                          onChange={(e) =>
+                            setForm({ ...form, [key]: e.target.value })
+                          }
                           style={inputStyle}
                         >
-                          <option value="">-</option>
+                          <option value="">Select</option>
                           {options.map((option) => (
-                            <option key={option} value={option}>{option}</option>
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
                           ))}
                         </select>
                       ) : (
                         <input
                           type={type}
                           required={required}
-                          value={form[key] || ""}
-                          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                          style={inputStyle}
+                          pattern={pattern}
+                          maxLength={maxLength}
+                          min={min}
+                          placeholder={placeholder}
+                          list={
+                            key === "company_name"
+                              ? "company-name-options"
+                              : undefined
+                          }
+                          readOnly={
+                            key === "reference_no" || key === "company_code"
+                          }
+                          value={
+                            key === "reference_no"
+                              ? form.reference_no || nextReferenceNo(companies)
+                              : form[key] || ""
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (key === "company_name") {
+                              handleCompanyNameChange(value);
+                              return;
+                            }
+                            setForm((current) => ({
+                              ...current,
+                              [key]: value,
+                            }));
+                          }}
+                          style={{
+                            ...inputStyle,
+                            background:
+                              key === "reference_no" || key === "company_code"
+                                ? "#f7f3ff"
+                                : "white",
+                          }}
                         />
                       )}
                     </label>
-                  ))}
-                </div>
-                {getJsonArray(form, "service_details_json").map((service, serviceIndex) => {
-                  if (!service.scope) return null;
-                  const sequence = nextClientSequence(companies) + serviceIndex;
-                  const previewClientId =
-                    service.client_id ||
-                    generateClientIdPreview(form.company_code, service.scope, sequence);
-                  return (
-                    <div key={`service-${serviceIndex}`} style={panelInsetStyle}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
-                        <strong style={{ color: "var(--portal-purple)" }}>
-                          Service {serviceIndex + 1} {previewClientId ? `- ${previewClientId}` : ""}
-                        </strong>
-                        {getJsonArray(form, "service_details_json").length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeJsonArrayRow(setForm, "service_details_json", serviceIndex)}
-                            style={secondaryButtonStyle}
+                  ),
+                )}
+              <div style={sectionStyle}>
+                <h4 style={sectionHeadingStyle}>Client Data Details</h4>
+                <p style={helperTextStyle}>
+                  POSH is the only active work-order service.
+                </p>
+                <div style={formGridStyle}>
+                  {clientDataFields.map(
+                    ({ label, key, type = "text", required, options }) => (
+                      <label key={key} style={labelStyle}>
+                        {label}
+                        {type === "select" ? (
+                          <select
+                            required={required}
+                            value={form[key] || ""}
+                            onChange={(e) =>
+                              setForm({ ...form, [key]: e.target.value })
+                            }
+                            style={inputStyle}
                           >
-                            Remove
-                          </button>
+                            <option value="">-</option>
+                            {options.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={type}
+                            required={required}
+                            value={form[key] || ""}
+                            onChange={(e) =>
+                              setForm({ ...form, [key]: e.target.value })
+                            }
+                            style={inputStyle}
+                          />
                         )}
-                      </div>
-                      <div style={formGridStyle}>
-                        {workOrderFields.map(([field, label, type = "text"]) => (
-                          <label key={`work-${serviceIndex}-${field}`} style={labelStyle}>
-                            {label}
-                            {type === "readonly" ? (
-                              <input
-                                readOnly
-                                value={previewClientId}
-                                style={{ ...inputStyle, background: "#f7f3ff" }}
-                              />
-                            ) : type === "deliverables" ? (
-                              <div style={multiSelectStyle}>
-                                {scopedDeliverables(service.scope).map((item) => {
-                                  const selected = String(service[field] || "")
-                                    .split(",")
-                                    .map((value) => value.trim())
-                                    .filter(Boolean);
-                                  return (
-                                    <label key={item.id} style={multiOptionStyle}>
-                                      <input
-                                        type="checkbox"
-                                        checked={selected.includes(item.code)}
-                                        onChange={() =>
-                                          toggleJsonArrayMultiValue(
-                                            setForm,
-                                            "service_details_json",
-                                            serviceIndex,
-                                            field,
-                                            item.code,
-                                          )
-                                        }
-                                      />
-                                      {item.name} ({item.code})
-                                    </label>
-                                  );
-                                })}
-                                {scopedDeliverables(service.scope).length === 0 && (
-                                  <span style={{ color: "var(--portal-muted)", fontSize: "13px" }}>
-                                    Add deliverables in Masters.
-                                  </span>
-                                )}
-                              </div>
-                            ) : type === "frequency" ? (
-                              <select
-                                value={service[field] || ""}
-                                onChange={(e) =>
-                                  setJsonArrayValue(setForm, "service_details_json", serviceIndex, field, e.target.value)
-                                }
-                                style={inputStyle}
-                              >
-                                <option value="">Select</option>
-                                <option value="OT">One time (OT)</option>
-                                <option value="M">Monthly (M)</option>
-                                <option value="QRLY">Quarterly (QRLY)</option>
-                                <option value="HY">Half yearly (HY)</option>
-                                <option value="ANL">Annual (ANL)</option>
-                              </select>
-                            ) : type === "assigned" ? (
-                              <select
-                                value={service[field] || ""}
-                                onChange={(e) => {
-                                  const user = assignableUsers.find((item) => String(item.user_id) === e.target.value);
-                                  setForm((current) => {
-                                    const rows = getJsonArray(current, "service_details_json").map((row) => ({ ...row }));
-                                    rows[serviceIndex] = {
-                                      ...rows[serviceIndex],
-                                      assigned_to: e.target.value,
-                                      assigned_to_name: user?.name || "",
-                                      assigned_to_role: user?.role_label || "",
-                                    };
-                                    return { ...current, service_details_json: JSON.stringify(rows) };
-                                  });
-                                }}
-                                style={inputStyle}
-                              >
-                                <option value="">Select user</option>
-                                {assignableUsers.map((user) => (
-                                  <option key={user.user_id} value={user.user_id}>
-                                    {user.name} - {user.email} - {user.role_label || "User"}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <input
-                                type={type === "scope" ? "text" : type}
-                                list={type === "scope" ? "scope-code-options" : undefined}
-                                readOnly={type === "scope"}
-                                value={service[field] || ""}
-                                onChange={(e) =>
-                                  setJsonArrayValue(setForm, "service_details_json", serviceIndex, field, e.target.value)
-                                }
-                                style={inputStyle}
-                              />
-                            )}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                      </label>
+                    ),
+                  )}
+                </div>
+                <div style={panelInsetStyle}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <strong style={{ color: "var(--portal-purple)" }}>
+                      {POSH_SERVICE_NAME}{" "}
+                      {poshPreviewClientId ? `- ${poshPreviewClientId}` : ""}
+                    </strong>
+                  </div>
+                  <div style={formGridStyle}>
+                    {workOrderFields.map(([field, label, type = "text"]) => (
+                      <label key={`work-posh-${field}`} style={labelStyle}>
+                        {label}
+                        {type === "readonly" ? (
+                          <input
+                            readOnly
+                            value={poshPreviewClientId}
+                            style={{ ...inputStyle, background: "#f7f3ff" }}
+                          />
+                        ) : type === "frequency" ? (
+                          <select
+                            value={poshService[field] || ""}
+                            onChange={(e) =>
+                              setJsonArrayValue(
+                                setForm,
+                                "service_details_json",
+                                0,
+                                field,
+                                e.target.value,
+                              )
+                            }
+                            style={inputStyle}
+                          >
+                            <option value="">Select</option>
+                            <option value="OT">One time (OT)</option>
+                            <option value="M">Monthly (M)</option>
+                            <option value="QRLY">Quarterly (QRLY)</option>
+                            <option value="HY">Half yearly (HY)</option>
+                            <option value="ANL">Annual (ANL)</option>
+                          </select>
+                        ) : type === "assigned" ? (
+                          <select
+                            value={poshService[field] || ""}
+                            onChange={(e) => {
+                              const user = assignableUsers.find(
+                                (item) =>
+                                  String(item.user_id) === e.target.value,
+                              );
+                              setForm((current) => {
+                                const rows = fixedPoshServiceRows(current);
+                                rows[0] = {
+                                  ...rows[0],
+                                  assigned_to: e.target.value,
+                                  assigned_to_name: user?.name || "",
+                                  assigned_to_role: user?.role_label || "",
+                                };
+                                return {
+                                  ...current,
+                                  service_details_json: JSON.stringify(rows),
+                                };
+                              });
+                            }}
+                            style={inputStyle}
+                          >
+                            <option value="">Select user</option>
+                            {assignableUsers.map((user) => (
+                              <option key={user.user_id} value={user.user_id}>
+                                {user.name} - {user.email} -{" "}
+                                {user.role_label || "User"}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={type}
+                            value={poshService[field] || ""}
+                            onChange={(e) =>
+                              setJsonArrayValue(
+                                setForm,
+                                "service_details_json",
+                                0,
+                                field,
+                                e.target.value,
+                              )
+                            }
+                            style={inputStyle}
+                          />
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div style={sectionStyle}>
-                <h4 style={sectionHeadingStyle}>Company Registration Details</h4>
+                <h4 style={sectionHeadingStyle}>
+                  Company Registration Details
+                </h4>
                 <div style={formGridStyle}>
                   <label style={labelStyle}>
-                    Company Type
+                    Company Type *
                     <select
-                      value={form.company_type || "Limited"}
+                      required
+                      value={
+                        form.company_type && form.company_type !== "Work Order"
+                          ? form.company_type
+                          : "Limited"
+                      }
                       onChange={(event) =>
                         setForm({ ...form, company_type: event.target.value })
                       }
@@ -801,7 +942,10 @@ export function CompanyListPage() {
                     <input
                       value={form.registration_number || ""}
                       onChange={(event) =>
-                        setForm({ ...form, registration_number: event.target.value })
+                        setForm({
+                          ...form,
+                          registration_number: event.target.value,
+                        })
                       }
                       style={inputStyle}
                     />
@@ -817,13 +961,53 @@ export function CompanyListPage() {
                     />
                   </label>
                   <label style={labelStyle}>
+                    POSH Policy
+                    <input
+                      value={form.posh_policy || ""}
+                      onChange={(event) =>
+                        setForm({ ...form, posh_policy: event.target.value })
+                      }
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label style={labelStyle}>
+                    Version
+                    <input
+                      value={form.posh_policy_version || ""}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          posh_policy_version: event.target.value,
+                        })
+                      }
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label style={labelStyle}>
+                    Approved / Effective Date
+                    <input
+                      type="date"
+                      value={form.posh_policy_effective_date || ""}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          posh_policy_effective_date: event.target.value,
+                        })
+                      }
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label style={labelStyle}>
                     Employee Strength
                     <input
                       type="number"
                       min="0"
                       value={form.employee_strength || ""}
                       onChange={(event) =>
-                        setForm({ ...form, employee_strength: event.target.value })
+                        setForm({
+                          ...form,
+                          employee_strength: event.target.value,
+                        })
                       }
                       style={inputStyle}
                     />
@@ -878,18 +1062,28 @@ export function CompanyListPage() {
                 />
                 <CompanyBranchFields form={form} setForm={setForm} />
               </div>
-
             </div>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              <button type="submit" disabled={submitting} style={primaryButtonStyle}>
-                {submitting ? "Saving..." : editingCompany ? "Save Changes" : "Submit for Approval"}
+              <button
+                type="submit"
+                disabled={submitting}
+                style={primaryButtonStyle}
+              >
+                {submitting
+                  ? "Saving..."
+                  : editingCompany
+                    ? "Save Changes"
+                    : "Submit for Approval"}
               </button>
-              <button type="button" onClick={() => setShowForm(false)} style={secondaryButtonStyle}>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                style={secondaryButtonStyle}
+              >
                 Cancel
               </button>
             </div>
           </form>
-
         </div>
       )}
 
@@ -897,93 +1091,142 @@ export function CompanyListPage() {
         <p style={{ color: "#666" }}>Loading companies...</p>
       ) : (
         <>
-        <h3 style={tableHeadingStyle}>Companies & Work Orders</h3>
-        <div style={tableWrapStyle}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "960px" }}>
-            <thead>
-              <tr style={{ background: "#faf8ff", color: "var(--portal-muted)" }}>
-                {["Ref No", "Company", "Code", "Status", "Client ID(s)", "Approval", "Actions"].map(
-                  (heading) => (
+          <h3 style={tableHeadingStyle}>Companies & Work Orders</h3>
+          <div style={tableWrapStyle}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: "960px",
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    background: "#faf8ff",
+                    color: "var(--portal-muted)",
+                  }}
+                >
+                  {[
+                    "Ref No",
+                    "Company",
+                    "Code",
+                    "Status",
+                    "Client ID(s)",
+                    "Approval",
+                    "Actions",
+                  ].map((heading) => (
                     <th key={heading} style={thStyle}>
                       {heading}
                     </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {companies.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "#999" }}>
-                    No companies found. Create one above.
-                  </td>
+                  ))}
                 </tr>
-              ) : (
-                companies.map((company, index) => (
-                  <tr
-                    key={company.company_id}
-                    style={{
-                      background: index % 2 === 0 ? "white" : "#f9f9f9",
-                      borderBottom: "1px solid #eee",
-                    }}
-                  >
-                    <td style={strongCellStyle}>{company.reference_no || "-"}</td>
-                    <td style={tdStyle}>{company.company_name}</td>
-                    <td style={tdStyle}>{company.company_code}</td>
-                    <td style={tdStyle}>{company.company_status_type || "Client"}</td>
-                    <td style={tdStyle}>{company.client_id || "-"}</td>
-                    <td style={tdStyle}>
-                      <span style={approvalStyle(company.approval_status)}>{company.approval_status || "Pending"}</span>
-                    </td>
-                    <td style={{ ...tdStyle, display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        onClick={() => openEdit(company)}
-                        style={secondaryButtonStyle}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleStatus(company)}
-                        style={secondaryButtonStyle}
-                      >
-                        {company.status === "Active" ? "Deactivate" : "Activate"}
-                      </button>
-                      {user?.role_id === 1 && company.approval_status !== "Approved" && (
-                        <button
-                          type="button"
-                          onClick={() => approveCompany(company)}
-                          disabled={approvingCompanyId === company.company_id}
-                          style={primaryButtonStyle}
-                        >
-                          {approvingCompanyId === company.company_id ? "Approving..." : "Approve"}
-                        </button>
-                      )}
-                      {user?.role_id === 1 && (
-                        <button
-                          type="button"
-                          onClick={() => deleteCompany(company)}
-                          style={dangerButtonStyle}
-                        >
-                          Delete
-                        </button>
-                      )}
+              </thead>
+              <tbody>
+                {companies.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      style={{
+                        padding: "40px",
+                        textAlign: "center",
+                        color: "#999",
+                      }}
+                    >
+                      No companies found. Create one above.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  companies.map((company, index) => (
+                    <tr
+                      key={company.company_id}
+                      style={{
+                        background: index % 2 === 0 ? "white" : "#f9f9f9",
+                        borderBottom: "1px solid #eee",
+                      }}
+                    >
+                      <td style={strongCellStyle}>
+                        {company.reference_no || "-"}
+                      </td>
+                      <td style={tdStyle}>{company.company_name}</td>
+                      <td style={tdStyle}>{company.company_code}</td>
+                      <td style={tdStyle}>
+                        {company.company_status_type || "Client"}
+                      </td>
+                      <td style={tdStyle}>{company.client_id || "-"}</td>
+                      <td style={tdStyle}>
+                        <span style={approvalStyle(company.approval_status)}>
+                          {company.approval_status || "Pending"}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          ...tdStyle,
+                          display: "flex",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => openEdit(company)}
+                          style={secondaryButtonStyle}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleStatus(company)}
+                          style={secondaryButtonStyle}
+                        >
+                          {company.status === "Active"
+                            ? "Deactivate"
+                            : "Activate"}
+                        </button>
+                        {user?.role_id === 1 &&
+                          company.approval_status !== "Approved" && (
+                            <button
+                              type="button"
+                              onClick={() => approveCompany(company)}
+                              disabled={
+                                approvingCompanyId === company.company_id
+                              }
+                              style={primaryButtonStyle}
+                            >
+                              {approvingCompanyId === company.company_id
+                                ? "Approving..."
+                                : "Approve"}
+                            </button>
+                          )}
+                        {user?.role_id === 1 && (
+                          <button
+                            type="button"
+                            onClick={() => deleteCompany(company)}
+                            style={dangerButtonStyle}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
-
     </PortalShell>
   );
 }
 
-function CompanyAddressFields({ title, jsonKey, form, setForm, masterOptions }) {
+function CompanyAddressFields({
+  title,
+  jsonKey,
+  form,
+  setForm,
+  masterOptions,
+}) {
   const values = getJsonObject(form, jsonKey, emptyAddress);
   const update = (field, value) =>
     setJsonObjectValue(setForm, jsonKey, emptyAddress, field, value);
@@ -994,29 +1237,72 @@ function CompanyAddressFields({ title, jsonKey, form, setForm, masterOptions }) 
       <div style={formGridStyle}>
         <label style={labelStyle}>
           Address Line 1 *
-          <input required value={values.address1 || ""} onChange={(event) => update("address1", event.target.value)} style={inputStyle} />
+          <input
+            required
+            value={values.address1 || ""}
+            onChange={(event) => update("address1", event.target.value)}
+            style={inputStyle}
+          />
         </label>
         <label style={labelStyle}>
-          Address Line 2
-          <input value={values.address2 || ""} onChange={(event) => update("address2", event.target.value)} style={inputStyle} />
+          Address Line 2 *
+          <input
+            required
+            value={values.address2 || ""}
+            onChange={(event) => update("address2", event.target.value)}
+            style={inputStyle}
+          />
+        </label>
+        <label style={labelStyle}>
+          Address Line 3 *
+          <input
+            required
+            value={values.address3 || ""}
+            onChange={(event) => update("address3", event.target.value)}
+            style={inputStyle}
+          />
         </label>
         <label style={labelStyle}>
           City *
-          <input required list="city-code-options" value={values.city || ""} onChange={(event) => update("city", event.target.value)} style={inputStyle} />
+          <input
+            required
+            list="city-code-options"
+            value={values.city || ""}
+            onChange={(event) => update("city", event.target.value)}
+            style={inputStyle}
+          />
         </label>
         <label style={labelStyle}>
           State *
-          <input required list="state-code-options" value={values.state || ""} onChange={(event) => update("state", event.target.value)} style={inputStyle} />
+          <input
+            required
+            list="state-code-options"
+            value={values.state || ""}
+            onChange={(event) => update("state", event.target.value)}
+            style={inputStyle}
+          />
         </label>
         <label style={labelStyle}>
           Pincode *
-          <input required value={values.pincode || ""} onChange={(event) => update("pincode", event.target.value)} style={inputStyle} />
+          <input
+            required
+            value={values.pincode || ""}
+            onChange={(event) => update("pincode", event.target.value)}
+            style={inputStyle}
+          />
         </label>
         <label style={labelStyle}>
-          Country
-          <select value={values.country || "IN"} onChange={(event) => update("country", event.target.value)} style={inputStyle}>
+          Country *
+          <select
+            required
+            value={values.country || "IN"}
+            onChange={(event) => update("country", event.target.value)}
+            style={inputStyle}
+          >
             {masterOptions("Country Code").map((item) => (
-              <option key={item.id} value={item.code}>{item.name}</option>
+              <option key={item.id} value={item.code}>
+                {item.name}
+              </option>
             ))}
           </select>
         </label>
@@ -1025,7 +1311,13 @@ function CompanyAddressFields({ title, jsonKey, form, setForm, masterOptions }) 
   );
 }
 
-function CompanyContactFields({ title, jsonKey, form, setForm, onContactSync }) {
+function CompanyContactFields({
+  title,
+  jsonKey,
+  form,
+  setForm,
+  onContactSync,
+}) {
   const values = getJsonObject(form, jsonKey, emptyContact);
   const update = (field, value) => {
     const nextContact = { ...values, [field]: value };
@@ -1042,19 +1334,40 @@ function CompanyContactFields({ title, jsonKey, form, setForm, onContactSync }) 
       <div style={formGridStyle}>
         <label style={labelStyle}>
           Name *
-          <input required value={values.name || ""} onChange={(event) => update("name", event.target.value)} style={inputStyle} />
+          <input
+            required
+            value={values.name || ""}
+            onChange={(event) => update("name", event.target.value)}
+            style={inputStyle}
+          />
         </label>
         <label style={labelStyle}>
           Designation *
-          <input required value={values.designation || ""} onChange={(event) => update("designation", event.target.value)} style={inputStyle} />
+          <input
+            required
+            value={values.designation || ""}
+            onChange={(event) => update("designation", event.target.value)}
+            style={inputStyle}
+          />
         </label>
         <label style={labelStyle}>
           Contact No *
-          <input required value={values.contact_no || ""} onChange={(event) => update("contact_no", event.target.value)} style={inputStyle} />
+          <input
+            required
+            value={values.contact_no || ""}
+            onChange={(event) => update("contact_no", event.target.value)}
+            style={inputStyle}
+          />
         </label>
         <label style={labelStyle}>
           Email *
-          <input required type="email" value={values.email || ""} onChange={(event) => update("email", event.target.value)} style={inputStyle} />
+          <input
+            required
+            type="email"
+            value={values.email || ""}
+            onChange={(event) => update("email", event.target.value)}
+            style={inputStyle}
+          />
         </label>
       </div>
     </div>
@@ -1063,26 +1376,79 @@ function CompanyContactFields({ title, jsonKey, form, setForm, onContactSync }) 
 
 function CompanyBranchFields({ form, setForm }) {
   const branches = getJsonArray(form, "branches_json");
+  const uploadBranches = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const parsed = parseBranchCsv(String(reader.result || ""));
+      if (parsed.length) {
+        setForm((current) => ({
+          ...current,
+          branches_json: JSON.stringify(parsed),
+        }));
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div style={panelInsetStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "12px",
+          marginBottom: "12px",
+        }}
+      >
         <h4 style={sectionHeadingStyle}>Branches</h4>
-        <button
-          type="button"
-          onClick={() => addJsonArrayRow(setForm, "branches_json", emptyBranch)}
-          style={secondaryButtonStyle}
-        >
-          Add Branch
-        </button>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <label style={{ ...secondaryButtonStyle, cursor: "pointer" }}>
+            Bulk Upload CSV
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(event) => uploadBranches(event.target.files?.[0])}
+              style={{ display: "none" }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() =>
+              addJsonArrayRow(setForm, "branches_json", emptyBranch)
+            }
+            style={secondaryButtonStyle}
+          >
+            Add Branch
+          </button>
+        </div>
       </div>
       {branches.map((branch, index) => (
-        <div key={`branch-${index}`} style={{ ...panelInsetStyle, background: "white", marginBottom: "12px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
-            <strong style={{ color: "var(--portal-purple)" }}>Branch {index + 1}</strong>
+        <div
+          key={`branch-${index}`}
+          style={{
+            ...panelInsetStyle,
+            background: "white",
+            marginBottom: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              marginBottom: "12px",
+            }}
+          >
+            <strong style={{ color: "var(--portal-purple)" }}>
+              Branch {index + 1}
+            </strong>
             {branches.length > 1 && (
               <button
                 type="button"
-                onClick={() => removeJsonArrayRow(setForm, "branches_json", index)}
+                onClick={() =>
+                  removeJsonArrayRow(setForm, "branches_json", index)
+                }
                 style={secondaryButtonStyle}
               >
                 Remove
@@ -1209,26 +1575,6 @@ const helperTextStyle = {
   lineHeight: 1.5,
 };
 
-const scopeGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-  gap: "12px",
-  marginBottom: "12px",
-};
-
-const scopeOptionStyle = {
-  display: "grid",
-  gridTemplateColumns: "auto 1fr",
-  gap: "8px",
-  alignItems: "center",
-  border: "1px solid var(--portal-border)",
-  borderRadius: "8px",
-  padding: "12px",
-  background: "#faf8ff",
-  color: "var(--portal-text)",
-  fontWeight: 700,
-};
-
 const tableHeadingStyle = {
   margin: "26px 0 12px",
   color: "var(--portal-purple)",
@@ -1261,25 +1607,6 @@ const inputStyle = {
   boxSizing: "border-box",
   color: "var(--portal-text)",
   background: "white",
-};
-
-const multiSelectStyle = {
-  display: "grid",
-  gap: "8px",
-  minHeight: "42px",
-  padding: "10px",
-  border: "1px solid var(--portal-border)",
-  borderRadius: "6px",
-  background: "white",
-};
-
-const multiOptionStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  color: "var(--portal-text)",
-  fontSize: "13px",
-  fontWeight: 600,
 };
 
 const primaryButtonStyle = {

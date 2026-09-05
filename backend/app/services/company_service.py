@@ -156,6 +156,8 @@ class CompanyService:
 
     def _missing_registration_fields(self, company: CompanyMaster) -> list[str]:
         missing = []
+        if not company.company_type or company.company_type == "Work Order":
+            missing.append("company type")
         if not company.industry_type or company.industry_type == "Pending Registration":
             missing.append("industry")
 
@@ -168,7 +170,18 @@ class CompanyService:
             ("corporate address", corporate),
             ("billing address", billing),
         ]:
-            if not all(address.get(key) for key in ["address1", "city", "state", "pincode"]):
+            if not all(
+                address.get(key)
+                for key in [
+                    "address1",
+                    "address2",
+                    "address3",
+                    "city",
+                    "state",
+                    "pincode",
+                    "country",
+                ]
+            ):
                 missing.append(label)
 
         for label, contact in [
@@ -582,7 +595,7 @@ class CompanyService:
                 """
                 SELECT id, category, name, code, description, is_active
                 FROM posh_master_codes
-                WHERE category IN ('Country Code', 'State Code', 'City Code', 'Scope of Work ID', 'Deliverables')
+                WHERE category IN ('Country Code', 'State Code', 'City Code', 'Deliverables')
                 ORDER BY category, name
                 """
             )
@@ -696,25 +709,22 @@ class CompanyService:
         company_code = (data_dict.get("company_code") or "").strip().upper()
         year = datetime.now().strftime("%y")
         next_number = await self._next_client_sequence(db)
-        normalized_rows = []
-        scope_codes = []
+        row = next(
+            (item for item in rows if (item.get("scope") or "").strip().upper() == "POSH"),
+            rows[0] if rows else {},
+        )
+        row = dict(row)
+        row["scope"] = "POSH"
+        row["deliverables"] = row.get("deliverables") or "PoSH Training & Compliance"
+        if not row.get("client_id"):
+            row["client_id"] = f"{company_code}/POSH/{year}-{next_number}"
 
-        for row in rows:
-            scope = (row.get("scope") or "").strip().upper()
-            if not scope:
-                continue
-            if scope not in scope_codes:
-                scope_codes.append(scope)
-            if not row.get("client_id"):
-                row["client_id"] = f"{company_code}/{scope}/{year}-{next_number}"
-                next_number += 1
-            normalized_rows.append(row)
+        normalized_rows = [row]
+        scope_codes = ["POSH"]
 
         data_dict["service_details_json"] = json.dumps(normalized_rows)
         data_dict["scope_codes_json"] = json.dumps(scope_codes)
-        data_dict["client_id"] = ", ".join(
-            row["client_id"] for row in normalized_rows if row.get("client_id")
-        )
+        data_dict["client_id"] = row.get("client_id") or ""
         data_dict.setdefault("approval_status", "Pending")
         return data_dict
 

@@ -347,7 +347,7 @@ function App() {
           path="/super-admin/masters"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1]} accessItem="Masters">
+              <RoleRoute allowedRoles={[1, 2]} accessItem="Masters">
                 <MastersPage />
               </RoleRoute>
             </ProtectedRoute>

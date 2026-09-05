@@ -80,7 +80,7 @@ const dashboardItems = [
   },
   {
     title: "Masters",
-    description: "Country, state, city, scope, and office masters.",
+    description: "Country, state, city, and office masters.",
     path: "/super-admin/masters",
     accessItem: "Masters",
   },
@@ -137,6 +137,7 @@ const defaultAllowed = {
     "PoSH Policy",
     "Company Setup",
     "Employee Master",
+    "Masters",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -155,6 +156,7 @@ export function AdminDashboard() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [analytics, setAnalytics] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [analyticsError, setAnalyticsError] = useState("");
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
   const [roleAccess, setRoleAccess] = useState([]);
@@ -201,24 +203,62 @@ export function AdminDashboard() {
     if (!analytics) return [];
     if (user?.role_id === 1) {
       return [
-        { label: "Active Companies", value: analytics.total_companies ?? 0 },
-        { label: "Active Users", value: analytics.total_users ?? 0 },
         {
-          label: "Certificates",
-          value: analytics.total_certificates_issued ?? 0,
+          label: "Active Clients",
+          value: analytics.companies?.active ?? analytics.total_companies ?? 0,
         },
         {
-          label: "Completions",
+          label: "Active Employees",
+          value: analytics.hierarchy?.employees ?? 0,
+        },
+        {
+          label: "Completed Training",
           value: analytics.total_course_completions ?? 0,
+        },
+        {
+          label: "Completed Pending",
+          value: Math.max(
+            (analytics.hierarchy?.employees ?? 0) -
+              (analytics.training?.completed_users ?? 0),
+            0,
+          ),
+        },
+        {
+          label: "Annual Returns Completed",
+          value: analytics.annual_returns?.completed ?? 0,
+        },
+        {
+          label: "Annual Returns Pending",
+          value: analytics.annual_returns?.pending ?? 0,
         },
       ];
     }
-    if (user?.role_id === 5) {
+    if (user?.role_id === 2 || user?.role_id === 5) {
       return [
-        { label: "Total Users", value: analytics.total_users ?? 0 },
-        { label: "IC Users", value: analytics.ic_users ?? 0 },
-        { label: "Employees", value: analytics.total_employees ?? 0 },
-        { label: "Compliance", value: `${analytics.compliance_rate ?? 0}%` },
+        {
+          label: "Active Clients",
+          value:
+            analytics.client_management_users ?? analytics.total_users ?? 0,
+        },
+        { label: "Active Employees", value: analytics.total_employees ?? 0 },
+        {
+          label: "Completed Training",
+          value: analytics.completed_training ?? 0,
+        },
+        {
+          label: "Completed Pending",
+          value:
+            (analytics.in_progress_training ?? 0) +
+            (analytics.not_started_training ?? 0),
+        },
+        {
+          label: "Annual Returns Completed",
+          value: analytics.annual_returns?.completed ?? 0,
+        },
+        {
+          label: "Annual Returns Pending",
+          value: analytics.annual_returns?.pending ?? 0,
+        },
       ];
     }
     return [
@@ -228,6 +268,26 @@ export function AdminDashboard() {
       { label: "Certificates", value: analytics.certificates_issued ?? 0 },
     ];
   }, [analytics, user?.role_id]);
+
+  const organizationRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return (analytics?.organizations || [])
+      .map((org) => ({
+        ...org,
+        annual_return_status: org.annual_return_status || "Pending",
+      }))
+      .filter((org) => {
+        if (!query) return true;
+        return [
+          org.company_name,
+          org.annual_return_status,
+          org.status,
+          org.approval_status,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
+      });
+  }, [analytics?.organizations, searchQuery]);
 
   const allowedItems = useMemo(() => {
     const accessMap = new Map(
@@ -282,6 +342,59 @@ export function AdminDashboard() {
           )}
         </div>
       </section>
+
+      {[1, 2].includes(user?.role_id) && (
+        <section style={{ marginBottom: "28px" }}>
+          <div className="portal-section-title">Company Status Search</div>
+          <div style={searchPanelStyle}>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by company name, annual return status, or active status"
+              style={searchInputStyle}
+            />
+          </div>
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  {["Co Name", "Annual Return Status", "Active Status"].map(
+                    (heading) => (
+                      <th key={heading} style={thStyle}>
+                        {heading}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {organizationRows.map((org) => (
+                  <tr key={org.company_id} style={trStyle}>
+                    <td style={tdStyle}>{org.company_name}</td>
+                    <td style={tdStyle}>{org.annual_return_status}</td>
+                    <td style={tdStyle}>{org.status || "-"}</td>
+                  </tr>
+                ))}
+                {!loadingAnalytics && organizationRows.length === 0 && (
+                  <tr style={trStyle}>
+                    <td
+                      colSpan={3}
+                      style={{
+                        ...tdStyle,
+                        color: "var(--portal-muted)",
+                        textAlign: "center",
+                      }}
+                    >
+                      No companies match this search.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section>
         <div className="portal-section-title">Admin Workspace</div>
@@ -338,3 +451,51 @@ export function AdminDashboard() {
     </PortalShell>
   );
 }
+
+const searchPanelStyle = {
+  background: "white",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
+  padding: "12px",
+  marginBottom: "12px",
+};
+
+const searchInputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "7px",
+  padding: "10px 12px",
+  fontSize: "14px",
+};
+
+const tableWrapStyle = {
+  background: "white",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
+  overflowX: "auto",
+};
+
+const tableStyle = {
+  width: "100%",
+  minWidth: "620px",
+  borderCollapse: "collapse",
+};
+
+const thStyle = {
+  padding: "12px",
+  textAlign: "left",
+  background: "#faf8ff",
+  color: "var(--portal-muted)",
+  fontSize: "12px",
+  textTransform: "uppercase",
+};
+
+const trStyle = {
+  borderTop: "1px solid var(--portal-border)",
+};
+
+const tdStyle = {
+  padding: "11px 12px",
+  color: "var(--portal-text)",
+};

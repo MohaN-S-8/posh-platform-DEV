@@ -511,6 +511,16 @@ async def run_seed_on_startup():
             ("service_details_json", "ADD COLUMN service_details_json TEXT NULL"),
             ("referral_from", "ADD COLUMN referral_from VARCHAR(100) NULL"),
             ("referral_name", "ADD COLUMN referral_name VARCHAR(150) NULL"),
+            ("website", "ADD COLUMN website VARCHAR(200) NULL"),
+            ("registration_number", "ADD COLUMN registration_number VARCHAR(50) NULL"),
+            ("gst_number", "ADD COLUMN gst_number VARCHAR(50) NULL"),
+            ("posh_policy", "ADD COLUMN posh_policy VARCHAR(200) NULL"),
+            ("posh_policy_version", "ADD COLUMN posh_policy_version VARCHAR(50) NULL"),
+            (
+                "posh_policy_effective_date",
+                "ADD COLUMN posh_policy_effective_date VARCHAR(50) NULL",
+            ),
+            ("employee_strength", "ADD COLUMN employee_strength INT NULL"),
             ("corp_address_json", "ADD COLUMN corp_address_json TEXT NULL"),
             ("billing_address_json", "ADD COLUMN billing_address_json TEXT NULL"),
             ("account_contact_json", "ADD COLUMN account_contact_json TEXT NULL"),
@@ -824,7 +834,6 @@ async def run_seed_on_startup():
                     ('City Code', 'Chennai', 'CHN', 'Default city code', TRUE),
                     ('City Code', 'Bangalore', 'BLR', 'Default city code', TRUE),
                     ('City Code', 'Mumbai', 'MUM', 'Default city code', TRUE),
-                    ('Scope of Work ID', 'POSH Compliance', 'POSH', 'Policies, training, assessments, certificates, and reporting', TRUE),
                     ('Deliverables', 'PoSH Policy', 'POLICY', 'Policy documentation and publishing', TRUE),
                     ('Deliverables', 'Awareness Training', 'TRAINING', 'Training video assignment and completion tracking', TRUE),
                     ('Deliverables', 'Assessment & Certificates', 'CERTIFICATE', 'Assessment and certificate issue flow', TRUE),
@@ -841,10 +850,8 @@ async def run_seed_on_startup():
         await db.execute(
             text(
                 """
-                UPDATE posh_master_codes
-                SET is_active = FALSE
+                DELETE FROM posh_master_codes
                 WHERE category = 'Scope of Work ID'
-                  AND code <> 'POSH'
                 """
             )
         )
@@ -885,6 +892,7 @@ async def run_seed_on_startup():
                     ('Company Admin', 'PoSH Policy', 'Access enabled', TRUE, 2),
                     ('Company Admin', 'Company Setup', 'Access enabled', TRUE, 3),
                     ('Company Admin', 'Employee Master', 'Access enabled', TRUE, 4),
+                    ('Company Admin', 'Masters', 'Access enabled', TRUE, 5),
                     ('Client Admin (Mgmt)', 'Home', 'Access enabled', TRUE, 1),
                     ('Client Admin (Mgmt)', 'PoSH Policy', 'Access enabled', TRUE, 2),
                     ('Client Admin (Mgmt)', 'POSH Awareness Training', 'Access enabled', TRUE, 3),

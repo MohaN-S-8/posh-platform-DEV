@@ -253,6 +253,10 @@ async def _platform_overview(db: AsyncSession) -> dict:
             "certificate_templates_pending": template_status.get("Pending", 0),
             "open_concerns": concern_status.get("Open", 0),
         },
+        "annual_returns": {
+            "completed": 0,
+            "pending": 0,
+        },
         "services": services,
         "service_training": service_training,
         "organizations": organizations,
@@ -260,6 +264,15 @@ async def _platform_overview(db: AsyncSession) -> dict:
 
 
 async def _company_overview(db: AsyncSession, company_id: int) -> dict:
+    company_result = await db.execute(
+        select(
+            CompanyMaster.company_id,
+            CompanyMaster.company_name,
+            CompanyMaster.status,
+            CompanyMaster.approval_status,
+        ).where(CompanyMaster.company_id == company_id, CompanyMaster.is_deleted == "N")
+    )
+    company = company_result.first()
     role_counts_result = await db.execute(
         select(UserMaster.role_id, func.count())
         .where(
@@ -398,6 +411,26 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
             "closed": concerns.get("Closed", 0),
             "total": sum(concerns.values()),
         },
+        "annual_returns": {
+            "completed": 0,
+            "pending": 0,
+        },
+        "organizations": (
+            [
+                {
+                    "company_id": company.company_id,
+                    "company_name": company.company_name,
+                    "status": company.status,
+                    "approval_status": company.approval_status or "Pending",
+                    "annual_return_status": "Pending",
+                    "services": ["POSH"],
+                    "employees": total,
+                    "certificates": total_certs,
+                }
+            ]
+            if company
+            else []
+        ),
     }
 
 

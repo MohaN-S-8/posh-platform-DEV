@@ -21,6 +21,9 @@ class CompanyCreate(BaseModel):
     website: Optional[str] = None
     registration_number: Optional[str] = None
     gst_number: Optional[str] = None
+    posh_policy: Optional[str] = None
+    posh_policy_version: Optional[str] = None
+    posh_policy_effective_date: Optional[str] = None
     employee_strength: Optional[int] = None
     address: Optional[str] = None
     corp_address_json: str
@@ -102,6 +105,9 @@ class CompanyUpdate(BaseModel):
     website: Optional[str] = None
     registration_number: Optional[str] = None
     gst_number: Optional[str] = None
+    posh_policy: Optional[str] = None
+    posh_policy_version: Optional[str] = None
+    posh_policy_effective_date: Optional[str] = None
     employee_strength: Optional[int] = None
     address: Optional[str] = None
     corp_address_json: Optional[str] = None
@@ -146,6 +152,9 @@ class CompanyResponse(BaseModel):
     website: Optional[str]
     registration_number: Optional[str]
     gst_number: Optional[str]
+    posh_policy: Optional[str] = None
+    posh_policy_version: Optional[str] = None
+    posh_policy_effective_date: Optional[str] = None
     address: Optional[str]
     corp_address_json: Optional[str] = None
     billing_address_json: Optional[str] = None

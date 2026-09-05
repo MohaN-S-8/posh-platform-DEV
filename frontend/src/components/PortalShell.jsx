@@ -54,6 +54,7 @@ const defaultAllowed = {
     "PoSH Policy",
     "Company Setup",
     "Employee Master",
+    "Masters",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -206,7 +207,7 @@ const moduleCatalog = [
     label: "Masters",
     to: () => "/super-admin/masters",
     icon: <FolderIcon fontSize="small" />,
-    allowedRoles: [1],
+    allowedRoles: [1, 2],
   },
   {
     accessItem: "Company Setup",
