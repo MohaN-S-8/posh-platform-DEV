@@ -37,7 +37,8 @@ const defaultAllowed = {
   "Super Admin": new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -52,6 +53,8 @@ const defaultAllowed = {
   "Company Admin": new Set([
     "Home",
     "PoSH Policy",
+    "PoSH Training",
+    "IC Member Training",
     "Company Setup",
     "Employee Master",
     "Masters",
@@ -59,7 +62,8 @@ const defaultAllowed = {
   "Client Admin (Mgmt)": new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -69,7 +73,8 @@ const defaultAllowed = {
   IC: new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -78,7 +83,7 @@ const defaultAllowed = {
   Employee: new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
     "Assessment & Certificate",
     "POSH Complaints",
   ]),
@@ -96,6 +101,9 @@ const accessItemAliases = {
   "Employee Master - PoSH": "Employee Master",
   "Masters (State/City/Scope)": "Masters",
   "PoSH Office Master": "Masters",
+  "POSH Awareness Training": "PoSH Training",
+  "My IC Training": "IC Member Training",
+  "IC Training": "IC Member Training",
 };
 
 const normalizeAccessItem = (accessItem) =>
@@ -103,7 +111,8 @@ const normalizeAccessItem = (accessItem) =>
 
 const poshServiceAccessItems = new Set([
   "PoSH Policy",
-  "POSH Awareness Training",
+  "PoSH Training",
+  "IC Member Training",
   "Assessment & Certificate",
   "POSH Compliance",
   "POSH Complaints",
@@ -125,17 +134,21 @@ const moduleCatalog = [
     allowedRoles: [1, 2, 3, 4, 5],
   },
   {
-    accessItem: "POSH Awareness Training",
-    label: "My IC Training",
-    to: (roleId) => (roleId === 3 ? "/ic/training" : ""),
+    accessItem: "IC Member Training",
+    label: "IC Member Training",
+    to: (roleId) => {
+      if (roleId === 3) return "/ic/training";
+      return null;
+    },
     icon: <PlayCircleIcon fontSize="small" />,
     allowedRoles: [3],
-    requiredPermission: "courses.watch",
   },
   {
-    accessItem: "POSH Awareness Training",
-    label: "POSH Awareness Training",
+    accessItem: "PoSH Training",
+    label: (roleId) =>
+      [1, 2, 5].includes(roleId) ? "Training" : "PoSH Training",
     to: (roleId) => {
+      if (roleId === 3) return "/ic/posh-training";
       if (roleId === 4) return "/employee/courses";
       if (roleId === 5) return "/admin/videos";
       if (roleId === 1) return "/super-admin/videos";
@@ -143,7 +156,7 @@ const moduleCatalog = [
       return "/admin/videos";
     },
     icon: <PlayCircleIcon fontSize="small" />,
-    allowedRoles: [1, 2, 4, 5],
+    allowedRoles: [1, 2, 3, 4, 5],
   },
   {
     accessItem: "Assessment & Certificate",
@@ -270,6 +283,7 @@ export function PortalShell({ title, subtitle, children }) {
   const [notificationError, setNotificationError] = useState("");
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [roleAccess, setRoleAccess] = useState([]);
+  const [policyAcknowledged, setPolicyAcknowledged] = useState(true);
   const [concern, setConcern] = useState({
     category: "Workplace concern",
     message: "",
@@ -290,9 +304,15 @@ export function PortalShell({ title, subtitle, children }) {
     enabled.add("Home");
     return enabled;
   }, [roleAccess, roleLabel]);
-  const items = navForRole(user?.role_id, enabledAccessItems).filter((item) =>
-    canAccess(user, item),
-  );
+  const items = navForRole(user?.role_id, enabledAccessItems)
+    .filter((item) =>
+      user?.role_id === 4 &&
+      item.accessItem === "PoSH Training" &&
+      !policyAcknowledged
+        ? false
+        : true,
+    )
+    .filter((item) => canAccess(user, item));
   const poshServiceItems = items.filter((item) =>
     poshServiceAccessItems.has(item.accessItem),
   );
@@ -355,6 +375,32 @@ export function PortalShell({ title, subtitle, children }) {
     loadRoleAccess();
     return () => {
       isMounted = false;
+    };
+  }, [user?.role_id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadPolicyAcknowledgement = async () => {
+      if (user?.role_id !== 4) {
+        setPolicyAcknowledged(true);
+        return;
+      }
+      try {
+        const res = await apiClient.get("/policy/");
+        if (isMounted) setPolicyAcknowledged(Boolean(res.data?.acknowledged));
+      } catch {
+        if (isMounted) setPolicyAcknowledged(false);
+      }
+    };
+    const handleAcknowledged = () => setPolicyAcknowledged(true);
+    loadPolicyAcknowledgement();
+    window.addEventListener("posh-policy-acknowledged", handleAcknowledged);
+    return () => {
+      isMounted = false;
+      window.removeEventListener(
+        "posh-policy-acknowledged",
+        handleAcknowledged,
+      );
     };
   }, [user?.role_id]);
 

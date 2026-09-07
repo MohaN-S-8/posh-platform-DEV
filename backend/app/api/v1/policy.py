@@ -182,7 +182,7 @@ async def update_policy(
     data: PoshPolicyPayload,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1, 2])),
+    current_user=Depends(require_roles([1, 2, 5])),
 ):
     company_id = None if current_user.role_id == 1 else current_user.company_id
     result = await db.execute(select(PoshPolicy).where(PoshPolicy.company_id == company_id))
@@ -222,7 +222,7 @@ async def upload_policy_document(
     request: Request,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1, 2])),
+    current_user=Depends(require_roles([1, 2, 5])),
 ):
     filename = file.filename or "posh-policy.pdf"
     extension = os.path.splitext(filename)[1].lower()
@@ -323,6 +323,51 @@ async def acknowledge_policy(
         "policy_id": policy.policy_id,
         "version": policy_version,
     }
+
+
+@router.get("/acknowledgements")
+async def list_policy_acknowledgements(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles([1, 2])),
+):
+    conditions = ""
+    params = {}
+    if current_user.role_id != 1:
+        conditions = "AND ack.company_id = :company_id"
+        params["company_id"] = current_user.company_id
+
+    result = await db.execute(
+        text(
+            f"""
+            SELECT
+                ack.user_id,
+                ack.company_id,
+                company.company_name,
+                user.employee_id,
+                user.first_name,
+                user.last_name,
+                user.email,
+                user.role_id,
+                ack.policy_id,
+                ack.policy_version,
+                ack.acknowledged_at
+            FROM posh_policy_acknowledgement ack
+            JOIN user_master user ON user.user_id = ack.user_id
+            LEFT JOIN company_master company ON company.company_id = ack.company_id
+            WHERE user.is_deleted = 'N'
+              {conditions}
+            ORDER BY ack.acknowledged_at DESC
+            """
+        ),
+        params,
+    )
+    return [
+        {
+            **dict(row._mapping),
+            "full_name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
+        }
+        for row in result
+    ]
 
 
 @router.get("/document/download")

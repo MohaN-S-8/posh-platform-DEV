@@ -21,6 +21,8 @@ class EmployeeCourseResponse(BaseModel):
     assessment_result: Optional[str] = None
     assessment_score: Optional[float] = None
     completed_at: Optional[datetime] = None
+    required_video_count: int = 5
+    required_completed_count: int = 0
 
 
 class EmployeeSummaryResponse(BaseModel):

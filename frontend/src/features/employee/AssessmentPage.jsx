@@ -1,15 +1,29 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import apiClient from "../../api/client";
 import { useAuthStore } from "../../store/authStore";
 
 export function AssessmentPage() {
   const { videoId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
-  const coursePath = user?.role_id === 3 ? "/ic/training" : "/employee/courses";
-  const videoPath = user?.role_id === 3 ? `/ic/video/${videoId}` : `/employee/video/${videoId}`;
-  const certificatePath = user?.role_id === 3 ? "/ic/certificates" : "/employee/certificates";
+  const isIcPoshTraining =
+    user?.role_id === 3 && location.pathname.includes("/ic/posh");
+  const coursePath =
+    user?.role_id === 3
+      ? isIcPoshTraining
+        ? "/ic/posh-training"
+        : "/ic/training"
+      : "/employee/courses";
+  const videoPath =
+    user?.role_id === 3
+      ? isIcPoshTraining
+        ? `/ic/posh-video/${videoId}`
+        : `/ic/video/${videoId}`
+      : `/employee/video/${videoId}`;
+  const certificatePath =
+    user?.role_id === 3 ? "/ic/certificates" : "/employee/certificates";
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
@@ -23,7 +37,9 @@ export function AssessmentPage() {
       setLoading(true);
       setError("");
       try {
-        const availableRes = await apiClient.get(`/assessments/${videoId}/availability`);
+        const availableRes = await apiClient.get(
+          `/assessments/${videoId}/availability`,
+        );
         setAvailability(availableRes.data);
         if (!availableRes.data.available) {
           setError(
@@ -32,7 +48,9 @@ export function AssessmentPage() {
           );
           return;
         }
-        const questionRes = await apiClient.get(`/assessments/${videoId}/questions`);
+        const questionRes = await apiClient.get(
+          `/assessments/${videoId}/questions`,
+        );
         setQuestions(questionRes.data);
       } catch (err) {
         setError(err.response?.data?.detail || "Unable to load assessment.");
@@ -63,7 +81,8 @@ export function AssessmentPage() {
     }
   };
 
-  const allAnswered = questions.length > 0 && questions.every((q) => answers[q.question_id]);
+  const allAnswered =
+    questions.length > 0 && questions.every((q) => answers[q.question_id]);
 
   return (
     <div style={{ padding: "32px", background: "#f6f8fb", minHeight: "100vh" }}>
@@ -87,10 +106,17 @@ export function AssessmentPage() {
       {loading ? (
         <p style={{ color: "#666" }}>Loading assessment...</p>
       ) : error ? (
-        <div style={{ background: "white", borderRadius: "8px", padding: "28px" }}>
-          <h3 style={{ color: availability?.attempted ? "#17324d" : "#c0392b", marginTop: 0 }}>
+        <div
+          style={{ background: "white", borderRadius: "8px", padding: "28px" }}
+        >
+          <h3
+            style={{
+              color: availability?.attempted ? "#17324d" : "#c0392b",
+              marginTop: 0,
+            }}
+          >
             {availability?.result === "Fail"
-              ? "Rewatch Required"
+              ? "Retake Available"
               : availability?.attempted
                 ? "Assessment Submitted"
                 : "Assessment Locked"}
@@ -102,7 +128,9 @@ export function AssessmentPage() {
             </p>
           )}
           {availability?.question_count === 0 && (
-            <p style={{ color: "#666" }}>No questions have been configured for this video yet.</p>
+            <p style={{ color: "#666" }}>
+              No questions have been configured for this video yet.
+            </p>
           )}
           <button
             type="button"
@@ -121,13 +149,24 @@ export function AssessmentPage() {
           </button>
         </div>
       ) : questions.length === 0 ? (
-        <div style={{ background: "white", borderRadius: "8px", padding: "28px" }}>
-          <h3 style={{ color: "#17324d", marginTop: 0 }}>No questions available</h3>
+        <div
+          style={{ background: "white", borderRadius: "8px", padding: "28px" }}
+        >
+          <h3 style={{ color: "#17324d", marginTop: 0 }}>
+            No questions available
+          </h3>
           <p style={{ color: "#666" }}>Please contact your IC team.</p>
         </div>
       ) : result ? (
-        <div style={{ background: "white", borderRadius: "8px", padding: "28px" }}>
-          <h3 style={{ color: result.result === "Pass" ? "#1f7a4d" : "#c0392b", marginTop: 0 }}>
+        <div
+          style={{ background: "white", borderRadius: "8px", padding: "28px" }}
+        >
+          <h3
+            style={{
+              color: result.result === "Pass" ? "#1f7a4d" : "#c0392b",
+              marginTop: 0,
+            }}
+          >
             {result.result}
           </h3>
           <p style={{ color: "#17324d", fontSize: "20px", fontWeight: 700 }}>
@@ -136,11 +175,7 @@ export function AssessmentPage() {
           <p style={{ color: "#666" }}>{result.message}</p>
           <button
             onClick={() =>
-              navigate(
-                result.result === "Pass"
-                  ? certificatePath
-                  : videoPath,
-              )
+              navigate(result.result === "Pass" ? certificatePath : coursePath)
             }
             style={{
               marginTop: "18px",
@@ -152,7 +187,9 @@ export function AssessmentPage() {
               cursor: "pointer",
             }}
           >
-            {result.result === "Pass" ? "View Certificates" : "Rewatch Video"}
+            {result.result === "Pass"
+              ? "View Certificates"
+              : "Back to Training"}
           </button>
         </div>
       ) : (
@@ -187,7 +224,9 @@ export function AssessmentPage() {
                     <input
                       type="radio"
                       name={`question-${question.question_id}`}
-                      checked={answers[question.question_id] === option.option_label}
+                      checked={
+                        answers[question.question_id] === option.option_label
+                      }
                       onChange={() =>
                         setAnswers((current) => ({
                           ...current,
@@ -196,7 +235,8 @@ export function AssessmentPage() {
                       }
                     />
                     <span style={{ color: "#333" }}>
-                      <strong>{option.option_label}.</strong> {option.option_text}
+                      <strong>{option.option_label}.</strong>{" "}
+                      {option.option_text}
                     </span>
                   </label>
                 ))}

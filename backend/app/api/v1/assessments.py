@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import (
     require_any_permission,
     require_permission,
-    require_roles_with_matrix,
+    require_roles,
 )
 from app.db.session import get_db
 from app.schemas.assessment import (
@@ -19,6 +19,7 @@ from app.schemas.assessment import (
 )
 from app.services.assessment_service import AssessmentService
 from app.services.audit_service import write_audit_log
+from app.services.policy_ack_service import require_employee_policy_acknowledgement
 
 router = APIRouter(prefix="/assessments", tags=["Assessments"])
 assessment_service = AssessmentService()
@@ -190,9 +191,10 @@ def _parse_docx_questions(lines: list[str], video_id: int) -> list[AssessmentQue
 async def get_questions(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
+    current_user=Depends(require_roles([3, 4])),
 ):
     """Return assessment questions/options for a published company video."""
+    await require_employee_policy_acknowledgement(db, current_user)
     return await assessment_service.questions(
         db, video_id, current_user.company_id, current_user.user_id
     )
@@ -202,9 +204,10 @@ async def get_questions(
 async def assessment_availability(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
+    current_user=Depends(require_roles([3, 4])),
 ):
     """Return whether the current user can take the assessment."""
+    await require_employee_policy_acknowledgement(db, current_user)
     return await assessment_service.availability(
         db, video_id, current_user.user_id, current_user.company_id
     )
@@ -301,12 +304,13 @@ async def delete_assessment_question(
 async def submit_assessment(
     data: AssessmentSubmit,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
+    current_user=Depends(require_roles([3, 4])),
 ):
     """
     Submit assessment answers.
     Assessment is locked until video is 95%+ complete.
     Returns score, pass/fail, and triggers certificate on Pass.
     """
+    await require_employee_policy_acknowledgement(db, current_user)
 
     return await assessment_service.submit(db, current_user.user_id, data, current_user.company_id)

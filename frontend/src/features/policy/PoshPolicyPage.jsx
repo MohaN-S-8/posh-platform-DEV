@@ -19,16 +19,44 @@ const defaultPolicy = {
   version: "3.2",
   approved_date: "04 Jan 2026",
   harassment_types: [
-    { title: "Physical", text: "Unwelcome touching, patting, hugging, physical contact, or physical advances." },
-    { title: "Verbal", text: "Sexual remarks, jokes, comments on appearance, or requests for favours." },
-    { title: "Non-Verbal", text: "Staring, suggestive gestures, or displaying explicit material." },
-    { title: "Digital", text: "Sexually explicit messages, emails, images, or online communication." },
+    {
+      title: "Physical",
+      text: "Unwelcome touching, patting, hugging, physical contact, or physical advances.",
+    },
+    {
+      title: "Verbal",
+      text: "Sexual remarks, jokes, comments on appearance, or requests for favours.",
+    },
+    {
+      title: "Non-Verbal",
+      text: "Staring, suggestive gestures, or displaying explicit material.",
+    },
+    {
+      title: "Digital",
+      text: "Sexually explicit messages, emails, images, or online communication.",
+    },
   ],
   committee_members: [
-    { role: "Presiding Officer", name: "Gomathi Subramaniam", detail: "Senior Manager - IC, Chennai HQ" },
-    { role: "Member", name: "Priya Raman", detail: "IC Business Partner, Chennai HQ" },
-    { role: "Member", name: "Arjun Mehta", detail: "Legal Counsel, Chennai HQ" },
-    { role: "External Member", name: "Kavitha Reddy", detail: "Sakhi Foundation" },
+    {
+      role: "Presiding Officer",
+      name: "Gomathi Subramaniam",
+      detail: "Senior Manager - IC, Chennai HQ",
+    },
+    {
+      role: "Member",
+      name: "Priya Raman",
+      detail: "IC Business Partner, Chennai HQ",
+    },
+    {
+      role: "Member",
+      name: "Arjun Mehta",
+      detail: "Legal Counsel, Chennai HQ",
+    },
+    {
+      role: "External Member",
+      name: "Kavitha Reddy",
+      detail: "Sakhi Foundation",
+    },
   ],
   rights: [
     "Right to a safe workplace",
@@ -103,16 +131,22 @@ function formToPolicy(form) {
     version: form.version.trim(),
     approved_date: form.approved_date.trim(),
     harassment_types: parseLines(form.harassment_types, (line) => {
-      const [title = "", text = ""] = line.split("|").map((part) => part.trim());
+      const [title = "", text = ""] = line
+        .split("|")
+        .map((part) => part.trim());
       return { title, text };
     }).filter((item) => item.title && item.text),
     committee_members: parseLines(form.committee_members, (line) => {
-      const [role = "", name = "", detail = ""] = line.split("|").map((part) => part.trim());
+      const [role = "", name = "", detail = ""] = line
+        .split("|")
+        .map((part) => part.trim());
       return { role, name, detail };
     }).filter((item) => item.role && item.name && item.detail),
     rights: parseLines(form.rights, (line) => line),
     faqs: parseLines(form.faqs, (line) => {
-      const [question = "", answer = ""] = line.split("|").map((part) => part.trim());
+      const [question = "", answer = ""] = line
+        .split("|")
+        .map((part) => part.trim());
       return { question, answer };
     }).filter((item) => item.question && item.answer),
   };
@@ -130,7 +164,11 @@ export function PoshPolicyPage() {
   const [downloadingDoc, setDownloadingDoc] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const canEdit = user?.role_id === 1 || user?.role_id === 2;
+  const [acknowledgements, setAcknowledgements] = useState([]);
+  const canEdit =
+    user?.role_id === 1 || user?.role_id === 2 || user?.role_id === 5;
+  const canViewAcknowledgements = user?.role_id === 1 || user?.role_id === 2;
+  const canAcknowledge = !canEdit;
 
   useEffect(() => {
     let active = true;
@@ -146,7 +184,12 @@ export function PoshPolicyPage() {
         }
       } catch (err) {
         if (active) {
-          setError(apiErrorMessage(err, "Unable to load saved policy. Showing default policy."));
+          setError(
+            apiErrorMessage(
+              err,
+              "Unable to load saved policy. Showing default policy.",
+            ),
+          );
           setForm(policyToForm(defaultPolicy));
         }
       } finally {
@@ -158,6 +201,23 @@ export function PoshPolicyPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!canViewAcknowledgements) return undefined;
+    let active = true;
+    const loadAcknowledgements = async () => {
+      try {
+        const res = await apiClient.get("/policy/acknowledgements");
+        if (active) setAcknowledgements(res.data || []);
+      } catch {
+        if (active) setAcknowledgements([]);
+      }
+    };
+    loadAcknowledgements();
+    return () => {
+      active = false;
+    };
+  }, [canViewAcknowledgements]);
 
   const savePolicy = async (event) => {
     event.preventDefault();
@@ -208,9 +268,27 @@ export function PoshPolicyPage() {
       const res = await apiClient.get("/policy/document/download");
       window.open(res.data.download_url, "_blank");
     } catch (err) {
-      setError(apiErrorMessage(err, "Policy document has not been uploaded yet."));
+      setError(
+        apiErrorMessage(err, "Policy document has not been uploaded yet."),
+      );
     } finally {
       setDownloadingDoc(false);
+    }
+  };
+
+  const acknowledgePolicy = async () => {
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      await apiClient.post("/policy/acknowledge");
+      setPolicy((current) => ({ ...current, acknowledged: true }));
+      setMessage("Policy acknowledged. Your training is now available.");
+      window.dispatchEvent(new Event("posh-policy-acknowledged"));
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to acknowledge policy."));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -229,7 +307,11 @@ export function PoshPolicyPage() {
       {canEdit && (
         <div className="portal-policy-editbar">
           <div>
-            <strong>{user?.role_id === 1 ? "Global policy editor" : "Company policy editor"}</strong>
+            <strong>
+              {user?.role_id === 1
+                ? "Global policy editor"
+                : "Company policy editor"}
+            </strong>
             <span>Saved changes are shown to users permanently.</span>
           </div>
           <button
@@ -247,14 +329,21 @@ export function PoshPolicyPage() {
       )}
 
       {canEdit && editing && (
-        <form className="portal-card portal-policy-editor" onSubmit={savePolicy}>
-          <div className="portal-section-title" style={{ marginTop: 0 }}>Edit Policy Details</div>
+        <form
+          className="portal-card portal-policy-editor"
+          onSubmit={savePolicy}
+        >
+          <div className="portal-section-title" style={{ marginTop: 0 }}>
+            Edit Policy Details
+          </div>
           <label>
             Policy Title
             <input
               className="portal-action-input"
               value={form.title}
-              onChange={(event) => setForm({ ...form, title: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, title: event.target.value })
+              }
             />
           </label>
           <label>
@@ -263,7 +352,9 @@ export function PoshPolicyPage() {
               className="portal-action-input"
               rows={4}
               value={form.overview}
-              onChange={(event) => setForm({ ...form, overview: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, overview: event.target.value })
+              }
             />
           </label>
           <div className="portal-grid-2 portal-policy-form-grid">
@@ -272,7 +363,9 @@ export function PoshPolicyPage() {
               <input
                 className="portal-action-input"
                 value={form.version}
-                onChange={(event) => setForm({ ...form, version: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, version: event.target.value })
+                }
               />
             </label>
             <label>
@@ -280,27 +373,41 @@ export function PoshPolicyPage() {
               <input
                 className="portal-action-input"
                 value={form.approved_date}
-                onChange={(event) => setForm({ ...form, approved_date: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, approved_date: event.target.value })
+                }
               />
             </label>
           </div>
-          {["harassment_types", "committee_members", "rights", "faqs"].map((field) => (
-            <label key={field}>
-              {field.replaceAll("_", " ")}
-              <small>{editHints[field]}</small>
-              <textarea
-                className="portal-action-input"
-                rows={field === "faqs" ? 5 : 4}
-                value={form[field]}
-                onChange={(event) => setForm({ ...form, [field]: event.target.value })}
-              />
-            </label>
-          ))}
+          {["harassment_types", "committee_members", "rights", "faqs"].map(
+            (field) => (
+              <label key={field}>
+                {field.replaceAll("_", " ")}
+                <small>{editHints[field]}</small>
+                <textarea
+                  className="portal-action-input"
+                  rows={field === "faqs" ? 5 : 4}
+                  value={form[field]}
+                  onChange={(event) =>
+                    setForm({ ...form, [field]: event.target.value })
+                  }
+                />
+              </label>
+            ),
+          )}
           <div className="portal-modal-actions">
-            <button type="button" className="portal-outline-btn" onClick={() => setEditing(false)}>
+            <button
+              type="button"
+              className="portal-outline-btn"
+              onClick={() => setEditing(false)}
+            >
               Cancel
             </button>
-            <button type="submit" className="portal-primary-btn" disabled={saving}>
+            <button
+              type="submit"
+              className="portal-primary-btn"
+              disabled={saving}
+            >
               {saving ? "Saving..." : "Save Permanently"}
             </button>
           </div>
@@ -320,10 +427,15 @@ export function PoshPolicyPage() {
       </section>
 
       <section style={{ marginBottom: "24px" }}>
-        <div className="portal-section-title">What Counts As Sexual Harassment?</div>
+        <div className="portal-section-title">
+          What Counts As Sexual Harassment?
+        </div>
         <div className="portal-grid-4 portal-policy-card-grid">
           {policy.harassment_types.map((type) => (
-            <article className="portal-card portal-policy-type" key={type.title}>
+            <article
+              className="portal-card portal-policy-type"
+              key={type.title}
+            >
               <span>{harassmentIcons[type.title] || <PolicyIcon />}</span>
               <h3>{type.title}</h3>
               <p>{type.text}</p>
@@ -333,19 +445,26 @@ export function PoshPolicyPage() {
       </section>
 
       <section style={{ marginBottom: "24px" }}>
-        <div className="portal-section-title">Internal Committee Composition</div>
+        <div className="portal-section-title">
+          Internal Committee Composition
+        </div>
         <div className="portal-grid-4 portal-policy-card-grid">
           {policy.committee_members.map((member) => (
-            <article className="portal-card" key={`${member.role}-${member.name}`}>
-              <span className="portal-badge portal-badge-purple">{member.role}</span>
+            <article
+              className="portal-card"
+              key={`${member.role}-${member.name}`}
+            >
+              <span className="portal-badge portal-badge-purple">
+                {member.role}
+              </span>
               <h3 style={{ marginTop: "10px" }}>{member.name}</h3>
               <p>{member.detail}</p>
             </article>
           ))}
         </div>
         <p className="portal-policy-note">
-          Committees may vary by branch. Use the company or IC records to confirm
-          the Internal Committee applicable to your location.
+          Committees may vary by branch. Use the company or IC records to
+          confirm the Internal Committee applicable to your location.
         </p>
       </section>
 
@@ -369,9 +488,13 @@ export function PoshPolicyPage() {
             Policy Document
           </div>
           <h3>Version {policy.version}</h3>
-          <p style={{ marginBottom: "14px" }}>Board-approved {policy.approved_date}</p>
+          <p style={{ marginBottom: "14px" }}>
+            Board-approved {policy.approved_date}
+          </p>
           {policy.document_name && (
-            <p style={{ marginBottom: "14px" }}>Uploaded file: {policy.document_name}</p>
+            <p style={{ marginBottom: "14px" }}>
+              Uploaded file: {policy.document_name}
+            </p>
           )}
           <div className="portal-policy-document-actions">
             <button
@@ -385,7 +508,11 @@ export function PoshPolicyPage() {
             </button>
             {canEdit && (
               <label className="portal-outline-btn portal-policy-upload-btn">
-                {uploadingDoc ? "Uploading..." : policy.document_path ? "Replace PDF" : "Upload PDF"}
+                {uploadingDoc
+                  ? "Uploading..."
+                  : policy.document_path
+                    ? "Replace PDF"
+                    : "Upload PDF"}
                 <input
                   type="file"
                   accept="application/pdf,.pdf"
@@ -401,12 +528,102 @@ export function PoshPolicyPage() {
         </article>
       </section>
 
+      {canAcknowledge && (
+        <section className="portal-card portal-policy-ack">
+          <div>
+            <strong>
+              {policy.acknowledged
+                ? "Policy acknowledged"
+                : "Acknowledge PoSH Policy"}
+            </strong>
+            <p>
+              {policy.acknowledged
+                ? "Your acknowledgement is recorded for this policy version."
+                : "You must acknowledge this policy before employee training is available."}
+            </p>
+          </div>
+          <button
+            type="button"
+            className={
+              policy.acknowledged ? "portal-outline-btn" : "portal-primary-btn"
+            }
+            disabled={saving || policy.acknowledged}
+            onClick={acknowledgePolicy}
+          >
+            <CheckCircleIcon fontSize="small" />
+            {policy.acknowledged ? "Acknowledged" : "I Acknowledge"}
+          </button>
+        </section>
+      )}
+
+      {canViewAcknowledgements && (
+        <section style={{ marginBottom: "24px" }}>
+          <div className="portal-section-title">Policy Acknowledgements</div>
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  {[
+                    "Employee",
+                    "Email",
+                    "Company",
+                    "Version",
+                    "Acknowledged At",
+                  ].map((heading) => (
+                    <th key={heading} style={thStyle}>
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {acknowledgements.map((row) => (
+                  <tr
+                    key={`${row.user_id}-${row.policy_id}-${row.policy_version}`}
+                    style={trStyle}
+                  >
+                    <td style={tdStyle}>
+                      {row.full_name || row.employee_id || "-"}
+                    </td>
+                    <td style={tdStyle}>{row.email}</td>
+                    <td style={tdStyle}>{row.company_name || "Global"}</td>
+                    <td style={tdStyle}>{row.policy_version || "-"}</td>
+                    <td style={tdStyle}>
+                      {row.acknowledged_at
+                        ? new Date(row.acknowledged_at).toLocaleString()
+                        : "-"}
+                    </td>
+                  </tr>
+                ))}
+                {!acknowledgements.length && (
+                  <tr style={trStyle}>
+                    <td
+                      colSpan={5}
+                      style={{
+                        ...tdStyle,
+                        textAlign: "center",
+                        color: "var(--portal-muted)",
+                      }}
+                    >
+                      No acknowledgements recorded yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <section>
         <div className="portal-section-title">Frequently Asked Questions</div>
         <div className="portal-policy-faq-list">
           {policy.faqs.map((faq, index) => (
             <article className="portal-policy-faq" key={faq.question}>
-              <button type="button" onClick={() => setOpenFaq(openFaq === index ? -1 : index)}>
+              <button
+                type="button"
+                onClick={() => setOpenFaq(openFaq === index ? -1 : index)}
+              >
                 <span>{faq.question}</span>
                 <strong>{openFaq === index ? "-" : "+"}</strong>
               </button>
@@ -418,7 +635,13 @@ export function PoshPolicyPage() {
 
       <LoadingOverlay
         show={loading || saving || uploadingDoc}
-        title={saving ? "Saving policy" : uploadingDoc ? "Uploading policy document" : "Loading policy"}
+        title={
+          saving
+            ? "Saving policy"
+            : uploadingDoc
+              ? "Uploading policy document"
+              : "Loading policy"
+        }
         message={
           saving
             ? "Updating policy details permanently."
@@ -430,3 +653,34 @@ export function PoshPolicyPage() {
     </PortalShell>
   );
 }
+
+const tableWrapStyle = {
+  background: "white",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
+  overflowX: "auto",
+};
+
+const tableStyle = {
+  width: "100%",
+  minWidth: "760px",
+  borderCollapse: "collapse",
+};
+
+const thStyle = {
+  padding: "12px",
+  textAlign: "left",
+  background: "#faf8ff",
+  color: "var(--portal-muted)",
+  fontSize: "12px",
+  textTransform: "uppercase",
+};
+
+const trStyle = {
+  borderTop: "1px solid var(--portal-border)",
+};
+
+const tdStyle = {
+  padding: "11px 12px",
+  color: "var(--portal-text)",
+};

@@ -37,10 +37,11 @@ const dashboardItems = [
     accessItem: "Employee Master",
   },
   {
-    title: "Training Videos",
-    description: "Upload and manage training content.",
+    title: "Training",
+    description:
+      "Upload videos and choose Employee, IC Member Training, or PoSH Training for IC Member.",
     path: "/admin/videos",
-    accessItem: "POSH Awareness Training",
+    accessItem: "PoSH Training",
   },
   {
     title: "Certificates",
@@ -109,6 +110,9 @@ const accessItemAliases = {
   "Employee Master - PoSH": "Employee Master",
   "Masters (State/City/Scope)": "Masters",
   "PoSH Office Master": "Masters",
+  "POSH Awareness Training": "PoSH Training",
+  "My IC Training": "IC Member Training",
+  "IC Training": "IC Member Training",
 };
 
 const normalizeAccessItem = (accessItem) =>
@@ -118,8 +122,8 @@ const defaultAllowed = {
   "Super Admin": new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
-    "IC Training",
+    "PoSH Training",
+    "IC Member Training",
     "Advance Training",
     "Assessment & Certificate",
     "POSH Compliance",
@@ -138,11 +142,14 @@ const defaultAllowed = {
     "Company Setup",
     "Employee Master",
     "Masters",
+    "PoSH Training",
+    "IC Member Training",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",

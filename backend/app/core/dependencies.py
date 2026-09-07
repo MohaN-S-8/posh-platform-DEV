@@ -20,8 +20,8 @@ ROLE_ACCESS_LABELS = {
 
 PERMISSION_ACCESS_ITEMS = {
     "users.manage": ["Employee Master", "Employee Master - PoSH"],
-    "videos.upload": ["POSH Awareness Training"],
-    "videos.publish": ["POSH Awareness Training"],
+    "videos.upload": ["PoSH Training", "IC Member Training"],
+    "videos.publish": ["PoSH Training", "IC Member Training"],
     "certificates.manage": ["Assessment & Certificate", "Assessment & Certificates"],
     "reports.view": [
         "Analytics & Reports",
@@ -29,8 +29,8 @@ PERMISSION_ACCESS_ITEMS = {
         "POSH Complaints",
         "Audit",
     ],
-    "training.assign": ["POSH Awareness Training"],
-    "courses.watch": ["POSH Awareness Training"],
+    "training.assign": ["PoSH Training", "IC Member Training"],
+    "courses.watch": ["PoSH Training", "IC Member Training"],
 }
 
 

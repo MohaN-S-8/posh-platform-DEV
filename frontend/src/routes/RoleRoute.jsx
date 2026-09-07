@@ -17,7 +17,8 @@ const defaultAllowed = {
   "Super Admin": new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -31,6 +32,8 @@ const defaultAllowed = {
   "Company Admin": new Set([
     "Home",
     "PoSH Policy",
+    "PoSH Training",
+    "IC Member Training",
     "Company Setup",
     "Employee Master",
     "Masters",
@@ -38,7 +41,8 @@ const defaultAllowed = {
   "Client Admin (Mgmt)": new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -49,7 +53,8 @@ const defaultAllowed = {
   IC: new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -59,7 +64,7 @@ const defaultAllowed = {
   Employee: new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
     "Assessment & Certificate",
     "POSH Complaints",
   ]),
@@ -73,6 +78,8 @@ const accessAliases = {
   ],
   "POSH Complaints": ["POSH Complaints", "Raise POSH Complaints"],
   Audit: ["Audit", "POSH Audit", "PoSH Audit"],
+  "PoSH Training": ["PoSH Training", "POSH Awareness Training"],
+  "IC Member Training": ["IC Member Training", "My IC Training", "IC Training"],
   "Company Setup": [
     "Company Setup",
     "Create Company & Work Order",

@@ -14,7 +14,8 @@ const roles = [
 const pages = [
   "Home",
   "PoSH Policy",
-  "POSH Awareness Training",
+  "PoSH Training",
+  "IC Member Training",
   "Assessment & Certificate",
   "POSH Compliance",
   "POSH Complaints",
@@ -31,7 +32,8 @@ const defaultAllowed = {
   "Super Admin": new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -46,13 +48,16 @@ const defaultAllowed = {
   "Company Admin": new Set([
     "Home",
     "PoSH Policy",
+    "PoSH Training",
+    "IC Member Training",
     "Company Setup",
     "Employee Master",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -63,7 +68,8 @@ const defaultAllowed = {
   IC: new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
+    "IC Member Training",
     "Assessment & Certificate",
     "POSH Compliance",
     "POSH Complaints",
@@ -72,7 +78,7 @@ const defaultAllowed = {
   Employee: new Set([
     "Home",
     "PoSH Policy",
-    "POSH Awareness Training",
+    "PoSH Training",
     "Assessment & Certificate",
     "POSH Complaints",
   ]),
@@ -87,6 +93,9 @@ const accessItemAliases = {
   "Employee Master - PoSH": "Employee Master",
   "Masters (State/City/Scope)": "Masters",
   "PoSH Office Master": "Masters",
+  "POSH Awareness Training": "PoSH Training",
+  "My IC Training": "IC Member Training",
+  "IC Training": "IC Member Training",
 };
 
 const normalizeAccessItem = (accessItem) =>

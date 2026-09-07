@@ -6,7 +6,7 @@ import StopIcon from "@mui/icons-material/Stop";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import apiClient from "../../api/client";
 import { useAuthStore } from "../../store/authStore";
 
@@ -43,10 +43,15 @@ function formatTime(value) {
 export function VideoPlayerPage() {
   const { videoId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
-  const coursePath = user?.role_id === 3 ? "/ic/training" : "/employee/courses";
-  const assessmentPath =
-    user?.role_id === 3 ? `/ic/assessment/${videoId}` : `/employee/assessment/${videoId}`;
+  const isIcPoshTraining = user?.role_id === 3 && location.pathname.includes("/ic/posh");
+  const coursePath =
+    user?.role_id === 3
+      ? isIcPoshTraining
+        ? "/ic/posh-training"
+        : "/ic/training"
+      : "/employee/courses";
   const videoRef = useRef(null);
   const audioRef = useRef(null);
   const playerRef = useRef(null);
@@ -57,7 +62,6 @@ export function VideoPlayerPage() {
   const [stream, setStream] = useState(null);
   const [status, setStatus] = useState("Loading video...");
   const [completion, setCompletion] = useState(0);
-  const [unlocked, setUnlocked] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [resumePosition, setResumePosition] = useState(0);
@@ -76,7 +80,6 @@ export function VideoPlayerPage() {
         setSelectedQuality(res.data.qualities?.[0]?.label || "source");
         setSelectedLanguage(res.data.subtitles?.[0]?.language_name || "English");
         setCompletion(res.data.completion_percent || 0);
-        setUnlocked((res.data.completion_percent || 0) >= 95);
         maxWatched.current = Math.max(
           res.data.resume_position || 0,
           res.data.furthest_position || 0,
@@ -102,12 +105,11 @@ export function VideoPlayerPage() {
         total_duration: Math.floor(videoDuration),
       });
       setCompletion(res.data.completion_percent || 0);
-      setUnlocked(Boolean(res.data.assessment_unlocked));
       maxWatched.current = Math.max(
         maxWatched.current,
         res.data.furthest_position || 0,
       );
-      setStatus(res.data.assessment_unlocked ? "Assessment unlocked" : "Progress saved");
+      setStatus(res.data.status === "Completed" ? "Video completed" : "Progress saved");
     } catch (err) {
       setStatus(err.response?.data?.detail || "Progress could not be saved.");
     }
@@ -339,7 +341,6 @@ export function VideoPlayerPage() {
     setStatus("Unable to load video. Please check your network.");
   };
 
-  const canOpenAssessment = unlocked || completion >= 95;
   const selectedLanguageTrack = stream?.subtitles?.find(
     (subtitle) => subtitle.language_name === selectedLanguage,
   );
@@ -649,24 +650,22 @@ export function VideoPlayerPage() {
 
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <button
-              disabled={!canOpenAssessment}
-              onClick={() => navigate(assessmentPath)}
+              type="button"
+              onClick={() => navigate(coursePath)}
               style={{
                 padding: "10px 18px",
-                background: canOpenAssessment ? "#17324d" : "#b8c2cc",
+                background: "#17324d",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
-                cursor: canOpenAssessment ? "pointer" : "not-allowed",
+                cursor: "pointer",
               }}
             >
-              Go to Assessment
+              Back to Training
             </button>
-            {!canOpenAssessment && (
-              <span style={{ color: "#6b7280" }}>
-                Please complete the training video before taking the assessment.
-              </span>
-            )}
+            <span style={{ color: "#6b7280" }}>
+              Assessment is available from the training menu after all required videos are complete.
+            </span>
           </div>
         </div>
       </div>

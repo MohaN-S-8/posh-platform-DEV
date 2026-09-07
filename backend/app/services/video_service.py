@@ -7,6 +7,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.dependencies import _matrix_access_decision
 from app.core.storage import generate_presigned_url, upload_file
 from app.models.training import (
     AssessmentOption,
@@ -22,6 +23,7 @@ from app.services.notification_service import notification_service
 
 ALLOWED_MIME_TYPES = {"video/mp4", "video/x-msvideo", "video/quicktime"}
 ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov"}
+ALLOWED_TARGET_AUDIENCES = {"Employee", "IC Member", "IC PoSH", "All"}
 ALLOWED_AUDIO_MIME_TYPES = {
     "audio/mpeg",
     "audio/mp4",
@@ -57,6 +59,9 @@ class VideoService:
         transcript_text: Optional[str] = None,
     ) -> VideoMaster:
         """Upload a video file and save metadata."""
+        target_audience = metadata.target_audience or "Employee"
+        if target_audience not in ALLOWED_TARGET_AUDIENCES:
+            raise HTTPException(400, "Invalid training audience selected.")
 
         # 1. Read file bytes
         file_bytes = await file.read()
@@ -92,7 +97,7 @@ class VideoService:
             duration_minutes=metadata.duration_minutes,
             service_code=metadata.service_code or "POSH",
             training_level=metadata.training_level or "Basic",
-            target_audience=metadata.target_audience or "Employee",
+            target_audience=target_audience,
             video_url=object_key,  # path only — never a public URL
             storage_type="MinIO",
             status="Draft",
@@ -304,7 +309,12 @@ class VideoService:
         user = user_result.scalar_one_or_none()
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-        audience_role_ids = {"IC Member": [3], "All": [3, 4]}.get(
+        audience_role_ids = {
+            "IC Member": [3],
+            "IC PoSH": [3],
+            "Employee": [4],
+            "All": [3, 4],
+        }.get(
             video.target_audience or "Employee",
             [4],
         )
@@ -312,6 +322,15 @@ class VideoService:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="This training is not available to your user type.",
+            )
+        access_item = (
+            "IC Member Training" if video.target_audience == "IC Member" else "PoSH Training"
+        )
+        decision = await _matrix_access_decision(db, user.role_id, [access_item])
+        if decision is False:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
             )
 
         # Generate signed URL (expires in 5 minutes)
@@ -577,6 +596,11 @@ class VideoService:
             "Archived",
         }:
             raise HTTPException(400, "Status must be Draft, Published, or Archived.")
+        if (
+            "target_audience" in update_data
+            and update_data["target_audience"] not in ALLOWED_TARGET_AUDIENCES
+        ):
+            raise HTTPException(400, "Invalid training audience selected.")
 
         for field, value in update_data.items():
             setattr(video, field, value)

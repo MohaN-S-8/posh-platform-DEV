@@ -14,13 +14,35 @@ const audienceOptions = [
   { value: "All", label: "Employee + IC Member" },
 ];
 
+const icTrainingTypeOptions = [
+  { value: "ic", label: "IC Member Training" },
+  { value: "posh", label: "PoSH Training for IC Member" },
+];
+
+const trainingTargetLabels = {
+  Employee: "PoSH Training for Employee",
+  "IC Member": "IC Member Training",
+  "IC PoSH": "PoSH Training for IC Member",
+  All: "PoSH Training for Employee + IC Member",
+};
+
+const resolveTargetAudience = (values) => {
+  if (values.target_audience !== "IC Member") return values.target_audience;
+  return values.ic_training_type === "posh" ? "IC PoSH" : "IC Member";
+};
+
+const formAudienceFromVideo = (targetAudience) =>
+  targetAudience === "IC PoSH" ? "IC Member" : targetAudience || "Employee";
+
+const icTrainingTypeFromVideo = (targetAudience) =>
+  targetAudience === "IC PoSH" ? "posh" : "ic";
+
 const videoMetaLabel = (video) =>
   [
     video.training_level || "Basic",
-    audienceOptions.find((option) => option.value === video.target_audience)
-      ?.label ||
+    trainingTargetLabels[video.target_audience] ||
       video.target_audience ||
-      "Employee",
+      trainingTargetLabels.Employee,
   ].join(" / ");
 
 export function VideoListPage() {
@@ -47,6 +69,7 @@ export function VideoListPage() {
     duration_minutes: "",
     training_level: "Basic",
     target_audience: "Employee",
+    ic_training_type: "ic",
     status: "Draft",
   });
   const [form, setForm] = useState({
@@ -56,6 +79,7 @@ export function VideoListPage() {
     duration_minutes: "",
     training_level: "Basic",
     target_audience: "Employee",
+    ic_training_type: "ic",
     quality_label: "720p",
     transcript_text: "",
   });
@@ -115,7 +139,7 @@ export function VideoListPage() {
     }
     formData.append("service_code", "POSH");
     formData.append("training_level", form.training_level);
-    formData.append("target_audience", form.target_audience);
+    formData.append("target_audience", resolveTargetAudience(form));
     formData.append("quality_label", form.quality_label);
     if (form.transcript_text) {
       formData.append("transcript_text", form.transcript_text);
@@ -158,6 +182,7 @@ export function VideoListPage() {
         duration_minutes: "",
         training_level: "Basic",
         target_audience: "Employee",
+        ic_training_type: "ic",
         quality_label: "720p",
         transcript_text: "",
       });
@@ -325,7 +350,8 @@ export function VideoListPage() {
       description: video.description || "",
       duration_minutes: video.duration_minutes || "",
       training_level: video.training_level || "Basic",
-      target_audience: video.target_audience || "Employee",
+      target_audience: formAudienceFromVideo(video.target_audience),
+      ic_training_type: icTrainingTypeFromVideo(video.target_audience),
       status: video.status || "Draft",
     });
   };
@@ -343,7 +369,7 @@ export function VideoListPage() {
           ? Number(editForm.duration_minutes)
           : null,
         training_level: editForm.training_level,
-        target_audience: editForm.target_audience,
+        target_audience: resolveTargetAudience(editForm),
         status: editForm.status,
       });
       setEditingVideo(null);
@@ -484,7 +510,14 @@ export function VideoListPage() {
               <select
                 value={editForm.target_audience}
                 onChange={(e) =>
-                  setEditForm({ ...editForm, target_audience: e.target.value })
+                  setEditForm({
+                    ...editForm,
+                    target_audience: e.target.value,
+                    ic_training_type:
+                      e.target.value === "IC Member"
+                        ? editForm.ic_training_type
+                        : "ic",
+                  })
                 }
                 style={inputStyle}
               >
@@ -495,6 +528,28 @@ export function VideoListPage() {
                 ))}
               </select>
             </label>
+            {editForm.target_audience === "IC Member" && (
+              <label style={labelStyle}>
+                IC Training Type *
+                <select
+                  required
+                  value={editForm.ic_training_type}
+                  onChange={(e) =>
+                    setEditForm({
+                      ...editForm,
+                      ic_training_type: e.target.value,
+                    })
+                  }
+                  style={inputStyle}
+                >
+                  {icTrainingTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           <label style={labelStyle}>
             Description
@@ -609,7 +664,14 @@ export function VideoListPage() {
               <select
                 value={form.target_audience}
                 onChange={(e) =>
-                  setForm({ ...form, target_audience: e.target.value })
+                  setForm({
+                    ...form,
+                    target_audience: e.target.value,
+                    ic_training_type:
+                      e.target.value === "IC Member"
+                        ? form.ic_training_type
+                        : "ic",
+                  })
                 }
                 style={inputStyle}
               >
@@ -620,6 +682,25 @@ export function VideoListPage() {
                 ))}
               </select>
             </div>
+            {form.target_audience === "IC Member" && (
+              <div>
+                <label style={labelStyle}>IC Training Type *</label>
+                <select
+                  required
+                  value={form.ic_training_type}
+                  onChange={(e) =>
+                    setForm({ ...form, ic_training_type: e.target.value })
+                  }
+                  style={inputStyle}
+                >
+                  {icTrainingTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <div style={{ marginBottom: "16px" }}>
             <label style={labelStyle}>Description</label>

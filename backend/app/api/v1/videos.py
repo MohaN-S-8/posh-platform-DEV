@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import (
     require_any_permission,
     require_permission,
-    require_roles_with_matrix,
+    require_roles,
 )
 from app.db.session import get_db
 from app.schemas.video import (
@@ -15,6 +15,7 @@ from app.schemas.video import (
     VideoUpdate,
 )
 from app.services.audit_service import write_audit_log
+from app.services.policy_ack_service import require_employee_policy_acknowledgement
 from app.services.video_service import VideoService
 
 router = APIRouter(prefix="/videos", tags=["Video Management"])
@@ -266,12 +267,13 @@ async def delete_video(
 async def get_stream_url(
     video_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
+    current_user=Depends(require_roles([3, 4])),
 ):
     """
     Get a short-lived signed URL for video streaming.
     URL expires in 5 minutes. Learner must match the video's target audience.
     """
+    await require_employee_policy_acknowledgement(db, current_user)
     return await video_service.get_stream_url(
         db, video_id, current_user.user_id, current_user.company_id
     )
@@ -282,12 +284,13 @@ async def update_progress(
     video_id: int,
     data: ProgressUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles_with_matrix([3, 4], ["POSH Awareness Training"])),
+    current_user=Depends(require_roles([3, 4])),
 ):
     """
     Update video watch progress (called every 10 seconds by the player).
     Enforces no-fast-forward. Returns completion status and assessment unlock flag.
     """
+    await require_employee_policy_acknowledgement(db, current_user)
     return await video_service.update_progress(
         db,
         video_id,
