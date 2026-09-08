@@ -1,4 +1,5 @@
 from app.models.analytics import AnalyticsSummary  # noqa: F401
+from app.models.annual_return import AnnualReturn  # noqa: F401
 from app.models.auth import (  # noqa: F401
     AccountLockout,
     LoginAttempts,

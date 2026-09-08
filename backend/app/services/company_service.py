@@ -1,16 +1,61 @@
 import json
 import logging
+import os
 import re
+import uuid
 from datetime import datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.storage import upload_file
 from app.models.company import CompanyMaster
+from app.models.policy import PoshPolicy
 from app.schemas.company import CompanyCreate, CompanyUpdate
 
 logger = logging.getLogger(__name__)
+POLICY_BUCKET = "posh-policy-documents"
+
+DEFAULT_POLICY_JSON = {
+    "harassment_types": [
+        {
+            "title": "Physical",
+            "text": "Unwelcome touching, patting, hugging, physical contact, or physical advances.",
+        },
+        {
+            "title": "Verbal",
+            "text": "Sexual remarks, jokes, comments on appearance, or requests for favours.",
+        },
+        {
+            "title": "Non-Verbal",
+            "text": "Staring, suggestive gestures, or displaying explicit material.",
+        },
+        {
+            "title": "Digital",
+            "text": "Sexually explicit messages, emails, images, or online communication.",
+        },
+    ],
+    "committee_members": [
+        {
+            "role": "Presiding Officer",
+            "name": "To be updated",
+            "detail": "Company Internal Committee",
+        }
+    ],
+    "rights": [
+        "Right to a safe workplace",
+        "Right to file a complaint in confidence",
+        "Protection from retaliation",
+        "Identity of parties kept confidential under Section 16",
+    ],
+    "faqs": [
+        {
+            "question": "Who can file a PoSH complaint?",
+            "answer": "Eligible employees can file complaints according to the company PoSH policy.",
+        }
+    ],
+}
 
 
 class CompanyService:
@@ -62,6 +107,20 @@ class CompanyService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Company name must contain at least 4 letters to generate the company code.",
             )
+        missing_policy = [
+            label
+            for field, label in [
+                ("posh_policy", "PoSH policy"),
+                ("posh_policy_version", "PoSH policy version"),
+                ("posh_policy_effective_date", "PoSH policy effective date"),
+            ]
+            if not str(data_dict.get(field) or "").strip()
+        ]
+        if missing_policy:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Policy details are required: " + ", ".join(missing_policy),
+            )
         data_dict = await self._normalize_service_details(db, data_dict)
         if current_user and current_user.role_id != 1:
             data_dict = self._mark_service_owner(data_dict, current_user.user_id)
@@ -84,6 +143,7 @@ class CompanyService:
         db.add(company)
         await db.commit()
         await db.refresh(company)
+        await self._sync_posh_policy_from_company(db, company, current_user)
         await db.execute(
             text(
                 """
@@ -127,6 +187,7 @@ class CompanyService:
 
         await db.commit()
         await db.refresh(company)
+        await self._sync_posh_policy_from_company(db, company, current_user)
         return company
 
     async def approve(self, db: AsyncSession, company_id: int) -> dict:
@@ -191,7 +252,93 @@ class CompanyService:
             if not all(contact.get(key) for key in ["name", "designation", "contact_no", "email"]):
                 missing.append(label)
 
+        if not company.posh_policy:
+            missing.append("PoSH policy")
+        if not company.posh_policy_version:
+            missing.append("PoSH policy version")
+        if not company.posh_policy_effective_date:
+            missing.append("PoSH policy effective date")
+        if not company.posh_policy_document_path:
+            missing.append("PoSH policy PDF")
+
         return missing
+
+    async def _sync_posh_policy_from_company(
+        self,
+        db: AsyncSession,
+        company: CompanyMaster,
+        current_user=None,
+    ) -> None:
+        if not company.company_id:
+            return
+        title = (company.posh_policy or "").strip()
+        version = (company.posh_policy_version or "").strip()
+        approved_date = (company.posh_policy_effective_date or "").strip()
+        if not title and not version and not approved_date:
+            return
+
+        result = await db.execute(
+            select(PoshPolicy).where(PoshPolicy.company_id == company.company_id)
+        )
+        policy = result.scalar_one_or_none()
+        if not policy:
+            policy = PoshPolicy(company_id=company.company_id)
+            db.add(policy)
+
+        policy.title = title or f"{company.company_name} PoSH Policy"
+        policy.overview = (
+            f"{company.company_name} PoSH policy for prevention, prohibition, "
+            "and redressal of sexual harassment at the workplace."
+        )
+        policy.version = version or "1.0"
+        policy.approved_date = approved_date or "Pending"
+        if company.posh_policy_document_path:
+            policy.document_path = company.posh_policy_document_path
+            policy.document_name = company.posh_policy_document_name
+        policy.harassment_types_json = policy.harassment_types_json or json.dumps(
+            DEFAULT_POLICY_JSON["harassment_types"]
+        )
+        policy.committee_members_json = policy.committee_members_json or json.dumps(
+            DEFAULT_POLICY_JSON["committee_members"]
+        )
+        policy.rights_json = policy.rights_json or json.dumps(DEFAULT_POLICY_JSON["rights"])
+        policy.faqs_json = policy.faqs_json or json.dumps(DEFAULT_POLICY_JSON["faqs"])
+        policy.updated_by = current_user.user_id if current_user else None
+        await db.commit()
+
+    async def upload_policy_document(
+        self,
+        db: AsyncSession,
+        company_id: int,
+        file_bytes: bytes,
+        filename: str,
+        current_user,
+    ) -> CompanyMaster:
+        company = await self.get_by_id(db, company_id)
+        if current_user.role_id == 2 and not self._has_assigned_service(
+            company, current_user.user_id
+        ):
+            raise HTTPException(403, "You do not have permission to update this company policy.")
+        if current_user.role_id == 5 and current_user.company_id != company_id:
+            raise HTTPException(403, "You can only update your own company policy.")
+
+        extension = os.path.splitext(filename)[1].lower()
+        if extension != ".pdf":
+            raise HTTPException(400, "Please upload a PDF policy document.")
+        if not file_bytes:
+            raise HTTPException(400, "Uploaded policy document is empty.")
+        if len(file_bytes) > 10 * 1024 * 1024:
+            raise HTTPException(400, "Policy document must be 10MB or smaller.")
+
+        object_key = f"company-{company_id}/policy-{uuid.uuid4().hex}.pdf"
+        upload_file(file_bytes, POLICY_BUCKET, object_key, "application/pdf")
+        company.posh_policy_document_path = object_key
+        company.posh_policy_document_name = filename
+        await db.commit()
+        await db.refresh(company)
+        await self._sync_posh_policy_from_company(db, company, current_user)
+        await db.refresh(company)
+        return company
 
     async def set_status(self, db: AsyncSession, company_id: int, new_status: str) -> CompanyMaster:
         company = await self.get_by_id(db, company_id)
@@ -304,7 +451,7 @@ class CompanyService:
 
         role_labels = {
             1: "Super Admin",
-            2: "Company Admin",
+            2: "Admin",
             5: "Admin",
             3: "IC",
             4: "Employee",
@@ -442,7 +589,7 @@ class CompanyService:
         )
         current_record = current_result.first()
         if not current_record:
-            raise HTTPException(404, "Employee master record not found.")
+            raise HTTPException(404, "User Master record not found.")
 
         await self.ensure_registration_access(db, current_record.company_id, current_user)
         payload = data.model_dump()
@@ -535,7 +682,7 @@ class CompanyService:
         )
         employee = result.first()
         if not employee:
-            raise HTTPException(404, "Employee master record not found.")
+            raise HTTPException(404, "User Master record not found.")
 
         await self.ensure_registration_access(db, employee.company_id, current_user)
         await db.execute(
@@ -545,7 +692,7 @@ class CompanyService:
         await db.commit()
         employee_name = f"{employee.first_name} {employee.last_name or ''}".strip()
         return {
-            "message": "Employee master record deleted successfully.",
+            "message": "User Master record deleted successfully.",
             "employee_master_id": employee_master_id,
             "employee_id": employee.employee_id,
             "employee_name": employee_name,
@@ -572,7 +719,7 @@ class CompanyService:
         )
         employee = result.first()
         if not employee:
-            raise HTTPException(404, "Employee master record not found.")
+            raise HTTPException(404, "User Master record not found.")
 
         await self.ensure_registration_access(db, employee.company_id, current_user)
         await db.execute(
@@ -582,7 +729,7 @@ class CompanyService:
         await db.commit()
         employee_name = f"{employee.first_name} {employee.last_name or ''}".strip()
         return {
-            "message": "Employee master status updated successfully.",
+            "message": "User Master status updated successfully.",
             "employee_master_id": employee_master_id,
             "employee_id": employee.employee_id,
             "employee_name": employee_name,
@@ -669,7 +816,7 @@ class CompanyService:
         current_user,
     ) -> CompanyMaster:
         await self.ensure_registration_access(db, company_id, current_user)
-        return await self.update(db, company_id, data)
+        return await self.update(db, company_id, data, current_user)
 
     async def ensure_registration_access(
         self,

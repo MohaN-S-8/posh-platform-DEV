@@ -24,6 +24,7 @@ class CompanyCreate(BaseModel):
     posh_policy: Optional[str] = None
     posh_policy_version: Optional[str] = None
     posh_policy_effective_date: Optional[str] = None
+    certificate_issue_mode: Optional[str] = "Automatic"
     employee_strength: Optional[int] = None
     address: Optional[str] = None
     corp_address_json: str
@@ -89,6 +90,16 @@ class CompanyCreate(BaseModel):
             raise ValueError("Contact person must be at least 2 characters")
         return value
 
+    @field_validator("certificate_issue_mode")
+    @classmethod
+    def validate_certificate_issue_mode(cls, v):
+        if not v:
+            return "Automatic"
+        value = v.strip()
+        if value not in {"Automatic", "Manual"}:
+            raise ValueError("Certificate issue mode must be Automatic or Manual")
+        return value
+
 
 class CompanyUpdate(BaseModel):
     company_name: Optional[str] = None
@@ -108,6 +119,7 @@ class CompanyUpdate(BaseModel):
     posh_policy: Optional[str] = None
     posh_policy_version: Optional[str] = None
     posh_policy_effective_date: Optional[str] = None
+    certificate_issue_mode: Optional[str] = None
     employee_strength: Optional[int] = None
     address: Optional[str] = None
     corp_address_json: Optional[str] = None
@@ -134,6 +146,11 @@ class CompanyUpdate(BaseModel):
     def validate_contact_person(cls, v):
         return CompanyCreate.validate_contact_person(v)
 
+    @field_validator("certificate_issue_mode")
+    @classmethod
+    def validate_certificate_issue_mode(cls, v):
+        return CompanyCreate.validate_certificate_issue_mode(v)
+
 
 class CompanyResponse(BaseModel):
     company_id: int
@@ -155,6 +172,9 @@ class CompanyResponse(BaseModel):
     posh_policy: Optional[str] = None
     posh_policy_version: Optional[str] = None
     posh_policy_effective_date: Optional[str] = None
+    posh_policy_document_path: Optional[str] = None
+    posh_policy_document_name: Optional[str] = None
+    certificate_issue_mode: Optional[str] = "Automatic"
     address: Optional[str]
     corp_address_json: Optional[str] = None
     billing_address_json: Optional[str] = None

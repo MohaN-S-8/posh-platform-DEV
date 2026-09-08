@@ -27,7 +27,7 @@ import { canAccess } from "../utils/accessControl";
 
 const roleLabels = {
   1: "Super Admin",
-  2: "Company Admin",
+  2: "Admin",
   5: "Client Admin (Mgmt)",
   3: "IC",
   4: "Employee",
@@ -44,20 +44,24 @@ const defaultAllowed = {
     "POSH Complaints",
     "Audit",
     "Analytics & Reports",
+    "Annual Returns",
     "Create Admin",
+    "Create IC",
     "Masters",
     "Company Setup",
-    "Employee Master",
+    "User Master",
     "Role & Access Matrix",
   ]),
-  "Company Admin": new Set([
+  Admin: new Set([
     "Home",
     "PoSH Policy",
     "PoSH Training",
     "IC Member Training",
     "Company Setup",
-    "Employee Master",
+    "User Master",
+    "Create IC",
     "Masters",
+    "Annual Returns",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -68,7 +72,9 @@ const defaultAllowed = {
     "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
-    "Employee Master",
+    "User Master",
+    "Create IC",
+    "Annual Returns",
   ]),
   IC: new Set([
     "Home",
@@ -98,12 +104,14 @@ const accessItemAliases = {
   "Company Registration - PoSH": "Company Setup",
   "Company Registration": "Company Setup",
   "Create Company & Work Order": "Company Setup",
-  "Employee Master - PoSH": "Employee Master",
+  "Employee Master": "User Master",
+  "Employee Master - PoSH": "User Master",
   "Masters (State/City/Scope)": "Masters",
   "PoSH Office Master": "Masters",
   "POSH Awareness Training": "PoSH Training",
   "My IC Training": "IC Member Training",
   "IC Training": "IC Member Training",
+  "Annual Return": "Annual Returns",
 };
 
 const normalizeAccessItem = (accessItem) =>
@@ -116,6 +124,7 @@ const poshServiceAccessItems = new Set([
   "Assessment & Certificate",
   "POSH Compliance",
   "POSH Complaints",
+  "Annual Returns",
 ]);
 
 const moduleCatalog = [
@@ -209,11 +218,27 @@ const moduleCatalog = [
     allowedRoles: [1, 2, 3, 5],
   },
   {
+    accessItem: "Annual Returns",
+    label: "Annual Return",
+    to: (roleId) =>
+      roleId === 1 ? "/super-admin/annual-returns" : "/admin/annual-returns",
+    icon: <DescriptionIcon fontSize="small" />,
+    allowedRoles: [1, 2, 5],
+  },
+  {
     accessItem: "Create Admin",
     label: "Create Admin",
     to: () => "/super-admin/create-admin",
     icon: <PersonAddIcon fontSize="small" />,
     allowedRoles: [1],
+  },
+  {
+    accessItem: "Create IC",
+    label: "Create IC",
+    to: (roleId) =>
+      roleId === 1 ? "/super-admin/create-ic" : "/admin/create-ic",
+    icon: <PersonAddIcon fontSize="small" />,
+    allowedRoles: [1, 2, 5],
   },
   {
     accessItem: "Masters",
@@ -231,8 +256,8 @@ const moduleCatalog = [
     allowedRoles: [1, 2],
   },
   {
-    accessItem: "Employee Master",
-    label: "Employee Master",
+    accessItem: "User Master",
+    label: "User Master",
     to: (roleId) => {
       if (roleId === 5) return "/admin/users";
       if (roleId === 2) return "/admin/users";

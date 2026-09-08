@@ -9,6 +9,7 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from app.api.v1.admin import router as admin_router
 from app.api.v1.admin_config import router as admin_config_router
 from app.api.v1.analytics import router as analytics_router
+from app.api.v1.annual_returns import router as annual_returns_router
 from app.api.v1.assessments import router as assessments_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.certificates import router as certificates_router
@@ -40,6 +41,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 if settings.APP_ENV.lower() == "production":
@@ -54,6 +56,7 @@ app.include_router(assessments_router, prefix="/api/v1")
 app.include_router(hr_router, prefix="/api/v1")
 app.include_router(certificates_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(annual_returns_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(admin_config_router, prefix="/api/v1")
 app.include_router(employee_router, prefix="/api/v1")
@@ -475,6 +478,39 @@ async def run_seed_on_startup():
         )
 
         for column_name, column_sql in [
+            ("incident_date", "ADD COLUMN incident_date VARCHAR(50) NULL"),
+            ("evidence_note", "ADD COLUMN evidence_note VARCHAR(500) NULL"),
+            ("stage", "ADD COLUMN stage INT NULL DEFAULT 1"),
+            ("notice_date", "ADD COLUMN notice_date VARCHAR(50) NULL"),
+            ("enquiry_sessions_json", "ADD COLUMN enquiry_sessions_json TEXT NULL"),
+            ("recommendation_text", "ADD COLUMN recommendation_text TEXT NULL"),
+            ("recommendation_date", "ADD COLUMN recommendation_date VARCHAR(50) NULL"),
+            ("recommendation_file", "ADD COLUMN recommendation_file VARCHAR(255) NULL"),
+            ("execution_text", "ADD COLUMN execution_text TEXT NULL"),
+            ("execution_date", "ADD COLUMN execution_date VARCHAR(50) NULL"),
+            ("closure_note", "ADD COLUMN closure_note TEXT NULL"),
+            ("closure_date", "ADD COLUMN closure_date VARCHAR(50) NULL"),
+        ]:
+            await ensure_column("concerns", column_name, column_sql)
+        await db.execute(
+            text(
+                """
+                UPDATE concerns
+                SET stage = CASE
+                    WHEN status = 'Closed' THEN 7
+                    WHEN status = 'Reviewed' THEN 2
+                    ELSE 1
+                END
+                WHERE
+                    stage IS NULL
+                    OR stage < 1
+                    OR (status = 'Closed' AND stage < 7)
+                    OR (status = 'Reviewed' AND stage < 2)
+                """
+            )
+        )
+
+        for column_name, column_sql in [
             ("template_name", "ADD COLUMN template_name VARCHAR(100) NULL"),
             ("logo_path", "ADD COLUMN logo_path VARCHAR(255) NULL"),
             ("font_name", "ADD COLUMN font_name VARCHAR(50) NULL DEFAULT 'Helvetica'"),
@@ -519,6 +555,18 @@ async def run_seed_on_startup():
             (
                 "posh_policy_effective_date",
                 "ADD COLUMN posh_policy_effective_date VARCHAR(50) NULL",
+            ),
+            (
+                "posh_policy_document_path",
+                "ADD COLUMN posh_policy_document_path VARCHAR(500) NULL",
+            ),
+            (
+                "posh_policy_document_name",
+                "ADD COLUMN posh_policy_document_name VARCHAR(255) NULL",
+            ),
+            (
+                "certificate_issue_mode",
+                "ADD COLUMN certificate_issue_mode VARCHAR(20) NULL DEFAULT 'Automatic'",
             ),
             ("employee_strength", "ADD COLUMN employee_strength INT NULL"),
             ("corp_address_json", "ADD COLUMN corp_address_json TEXT NULL"),
@@ -786,7 +834,7 @@ async def run_seed_on_startup():
                 DELETE rp FROM role_permission rp
                 JOIN permission_master pm ON pm.permission_id = rp.permission_id
                 WHERE
-                    (rp.role_id = 2 AND pm.permission_key NOT IN ('users.manage','videos.upload','videos.publish'))
+                    (rp.role_id = 2 AND pm.permission_key NOT IN ('users.manage','videos.upload','videos.publish','reports.view'))
                     OR (rp.role_id = 3 AND pm.permission_key IN ('users.manage','videos.manage','videos.upload','training.assign'))
                     OR (rp.role_id = 5 AND pm.permission_key NOT IN ('users.manage','videos.upload','certificates.manage','reports.view'))
                 """
@@ -798,7 +846,7 @@ async def run_seed_on_startup():
                 INSERT IGNORE INTO role_permission (role_id, permission_id)
                 SELECT 1, permission_id FROM permission_master
                 UNION SELECT 2, permission_id FROM permission_master
-                WHERE permission_key IN ('users.manage','videos.upload','videos.publish')
+                WHERE permission_key IN ('users.manage','videos.upload','videos.publish','reports.view')
                 UNION SELECT 5, permission_id FROM permission_master
                 WHERE permission_key IN ('users.manage','videos.upload','certificates.manage','reports.view')
                 UNION SELECT 3, permission_id FROM permission_master
@@ -885,17 +933,22 @@ async def run_seed_on_startup():
                     ('Super Admin', 'Audit', 'Access enabled', TRUE, 8),
                     ('Super Admin', 'Analytics & Reports', 'Access enabled', TRUE, 9),
                     ('Super Admin', 'Create Admin', 'Access enabled', TRUE, 10),
-                    ('Super Admin', 'Masters', 'Access enabled', TRUE, 11),
-                    ('Super Admin', 'Company Setup', 'Access enabled', TRUE, 12),
-                    ('Super Admin', 'Employee Master', 'Access enabled', TRUE, 13),
-                    ('Super Admin', 'Role & Access Matrix', 'Access enabled', TRUE, 15),
-                    ('Company Admin', 'Home', 'Access enabled', TRUE, 1),
-                    ('Company Admin', 'PoSH Policy', 'Access enabled', TRUE, 2),
-                    ('Company Admin', 'PoSH Training', 'Access enabled', TRUE, 3),
-                    ('Company Admin', 'IC Member Training', 'Access enabled', TRUE, 4),
-                    ('Company Admin', 'Company Setup', 'Access enabled', TRUE, 5),
-                    ('Company Admin', 'Employee Master', 'Access enabled', TRUE, 6),
-                    ('Company Admin', 'Masters', 'Access enabled', TRUE, 7),
+                    ('Super Admin', 'Create IC', 'Access enabled', TRUE, 11),
+                    ('Super Admin', 'Masters', 'Access enabled', TRUE, 12),
+                    ('Super Admin', 'Company Setup', 'Access enabled', TRUE, 13),
+                    ('Super Admin', 'User Master', 'Access enabled', TRUE, 14),
+                    ('Super Admin', 'Annual Returns', 'Access enabled', TRUE, 15),
+                    ('Super Admin', 'Role & Access Matrix', 'Access enabled', TRUE, 16),
+                    ('Admin', 'Home', 'Access enabled', TRUE, 1),
+                    ('Admin', 'PoSH Policy', 'Access enabled', TRUE, 2),
+                    ('Admin', 'PoSH Training', 'Access enabled', TRUE, 3),
+                    ('Admin', 'IC Member Training', 'Access enabled', TRUE, 4),
+                    ('Admin', 'Company Setup', 'Access enabled', TRUE, 5),
+                    ('Admin', 'User Master', 'Access enabled', TRUE, 6),
+                    ('Admin', 'Create IC', 'Access enabled', TRUE, 7),
+                    ('Admin', 'Masters', 'Access enabled', TRUE, 8),
+                    ('Admin', 'Analytics & Reports', 'Access enabled', TRUE, 9),
+                    ('Admin', 'Annual Returns', 'Access enabled', TRUE, 10),
                     ('Client Admin (Mgmt)', 'Home', 'Access enabled', TRUE, 1),
                     ('Client Admin (Mgmt)', 'PoSH Policy', 'Access enabled', TRUE, 2),
                     ('Client Admin (Mgmt)', 'PoSH Training', 'Access enabled', TRUE, 3),
@@ -905,7 +958,9 @@ async def run_seed_on_startup():
                     ('Client Admin (Mgmt)', 'POSH Complaints', 'Access enabled', TRUE, 7),
                     ('Client Admin (Mgmt)', 'Audit', 'Access enabled', TRUE, 8),
                     ('Client Admin (Mgmt)', 'Analytics & Reports', 'Access enabled', TRUE, 9),
-                    ('Client Admin (Mgmt)', 'Employee Master', 'Access enabled', TRUE, 10),
+                    ('Client Admin (Mgmt)', 'User Master', 'Access enabled', TRUE, 10),
+                    ('Client Admin (Mgmt)', 'Create IC', 'Access enabled', TRUE, 11),
+                    ('Client Admin (Mgmt)', 'Annual Returns', 'Access enabled', TRUE, 12),
                     ('IC', 'Home', 'Access enabled', TRUE, 1),
                     ('IC', 'PoSH Policy', 'Access enabled', TRUE, 2),
                     ('IC', 'PoSH Training', 'Access enabled', TRUE, 3),
@@ -913,7 +968,7 @@ async def run_seed_on_startup():
                     ('IC', 'POSH Compliance', 'Access enabled', TRUE, 5),
                     ('IC', 'POSH Complaints', 'Access enabled', TRUE, 6),
                     ('IC', 'Analytics & Reports', 'Access enabled', TRUE, 7),
-                    ('IC', 'Employee Master', 'NO Access', FALSE, 8),
+                    ('IC', 'User Master', 'NO Access', FALSE, 8),
                     ('Employee', 'Home', 'Access enabled', TRUE, 1),
                     ('Employee', 'PoSH Policy', 'Access enabled', TRUE, 2),
                     ('Employee', 'PoSH Training', 'Access enabled', TRUE, 3),
@@ -926,6 +981,145 @@ async def run_seed_on_startup():
                 """
             )
         )
+        await db.execute(
+            text(
+                """
+                DELETE old_access
+                FROM posh_role_access old_access
+                JOIN posh_role_access new_access
+                  ON new_access.access_item = old_access.access_item
+                 AND new_access.role_label = 'Admin'
+                WHERE old_access.role_label IN ('Company Admin', 'Corp Admin')
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                UPDATE posh_role_access
+                SET role_label = 'Admin'
+                WHERE role_label IN ('Company Admin', 'Corp Admin')
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                DELETE old_access
+                FROM posh_role_access old_access
+                JOIN posh_role_access new_access
+                  ON new_access.role_label = old_access.role_label
+                 AND new_access.access_item = 'User Master'
+                WHERE old_access.access_item IN ('Employee Master', 'Employee Master - PoSH')
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                UPDATE posh_role_access
+                SET access_item = 'User Master'
+                WHERE access_item IN ('Employee Master', 'Employee Master - PoSH')
+                """
+            )
+        )
+        await db.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS annual_returns (
+                    annual_return_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    company_id INT NOT NULL,
+                    branch_id VARCHAR(80) NOT NULL,
+                    branch_name VARCHAR(150) NOT NULL,
+                    year INT NOT NULL,
+                    return_date DATE NULL,
+                    status VARCHAR(30) DEFAULT 'Pending',
+                    presiding_officer VARCHAR(150) NULL,
+                    complaints_received INT DEFAULT 0,
+                    complaints_disposed INT DEFAULT 0,
+                    complaints_pending_90 INT DEFAULT 0,
+                    workshops_count INT DEFAULT 0,
+                    action_taken TEXT NULL,
+                    posh_office_recipient TEXT NULL,
+                    acknowledgement_proof VARCHAR(255) NULL,
+                    training_proof VARCHAR(255) NULL,
+                    postal_proof VARCHAR(255) NULL,
+                    sector_nature VARCHAR(255) NULL,
+                    shift_breakdown TEXT NULL,
+                    employees_total INT DEFAULT 0,
+                    employees_male INT DEFAULT 0,
+                    employees_female INT DEFAULT 0,
+                    awareness_attendees INT DEFAULT 0,
+                    pending_90_reasons TEXT NULL,
+                    workshop_period_from DATE NULL,
+                    workshop_period_to DATE NULL,
+                    workshop_details TEXT NULL,
+                    ic_constituted_date DATE NULL,
+                    ic_member_change VARCHAR(255) NULL,
+                    orientation_programme_date DATE NULL,
+                    policy_disseminated VARCHAR(255) NULL,
+                    notice_displayed_from DATE NULL,
+                    wfh_awareness_session_date DATE NULL,
+                    new_joiner_orientation_timing VARCHAR(255) NULL,
+                    posh_awareness_date DATE NULL,
+                    posh_awareness_mode VARCHAR(80) NULL,
+                    posh_awareness_resource_person VARCHAR(150) NULL,
+                    ic_members_json TEXT NULL,
+                    complaint_rows_json TEXT NULL,
+                    annual_return_copy VARCHAR(255) NULL,
+                    registered_post_tracking_number VARCHAR(100) NULL,
+                    covering_from_address TEXT NULL,
+                    posh_office_name VARCHAR(150) NULL,
+                    posh_office_address TEXT NULL,
+                    created_by BIGINT NULL,
+                    updated_by BIGINT NULL,
+                    created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_annual_return_company_branch_year (company_id, branch_id, year),
+                    INDEX ix_annual_returns_company_year (company_id, year)
+                )
+                """
+            )
+        )
+        for column_name, column_sql in [
+            ("sector_nature", "ADD COLUMN sector_nature VARCHAR(255) NULL"),
+            ("shift_breakdown", "ADD COLUMN shift_breakdown TEXT NULL"),
+            ("employees_total", "ADD COLUMN employees_total INT DEFAULT 0"),
+            ("employees_male", "ADD COLUMN employees_male INT DEFAULT 0"),
+            ("employees_female", "ADD COLUMN employees_female INT DEFAULT 0"),
+            ("awareness_attendees", "ADD COLUMN awareness_attendees INT DEFAULT 0"),
+            ("pending_90_reasons", "ADD COLUMN pending_90_reasons TEXT NULL"),
+            ("workshop_period_from", "ADD COLUMN workshop_period_from DATE NULL"),
+            ("workshop_period_to", "ADD COLUMN workshop_period_to DATE NULL"),
+            ("workshop_details", "ADD COLUMN workshop_details TEXT NULL"),
+            ("ic_constituted_date", "ADD COLUMN ic_constituted_date DATE NULL"),
+            ("ic_member_change", "ADD COLUMN ic_member_change VARCHAR(255) NULL"),
+            ("orientation_programme_date", "ADD COLUMN orientation_programme_date DATE NULL"),
+            ("policy_disseminated", "ADD COLUMN policy_disseminated VARCHAR(255) NULL"),
+            ("notice_displayed_from", "ADD COLUMN notice_displayed_from DATE NULL"),
+            ("wfh_awareness_session_date", "ADD COLUMN wfh_awareness_session_date DATE NULL"),
+            (
+                "new_joiner_orientation_timing",
+                "ADD COLUMN new_joiner_orientation_timing VARCHAR(255) NULL",
+            ),
+            ("posh_awareness_date", "ADD COLUMN posh_awareness_date DATE NULL"),
+            ("posh_awareness_mode", "ADD COLUMN posh_awareness_mode VARCHAR(80) NULL"),
+            (
+                "posh_awareness_resource_person",
+                "ADD COLUMN posh_awareness_resource_person VARCHAR(150) NULL",
+            ),
+            ("ic_members_json", "ADD COLUMN ic_members_json TEXT NULL"),
+            ("complaint_rows_json", "ADD COLUMN complaint_rows_json TEXT NULL"),
+            ("annual_return_copy", "ADD COLUMN annual_return_copy VARCHAR(255) NULL"),
+            (
+                "registered_post_tracking_number",
+                "ADD COLUMN registered_post_tracking_number VARCHAR(100) NULL",
+            ),
+            ("covering_from_address", "ADD COLUMN covering_from_address TEXT NULL"),
+            ("posh_office_name", "ADD COLUMN posh_office_name VARCHAR(150) NULL"),
+            ("posh_office_address", "ADD COLUMN posh_office_address TEXT NULL"),
+        ]:
+            await ensure_column("annual_returns", column_name, column_sql)
         await db.execute(
             text(
                 """

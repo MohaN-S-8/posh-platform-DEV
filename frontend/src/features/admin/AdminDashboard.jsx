@@ -26,15 +26,21 @@ const dashboardItems = [
   },
   {
     title: "Create Admin",
-    description: "Create company administrator accounts.",
+    description: "Create Administrator accounts.",
     path: "/super-admin/create-admin",
     accessItem: "Create Admin",
   },
   {
-    title: "Employee Master",
+    title: "Create IC",
+    description: "Upgrade existing employees to IC users.",
+    path: "/admin/create-ic",
+    accessItem: "Create IC",
+  },
+  {
+    title: "User Master",
     description: "Manage role-based company users.",
     path: "/admin/users",
-    accessItem: "Employee Master",
+    accessItem: "User Master",
   },
   {
     title: "Training",
@@ -95,7 +101,7 @@ const dashboardItems = [
 
 const roleLabels = {
   1: "Super Admin",
-  2: "Company Admin",
+  2: "Admin",
   5: "Client Admin (Mgmt)",
   3: "IC",
   4: "Employee",
@@ -107,7 +113,8 @@ const accessItemAliases = {
   "Company Registration - PoSH": "Company Setup",
   "Company Registration": "Company Setup",
   "Create Company & Work Order": "Company Setup",
-  "Employee Master - PoSH": "Employee Master",
+  "Employee Master": "User Master",
+  "Employee Master - PoSH": "User Master",
   "Masters (State/City/Scope)": "Masters",
   "PoSH Office Master": "Masters",
   "POSH Awareness Training": "PoSH Training",
@@ -131,16 +138,18 @@ const defaultAllowed = {
     "Audit",
     "Analytics & Reports",
     "Create Admin",
+    "Create IC",
     "Masters",
     "Company Setup",
-    "Employee Master",
+    "User Master",
     "Role & Access Matrix",
   ]),
-  "Company Admin": new Set([
+  Admin: new Set([
     "Home",
     "PoSH Policy",
     "Company Setup",
-    "Employee Master",
+    "User Master",
+    "Create IC",
     "Masters",
     "PoSH Training",
     "IC Member Training",
@@ -155,7 +164,8 @@ const defaultAllowed = {
     "POSH Complaints",
     "Audit",
     "Analytics & Reports",
-    "Employee Master",
+    "User Master",
+    "Create IC",
   ]),
 };
 
@@ -317,7 +327,7 @@ export function AdminDashboard() {
         user?.role_id === 5
           ? "Client / Management Portal"
           : user?.role_id === 2
-            ? "Corp Admin Portal"
+            ? "Admin Portal"
             : "Super Admin Portal"
       }
       subtitle="Manage the workflows available to your role."

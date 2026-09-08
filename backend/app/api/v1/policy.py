@@ -3,18 +3,21 @@ import os
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from sqlalchemy import select, text
+from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, require_roles
 from app.core.storage import generate_presigned_url, upload_file
 from app.db.session import get_db
+from app.models.company import CompanyMaster
 from app.models.policy import PoshPolicy
 from app.schemas.policy import PoshPolicyPayload
 from app.services.audit_service import write_audit_log
+from app.services.company_service import CompanyService
 
 router = APIRouter(prefix="/policy", tags=["PoSH Policy"])
 POLICY_BUCKET = "posh-policy-documents"
+company_service = CompanyService()
 
 
 DEFAULT_POLICY = {
@@ -169,6 +172,49 @@ async def _policy_for_user(db: AsyncSession, current_user):
     return global_result.scalar_one_or_none()
 
 
+async def _visible_company_ids(db: AsyncSession, current_user) -> list[int]:
+    if current_user.role_id == 1:
+        result = await db.execute(
+            text(
+                """
+                SELECT company_id
+                FROM company_master
+                WHERE is_deleted = 'N'
+                  AND company_id <> 1
+                """
+            )
+        )
+        return [row.company_id for row in result]
+    if current_user.role_id == 5:
+        return [current_user.company_id]
+
+    companies = await company_service.get_visible_for_user(db, current_user)
+    company_ids = {company.company_id for company in companies}
+    if current_user.company_id and current_user.company_id != 1:
+        company_ids.add(current_user.company_id)
+    return sorted(company_ids)
+
+
+async def _sync_company_policy_fields(
+    db: AsyncSession,
+    company_id: int | None,
+    policy: PoshPolicy,
+) -> None:
+    if company_id is None:
+        return
+    company_result = await db.execute(
+        select(CompanyMaster).where(CompanyMaster.company_id == company_id)
+    )
+    company = company_result.scalar_one_or_none()
+    if not company:
+        return
+    company.posh_policy = policy.title
+    company.posh_policy_version = policy.version
+    company.posh_policy_effective_date = policy.approved_date
+    company.posh_policy_document_path = policy.document_path
+    company.posh_policy_document_name = policy.document_name
+
+
 @router.get("/")
 async def get_policy(
     db: AsyncSession = Depends(get_db),
@@ -202,6 +248,7 @@ async def update_policy(
     policy.rights_json = json.dumps([item.strip() for item in data.rights if item.strip()])
     policy.faqs_json = json.dumps([item.model_dump() for item in data.faqs])
     policy.updated_by = current_user.user_id
+    await _sync_company_policy_fields(db, company_id, policy)
     await db.flush()
     await write_audit_log(
         db,
@@ -251,6 +298,7 @@ async def upload_policy_document(
     policy.document_path = object_key
     policy.document_name = filename
     policy.updated_by = current_user.user_id
+    await _sync_company_policy_fields(db, company_id, policy)
     await db.flush()
     await write_audit_log(
         db,
@@ -328,17 +376,15 @@ async def acknowledge_policy(
 @router.get("/acknowledgements")
 async def list_policy_acknowledgements(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles([1, 2])),
+    current_user=Depends(require_roles([1, 2, 5])),
 ):
-    conditions = ""
-    params = {}
-    if current_user.role_id != 1:
-        conditions = "AND ack.company_id = :company_id"
-        params["company_id"] = current_user.company_id
+    company_ids = await _visible_company_ids(db, current_user)
+    if not company_ids:
+        return []
 
     result = await db.execute(
         text(
-            f"""
+            """
             SELECT
                 ack.user_id,
                 ack.company_id,
@@ -355,11 +401,11 @@ async def list_policy_acknowledgements(
             JOIN user_master user ON user.user_id = ack.user_id
             LEFT JOIN company_master company ON company.company_id = ack.company_id
             WHERE user.is_deleted = 'N'
-              {conditions}
+              AND ack.company_id IN :company_ids
             ORDER BY ack.acknowledged_at DESC
             """
-        ),
-        params,
+        ).bindparams(bindparam("company_ids", expanding=True)),
+        {"company_ids": company_ids},
     )
     return [
         {
@@ -368,6 +414,81 @@ async def list_policy_acknowledgements(
         }
         for row in result
     ]
+
+
+@router.get("/acknowledgement-metrics")
+async def policy_acknowledgement_metrics(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles([1, 2, 5])),
+):
+    company_ids = await _visible_company_ids(db, current_user)
+    if not company_ids:
+        return []
+
+    result = await db.execute(
+        text(
+            """
+            SELECT
+                company.company_id,
+                company.company_code,
+                company.company_name,
+                company.status,
+                policy.policy_id,
+                policy.version AS policy_version,
+                policy.approved_date,
+                COUNT(DISTINCT user.user_id) AS total_users,
+                COUNT(DISTINCT ack.user_id) AS acknowledged_users
+            FROM company_master company
+            LEFT JOIN posh_policy policy ON policy.company_id = company.company_id
+            LEFT JOIN user_master user
+                ON user.company_id = company.company_id
+                AND user.role_id IN (3, 4)
+                AND user.status = 'Active'
+                AND user.is_deleted = 'N'
+            LEFT JOIN posh_policy_acknowledgement ack
+                ON ack.user_id = user.user_id
+                AND ack.company_id = company.company_id
+                AND ack.policy_id = policy.policy_id
+                AND ack.policy_version = policy.version
+            WHERE company.company_id IN :company_ids
+              AND company.is_deleted = 'N'
+            GROUP BY
+                company.company_id,
+                company.company_code,
+                company.company_name,
+                company.status,
+                policy.policy_id,
+                policy.version,
+                policy.approved_date
+            ORDER BY company.company_name
+            """
+        ).bindparams(bindparam("company_ids", expanding=True)),
+        {"company_ids": company_ids},
+    )
+
+    rows = []
+    for row in result:
+        total_users = int(row.total_users or 0)
+        acknowledged_users = int(row.acknowledged_users or 0)
+        pending_users = max(total_users - acknowledged_users, 0)
+        rows.append(
+            {
+                "company_id": row.company_id,
+                "company_code": row.company_code,
+                "company_name": row.company_name,
+                "status": row.status,
+                "policy_id": row.policy_id,
+                "policy_version": row.policy_version,
+                "approved_date": row.approved_date,
+                "total_users": total_users,
+                "acknowledged_users": acknowledged_users,
+                "pending_users": pending_users,
+                "acknowledgement_rate": (
+                    round((acknowledged_users / total_users * 100), 2) if total_users else 0.0
+                ),
+            }
+        )
+    return rows
 
 
 @router.get("/document/download")

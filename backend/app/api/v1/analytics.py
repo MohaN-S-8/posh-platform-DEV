@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_permission, require_roles
 from app.db.session import get_db
+from app.models.annual_return import AnnualReturn
 from app.models.certificate import Certificate, CertificateTemplate
 from app.models.company import CompanyMaster
 from app.models.concern import Concern
@@ -99,6 +100,7 @@ async def _platform_overview(db: AsyncSession) -> dict:
     template_status = await grouped_counts(CertificateTemplate.status)
     concern_status = await grouped_counts(Concern.status)
     assessment_results = await grouped_counts(AssessmentResult.result)
+    annual_return_status = await grouped_counts(AnnualReturn.status)
     total_employees = role_counts.get("4", 0)
     completed_users_result = await db.execute(
         select(func.count(TrainingHistory.user_id.distinct())).where(
@@ -254,8 +256,9 @@ async def _platform_overview(db: AsyncSession) -> dict:
             "open_concerns": concern_status.get("Open", 0),
         },
         "annual_returns": {
-            "completed": 0,
-            "pending": 0,
+            "completed": annual_return_status.get("Submitted", 0),
+            "pending": annual_return_status.get("Pending", 0)
+            + annual_return_status.get("Draft", 0),
         },
         "services": services,
         "service_training": service_training,
@@ -348,6 +351,14 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
         .group_by(Concern.status)
     )
     concerns = {str(status or "Open"): count for status, count in concern_result.all()}
+    annual_return_status_result = await db.execute(
+        select(AnnualReturn.status, func.count())
+        .where(AnnualReturn.company_id == company_id)
+        .group_by(AnnualReturn.status)
+    )
+    annual_return_status = {
+        str(status or "Pending"): count for status, count in annual_return_status_result.all()
+    }
     department_result = await db.execute(
         select(UserMaster.department, func.count())
         .where(
@@ -412,8 +423,9 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
             "total": sum(concerns.values()),
         },
         "annual_returns": {
-            "completed": 0,
-            "pending": 0,
+            "completed": annual_return_status.get("Submitted", 0),
+            "pending": annual_return_status.get("Pending", 0)
+            + annual_return_status.get("Draft", 0),
         },
         "organizations": (
             [

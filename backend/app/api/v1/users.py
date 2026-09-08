@@ -1,11 +1,20 @@
+import csv
+import io
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, require_permission
 from app.db.session import get_db
-from app.schemas.user import PasswordResetByAdmin, UserCreate, UserResponse, UserUpdate
+from app.schemas.user import (
+    PasswordResetByAdmin,
+    UpgradeToIcRequest,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+)
 from app.services.audit_service import write_audit_log
 from app.services.company_service import CompanyService
 from app.services.user_service import UserService
@@ -19,6 +28,25 @@ ROLE_COMPANY_ADMIN = 2
 ROLE_CLIENT_MANAGEMENT = 5
 ROLE_HR_IC = 3
 ROLE_EMPLOYEE = 4
+
+USER_BULK_TEMPLATE_COLUMNS = [
+    "company_id",
+    "employee_id",
+    "first_name",
+    "last_name",
+    "email",
+    "mobile",
+    "role_id",
+    "department",
+    "designation",
+    "joining_date",
+    "transfer_location",
+    "employee_status",
+    "branch_name",
+    "branch_id",
+    "ic_role",
+    "password",
+]
 
 ROLE_CREATE_FLOW = {
     ROLE_SUPER_ADMIN: {
@@ -71,7 +99,10 @@ async def _visible_company_ids(db: AsyncSession, current_user) -> list[int] | No
         return None
     if current_user.role_id == ROLE_COMPANY_ADMIN:
         companies = await company_service.get_visible_for_user(db, current_user)
-        return [company.company_id for company in companies]
+        company_ids = {company.company_id for company in companies}
+        if current_user.company_id:
+            company_ids.add(current_user.company_id)
+        return sorted(company_ids)
     return [current_user.company_id]
 
 
@@ -144,6 +175,114 @@ async def create_user(
     return user
 
 
+@router.get("/bulk-template")
+async def download_user_bulk_template(
+    current_user=Depends(require_permission("users.manage")),
+):
+    """Download the CSV template for bulk user creation."""
+    default_company_id = (
+        ""
+        if current_user.role_id in [ROLE_SUPER_ADMIN, ROLE_COMPANY_ADMIN]
+        else current_user.company_id
+    )
+    creatable_roles = sorted(ROLE_CREATE_FLOW.get(current_user.role_id, [ROLE_EMPLOYEE]))
+    sample_role_id = creatable_roles[0] if creatable_roles else ROLE_EMPLOYEE
+    rows = [
+        USER_BULK_TEMPLATE_COLUMNS,
+        [
+            default_company_id,
+            "EMP001",
+            "Employee",
+            "User",
+            "employee@example.com",
+            "9876543210",
+            sample_role_id,
+            "Operations",
+            "Executive",
+            "2026-01-01",
+            "Chennai",
+            "Active",
+            "Main Branch",
+            "BR001",
+            "Admin" if sample_role_id == ROLE_HR_IC else "",
+            "",
+        ],
+    ]
+    output = io.StringIO()
+    csv.writer(output).writerows(rows)
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="user_bulk_template.csv"'},
+    )
+
+
+@router.post("/bulk-upload")
+async def bulk_upload_users(
+    request: Request,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("users.manage")),
+):
+    """Bulk-create users from the CSV template."""
+    content = (await file.read()).decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(content))
+    if not reader.fieldnames:
+        raise HTTPException(400, "Upload a CSV file with a header row.")
+
+    created = []
+    errors = []
+    for row_number, row in enumerate(reader, start=2):
+        if not any(str(value or "").strip() for value in row.values()):
+            continue
+        try:
+            payload = {
+                key: (str(row.get(key) or "").strip() or None) for key in USER_BULK_TEMPLATE_COLUMNS
+            }
+            payload["role_id"] = int(payload["role_id"] or 0)
+            payload["company_id"] = int(payload["company_id"] or current_user.company_id or 0)
+            data = UserCreate(**payload)
+            _ensure_can_manage_role(current_user, data.role_id)
+            if current_user.role_id == ROLE_COMPANY_ADMIN:
+                await _ensure_can_create_in_company(db, current_user, data.company_id)
+            elif current_user.role_id != ROLE_SUPER_ADMIN:
+                data.company_id = current_user.company_id
+            user = await user_service.create(db, data)
+            await write_audit_log(
+                db,
+                user_id=current_user.user_id,
+                company_id=user.company_id,
+                action="USER_BULK_CREATED",
+                table_name="user_master",
+                record_id=user.user_id,
+                ip_address=request.client.host if request.client else None,
+            )
+            await db.commit()
+            created.append(
+                {
+                    "row": row_number,
+                    "user_id": user.user_id,
+                    "employee_id": user.employee_id,
+                    "email": user.email,
+                }
+            )
+        except (HTTPException, ValidationError, ValueError) as exc:
+            detail = getattr(exc, "detail", None)
+            if isinstance(exc, ValidationError):
+                detail = "; ".join(
+                    f"{'.'.join(str(loc) for loc in error['loc'])}: {error['msg']}"
+                    for error in exc.errors()
+                )
+            errors.append({"row": row_number, "error": str(detail or exc)})
+
+    return {
+        "created_count": len(created),
+        "error_count": len(errors),
+        "created": created,
+        "errors": errors,
+    }
+
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
@@ -158,6 +297,43 @@ async def get_user(
     )
     await _ensure_can_manage_user(db, current_user, user)
     return user
+
+
+@router.post("/{user_id}/upgrade-to-ic", response_model=UserResponse)
+async def upgrade_user_to_ic(
+    user_id: int,
+    data: UpgradeToIcRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("users.manage")),
+):
+    """Upgrade an existing Employee user to IC within the role hierarchy."""
+    existing = await user_service.get_by_id(
+        db,
+        user_id,
+        (None if current_user.role_id == ROLE_COMPANY_ADMIN else _managed_company_id(current_user)),
+    )
+    await _ensure_can_manage_user(db, current_user, existing)
+    _ensure_can_manage_role(current_user, ROLE_HR_IC)
+    if existing.role_id != ROLE_EMPLOYEE:
+        raise HTTPException(
+            400,
+            "Only Employee users can be upgraded to IC.",
+        )
+    existing.role_id = ROLE_HR_IC
+    existing.ic_role = data.ic_role or "Internal Committee Member"
+    await write_audit_log(
+        db,
+        user_id=current_user.user_id,
+        company_id=existing.company_id,
+        action="USER_UPGRADED_TO_IC",
+        table_name="user_master",
+        record_id=user_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+    await db.refresh(existing)
+    return existing
 
 
 @router.put("/{user_id}", response_model=UserResponse)

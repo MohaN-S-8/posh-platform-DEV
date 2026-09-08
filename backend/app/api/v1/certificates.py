@@ -1,8 +1,14 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_permission, require_roles_with_matrix
 from app.db.session import get_db
+from app.models.certificate import Certificate
+from app.models.company import CompanyMaster
+from app.models.training import AssessmentResult
+from app.models.user import UserMaster
+from app.models.video import VideoMaster
 from app.schemas.certificate import (
     CertificateTemplateCreate,
     CertificateTemplateResponse,
@@ -10,9 +16,181 @@ from app.schemas.certificate import (
 )
 from app.services.audit_service import write_audit_log
 from app.services.certificate_service import CertificateService
+from app.services.company_service import CompanyService
 
 router = APIRouter(prefix="/certificates", tags=["Certificates"])
 cert_service = CertificateService()
+
+
+async def _certificate_company_scope(db: AsyncSession, current_user) -> list[CompanyMaster]:
+    if current_user.role_id == 1:
+        result = await db.execute(
+            select(CompanyMaster)
+            .where(
+                CompanyMaster.is_deleted == "N",
+                CompanyMaster.company_id != 1,
+            )
+            .order_by(CompanyMaster.company_name.asc())
+        )
+        return result.scalars().all()
+    if current_user.role_id == 5:
+        result = await db.execute(
+            select(CompanyMaster).where(
+                CompanyMaster.company_id == current_user.company_id,
+                CompanyMaster.is_deleted == "N",
+            )
+        )
+        company = result.scalar_one_or_none()
+        return [company] if company else []
+
+    companies = await CompanyService().get_visible_for_user(db, current_user)
+    return sorted(companies, key=lambda company: company.company_name or "")
+
+
+@router.get("/manual-candidates")
+async def list_manual_certificate_candidates(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("certificates.manage")),
+):
+    """List passed assessments that do not yet have a valid certificate."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Admin, and Client / Management can issue certificates.",
+        )
+
+    filters = [
+        AssessmentResult.result == "Pass",
+        UserMaster.status == "Active",
+        UserMaster.is_deleted == "N",
+        Certificate.certificate_id.is_(None),
+        CompanyMaster.certificate_issue_mode == "Manual",
+    ]
+    if current_user.role_id not in [1, 2]:
+        filters.append(UserMaster.company_id == current_user.company_id)
+
+    result = await db.execute(
+        select(
+            AssessmentResult.user_id,
+            AssessmentResult.video_id,
+            UserMaster.first_name,
+            UserMaster.last_name,
+            UserMaster.email,
+            UserMaster.company_id,
+            CompanyMaster.company_name,
+            VideoMaster.title,
+            AssessmentResult.score,
+            AssessmentResult.attempted_at,
+        )
+        .join(UserMaster, UserMaster.user_id == AssessmentResult.user_id)
+        .join(
+            VideoMaster,
+            (VideoMaster.video_id == AssessmentResult.video_id)
+            & (VideoMaster.company_id == UserMaster.company_id),
+        )
+        .join(CompanyMaster, CompanyMaster.company_id == UserMaster.company_id)
+        .outerjoin(
+            Certificate,
+            (Certificate.user_id == AssessmentResult.user_id)
+            & (Certificate.video_id == AssessmentResult.video_id)
+            & (Certificate.company_id == UserMaster.company_id)
+            & (Certificate.status == "Valid"),
+        )
+        .where(*filters)
+        .order_by(
+            CompanyMaster.company_name.asc(),
+            UserMaster.first_name.asc(),
+            VideoMaster.title.asc(),
+            AssessmentResult.attempted_at.desc(),
+        )
+    )
+    candidates = []
+    seen = set()
+    for row in result.mappings().all():
+        key = (row["user_id"], row["video_id"], row["company_id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(
+            {
+                "user_id": row["user_id"],
+                "video_id": row["video_id"],
+                "company_id": row["company_id"],
+                "company_name": row["company_name"],
+                "employee_name": f"{row['first_name']} {row['last_name'] or ''}".strip(),
+                "email": row["email"],
+                "course_name": row["title"],
+                "score": float(row["score"] or 0),
+                "attempted_at": row["attempted_at"],
+            }
+        )
+    return candidates
+
+
+@router.get("/issue-modes")
+async def list_certificate_issue_modes(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("certificates.manage")),
+):
+    """List certificate issue mode per visible company."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Admin, and Client / Management can manage certificate issue mode.",
+        )
+    companies = await _certificate_company_scope(db, current_user)
+    return [
+        {
+            "company_id": company.company_id,
+            "company_name": company.company_name,
+            "company_code": company.company_code,
+            "certificate_issue_mode": company.certificate_issue_mode or "Automatic",
+        }
+        for company in companies
+    ]
+
+
+@router.patch("/issue-modes/{company_id}")
+async def update_certificate_issue_mode(
+    company_id: int,
+    mode: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("certificates.manage")),
+):
+    """Switch a company's certificate issue flow between Automatic and Manual."""
+    if current_user.role_id not in [1, 2, 5]:
+        raise HTTPException(
+            403,
+            "Only Super Admin, Admin, and Client / Management can manage certificate issue mode.",
+        )
+    if mode not in {"Automatic", "Manual"}:
+        raise HTTPException(400, "Mode must be Automatic or Manual.")
+
+    visible_companies = await _certificate_company_scope(db, current_user)
+    company = next(
+        (item for item in visible_companies if item.company_id == company_id),
+        None,
+    )
+    if not company:
+        raise HTTPException(403, "You do not have permission to update this company.")
+
+    company.certificate_issue_mode = mode
+    await write_audit_log(
+        db,
+        user_id=current_user.user_id,
+        company_id=company.company_id,
+        action=f"CERTIFICATE_ISSUE_MODE_{mode.upper()}",
+        table_name="company_master",
+        record_id=company.company_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return {
+        "company_id": company.company_id,
+        "company_name": company.company_name,
+        "certificate_issue_mode": company.certificate_issue_mode,
+    }
 
 
 @router.get("/templates", response_model=list[CertificateTemplateResponse])
@@ -24,7 +202,7 @@ async def list_certificate_templates(
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
             403,
-            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+            "Only Super Admin, Admin, and Client / Management can manage certificate templates.",
         )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     return await cert_service.list_templates(db, company_id)
@@ -41,7 +219,7 @@ async def create_certificate_template(
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
             403,
-            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+            "Only Super Admin, Admin, and Client / Management can manage certificate templates.",
         )
     initial_status = "Active" if current_user.role_id == 1 else "Pending"
     template = await cert_service.create_template(db, data, current_user.company_id, initial_status)
@@ -70,7 +248,7 @@ async def update_certificate_template(
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
             403,
-            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+            "Only Super Admin, Admin, and Client / Management can manage certificate templates.",
         )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     template = await cert_service.update_template(
@@ -133,7 +311,7 @@ async def upload_certificate_template_asset(
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
             403,
-            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+            "Only Super Admin, Admin, and Client / Management can manage certificate templates.",
         )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     template = await cert_service.upload_template_asset(
@@ -168,7 +346,7 @@ async def delete_certificate_template(
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
             403,
-            "Only Super Admin, Company Admin, and Client / Management can manage certificate templates.",
+            "Only Super Admin, Admin, and Client / Management can manage certificate templates.",
         )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     result = await cert_service.delete_template(
@@ -258,11 +436,24 @@ async def generate_certificate_manual(
     Manually trigger certificate generation.
     In production this is called automatically after assessment pass.
     """
-    cert = await cert_service.generate_certificate(db, user_id, video_id, current_user.company_id)
+    user_result = await db.execute(
+        select(UserMaster.company_id).where(
+            UserMaster.user_id == user_id,
+            UserMaster.status == "Active",
+            UserMaster.is_deleted == "N",
+        )
+    )
+    target_company_id = user_result.scalar_one_or_none()
+    if not target_company_id:
+        raise HTTPException(404, "User not found.")
+    if current_user.role_id not in [1, 2] and target_company_id != current_user.company_id:
+        raise HTTPException(403, "You can only issue certificates for your company.")
+
+    cert = await cert_service.generate_certificate(db, user_id, video_id, target_company_id)
     await write_audit_log(
         db,
         user_id=current_user.user_id,
-        company_id=current_user.company_id,
+        company_id=target_company_id,
         action="CERTIFICATE_GENERATED_MANUALLY",
         table_name="certificate",
         record_id=cert.certificate_id,

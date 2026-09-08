@@ -46,8 +46,9 @@ desktop.ini
 *.log
 .env.prod
 .env.example
-doc/
+docs/
 posh_schema.sql
 overview.md
 feature-files.md
-docs/
+
+e2e/

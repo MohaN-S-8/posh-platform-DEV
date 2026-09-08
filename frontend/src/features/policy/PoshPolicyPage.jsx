@@ -1,6 +1,5 @@
 import ChatIcon from "@mui/icons-material/Chat";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import DownloadIcon from "@mui/icons-material/Download";
 import HandshakeIcon from "@mui/icons-material/Handshake";
 import PhoneAndroidIcon from "@mui/icons-material/PhoneAndroid";
 import PolicyIcon from "@mui/icons-material/Policy";
@@ -165,9 +164,11 @@ export function PoshPolicyPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [acknowledgements, setAcknowledgements] = useState([]);
+  const [ackMetrics, setAckMetrics] = useState([]);
   const canEdit =
     user?.role_id === 1 || user?.role_id === 2 || user?.role_id === 5;
-  const canViewAcknowledgements = user?.role_id === 1 || user?.role_id === 2;
+  const canViewAcknowledgements =
+    user?.role_id === 1 || user?.role_id === 2 || user?.role_id === 5;
   const canAcknowledge = !canEdit;
 
   useEffect(() => {
@@ -207,10 +208,19 @@ export function PoshPolicyPage() {
     let active = true;
     const loadAcknowledgements = async () => {
       try {
-        const res = await apiClient.get("/policy/acknowledgements");
-        if (active) setAcknowledgements(res.data || []);
+        const [ackRes, metricsRes] = await Promise.all([
+          apiClient.get("/policy/acknowledgements"),
+          apiClient.get("/policy/acknowledgement-metrics"),
+        ]);
+        if (active) {
+          setAcknowledgements(ackRes.data || []);
+          setAckMetrics(metricsRes.data || []);
+        }
       } catch {
-        if (active) setAcknowledgements([]);
+        if (active) {
+          setAcknowledgements([]);
+          setAckMetrics([]);
+        }
       }
     };
     loadAcknowledgements();
@@ -503,8 +513,8 @@ export function PoshPolicyPage() {
               onClick={downloadDocument}
               disabled={downloadingDoc}
             >
-              <DownloadIcon fontSize="small" />
-              {downloadingDoc ? "Opening..." : "Download Policy PDF"}
+              <VisibilityIcon fontSize="small" />
+              {downloadingDoc ? "Opening..." : "View Policy"}
             </button>
             {canEdit && (
               <label className="portal-outline-btn portal-policy-upload-btn">
@@ -558,6 +568,66 @@ export function PoshPolicyPage() {
 
       {canViewAcknowledgements && (
         <section style={{ marginBottom: "24px" }}>
+          <div className="portal-section-title">
+            Policy Acknowledgement Metrics
+          </div>
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  {[
+                    "Company",
+                    "Policy Version",
+                    "Active IC/Employees",
+                    "Acknowledged",
+                    "Pending",
+                    "Rate",
+                  ].map((heading) => (
+                    <th key={heading} style={thStyle}>
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ackMetrics.map((row) => (
+                  <tr key={row.company_id} style={trStyle}>
+                    <td style={tdStyle}>
+                      <strong>{row.company_name}</strong>
+                      <div
+                        style={{
+                          color: "var(--portal-muted)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {row.company_code || "-"} | {row.status || "-"}
+                      </div>
+                    </td>
+                    <td style={tdStyle}>{row.policy_version || "-"}</td>
+                    <td style={tdStyle}>{row.total_users}</td>
+                    <td style={tdStyle}>{row.acknowledged_users}</td>
+                    <td style={tdStyle}>{row.pending_users}</td>
+                    <td style={tdStyle}>{row.acknowledgement_rate}%</td>
+                  </tr>
+                ))}
+                {!ackMetrics.length && (
+                  <tr style={trStyle}>
+                    <td
+                      colSpan={6}
+                      style={{
+                        ...tdStyle,
+                        textAlign: "center",
+                        color: "var(--portal-muted)",
+                      }}
+                    >
+                      No acknowledgement metrics available yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
           <div className="portal-section-title">Policy Acknowledgements</div>
           <div style={tableWrapStyle}>
             <table style={tableStyle}>

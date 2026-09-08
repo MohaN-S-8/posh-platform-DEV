@@ -10,7 +10,8 @@ const serviceOptions = [
   {
     key: "posh",
     title: "PoSH",
-    description: "Employee training, department compliance, and certificate reports.",
+    description:
+      "Employee training, department compliance, and certificate reports.",
     status: "Available",
   },
 ];
@@ -62,7 +63,8 @@ const reports = [
     title: "Certificate Report",
     endpoint: "/hr/reports/certificates",
     fileName: "certificate_report.xlsx",
-    description: "Issued certificates with employee, course, and issue details.",
+    description:
+      "Issued certificates with employee, course, and issue details.",
     status: "Excel",
   },
   {
@@ -86,7 +88,11 @@ const SERVICE_LABELS = {
 };
 
 function normalizeServiceCode(code) {
-  return String(code || "POSH").trim().toUpperCase() || "POSH";
+  return (
+    String(code || "POSH")
+      .trim()
+      .toUpperCase() || "POSH"
+  );
 }
 
 function serviceLabel(code) {
@@ -111,7 +117,10 @@ function poshServiceEntries(services) {
 function buildServiceSections(analytics) {
   const serviceEntries = poshServiceEntries(analytics?.services);
   if (!serviceEntries.some(([code]) => normalizeServiceCode(code) === "POSH")) {
-    serviceEntries.push(["POSH", { companies: 0, employees: 0, certificates: 0 }]);
+    serviceEntries.push([
+      "POSH",
+      { companies: 0, employees: 0, certificates: 0 },
+    ]);
   }
   return serviceEntries.sort(sortServiceEntries).map(([code, service]) => ({
     code: normalizeServiceCode(code),
@@ -132,6 +141,12 @@ function buildReportSummary(analytics) {
   ];
 }
 
+function downloadNameFromResponse(res, fallback) {
+  const disposition = res.headers?.["content-disposition"] || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || fallback;
+}
+
 export function AdminReportsPage() {
   const { user } = useAuthStore();
   const [selectedService, setSelectedService] = useState("posh");
@@ -144,11 +159,13 @@ export function AdminReportsPage() {
     const loadServices = async () => {
       setError("");
       try {
-        const endpoint = user?.role_id === 1 ? "/analytics/overview" : "/analytics/current";
+        const endpoint =
+          user?.role_id === 1 ? "/analytics/overview" : "/analytics/current";
         const res = await apiClient.get(endpoint);
         if (active) setAnalytics(res.data);
       } catch (err) {
-        if (active) setError(apiErrorMessage(err, "Unable to load report services."));
+        if (active)
+          setError(apiErrorMessage(err, "Unable to load report services."));
       }
     };
     loadServices();
@@ -157,19 +174,27 @@ export function AdminReportsPage() {
     };
   }, [user?.role_id]);
 
-  const serviceSections = useMemo(() => buildServiceSections(analytics), [analytics]);
-  const reportSummary = useMemo(() => buildReportSummary(analytics), [analytics]);
+  const serviceSections = useMemo(
+    () => buildServiceSections(analytics),
+    [analytics],
+  );
+  const reportSummary = useMemo(
+    () => buildReportSummary(analytics),
+    [analytics],
+  );
 
   const downloadReport = async (report) => {
     if (!report.endpoint) return;
     setDownloading(report.title);
     setError("");
     try {
-      const res = await apiClient.get(report.endpoint, { responseType: "blob" });
+      const res = await apiClient.get(report.endpoint, {
+        responseType: "blob",
+      });
       const url = URL.createObjectURL(res.data);
       const link = document.createElement("a");
       link.href = url;
-      link.download = report.fileName;
+      link.download = downloadNameFromResponse(res, report.fileName);
       link.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -188,7 +213,6 @@ export function AdminReportsPage() {
           : "Choose a service to download its reports."
       }
     >
-
       {error && <div style={errorStyle}>{error}</div>}
 
       {user?.role_id !== 1 && reportSummary.length > 0 && (
@@ -266,7 +290,9 @@ export function AdminReportsPage() {
                           <button
                             key={report.title}
                             type="button"
-                            disabled={!available || downloading === report.title}
+                            disabled={
+                              !available || downloading === report.title
+                            }
                             onClick={() => downloadReport(report)}
                             className="portal-card portal-tile"
                             style={{
@@ -276,19 +302,27 @@ export function AdminReportsPage() {
                           >
                             <span
                               className={`portal-badge ${
-                                available ? "portal-badge-green" : "portal-badge-purple"
+                                available
+                                  ? "portal-badge-green"
+                                  : "portal-badge-purple"
                               }`}
                             >
                               {report.status}
                             </span>
-                            <h2 style={{ fontSize: "14.5px", marginTop: "16px" }}>
+                            <h2
+                              style={{ fontSize: "14.5px", marginTop: "16px" }}
+                            >
                               {report.title}
                             </h2>
-                            <p style={{ marginBottom: "14px" }}>{report.description}</p>
+                            <p style={{ marginBottom: "14px" }}>
+                              {report.description}
+                            </p>
                             {available && (
                               <span style={downloadLabelStyle}>
                                 <DownloadIcon fontSize="small" />
-                                {downloading === report.title ? "Downloading..." : "Download"}
+                                {downloading === report.title
+                                  ? "Downloading..."
+                                  : "Download"}
                               </span>
                             )}
                           </button>
@@ -319,7 +353,9 @@ export function AdminReportsPage() {
                     >
                       <span
                         className={`portal-badge ${
-                          available ? "portal-badge-green" : "portal-badge-purple"
+                          available
+                            ? "portal-badge-green"
+                            : "portal-badge-purple"
                         }`}
                       >
                         {report.status}
@@ -327,11 +363,15 @@ export function AdminReportsPage() {
                       <h2 style={{ fontSize: "14.5px", marginTop: "16px" }}>
                         {report.title}
                       </h2>
-                      <p style={{ marginBottom: "14px" }}>{report.description}</p>
+                      <p style={{ marginBottom: "14px" }}>
+                        {report.description}
+                      </p>
                       {available && (
                         <span style={downloadLabelStyle}>
                           <DownloadIcon fontSize="small" />
-                          {downloading === report.title ? "Downloading..." : "Download"}
+                          {downloading === report.title
+                            ? "Downloading..."
+                            : "Download"}
                         </span>
                       )}
                     </button>

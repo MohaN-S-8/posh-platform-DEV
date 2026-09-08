@@ -7,6 +7,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import _matrix_access_decision
+from app.models.company import CompanyMaster
 from app.models.training import (
     AssessmentOption,
     AssessmentQuestion,
@@ -23,6 +24,16 @@ REQUIRED_TRAINING_VIDEO_COUNT = 5
 
 
 class AssessmentService:
+    async def _certificate_auto_issue_enabled(self, db: AsyncSession, company_id: int) -> bool:
+        result = await db.execute(
+            select(CompanyMaster.certificate_issue_mode).where(
+                CompanyMaster.company_id == company_id,
+                CompanyMaster.is_deleted == "N",
+            )
+        )
+        issue_mode = result.scalar_one_or_none() or "Automatic"
+        return issue_mode == "Automatic"
+
     async def _ensure_video_available_for_user(
         self, db: AsyncSession, video_id: int, user_id: int, company_id: int
     ) -> VideoMaster:
@@ -437,19 +448,28 @@ class AssessmentService:
             "total": total,
             "result": result,
             "attempt_number": attempt_number,
-            "certificate_triggered": result == "Pass",
+            "certificate_triggered": False,
         }
 
         # 5. Trigger certificate generation on Pass
         # 5. Trigger certificate generation on Pass (via Celery — non-blocking)
         if result == "Pass":
-            from app.workers.celery_app import generate_certificate_task
+            if await self._certificate_auto_issue_enabled(db, company_id):
+                from app.workers.celery_app import generate_certificate_task
 
-            generate_certificate_task.delay(user_id, data.video_id, company_id)
-            response["message"] = (
-                "Congratulations! You passed. "
-                "Your certificate is being generated and will be emailed to you."
-            )
+                generate_certificate_task.delay(user_id, data.video_id, company_id)
+                response["certificate_triggered"] = True
+                response["certificate_issue_mode"] = "Automatic"
+                response["message"] = (
+                    "Congratulations! You passed. "
+                    "Your certificate is being generated and will be emailed to you."
+                )
+            else:
+                response["certificate_issue_mode"] = "Manual"
+                response["message"] = (
+                    "Congratulations! You passed. "
+                    "Your certificate will be issued by your administrator."
+                )
         else:
             response["message"] = (
                 f"Score: {score:.1f}%. "

@@ -37,17 +37,17 @@ const implementationRows = [
   [
     "Signup / Login RBAC",
     "Done",
-    "Super Admin, Corp Admin, Client / Mgmt, IC, Employee roles exist.",
+    "Super Admin, Admin, Client / Mgmt, IC, Employee roles exist.",
   ],
   [
     "Create Admin Login - 1A",
     "Done",
-    "Only Super Admin can create Corp Admin users.",
+    "Only Super Admin can create Admin users.",
   ],
   [
     "User Creation Flow",
     "Done",
-    "Corp Admin -> Client/Mgmt -> IC -> Employee is enforced in backend.",
+    "Admin -> Client/Mgmt -> IC -> Employee is enforced in backend.",
   ],
   [
     "State / City - 1A",
@@ -65,7 +65,7 @@ const implementationRows = [
     "Company form captures the pasted 1B fields, contacts, billing/corporate addresses, and branches.",
   ],
   [
-    "Employee Master - 1C",
+    "User Master - 1C",
     "Done",
     "User form captures personal, employment, branch, transfer, reporting, and IC-role fields.",
   ],
@@ -479,7 +479,7 @@ export function AdminConfigPage() {
                     "Employee",
                     "PO / Member",
                     "Super Admin",
-                    "Corp Admin",
+                    "Admin",
                     "Client / Management",
                     "IC",
                   ].map((item) => (

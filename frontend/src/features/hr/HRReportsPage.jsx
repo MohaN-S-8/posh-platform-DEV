@@ -10,7 +10,8 @@ import { PortalShell } from "../../components/PortalShell";
 const reports = [
   {
     title: "Employee Report",
-    description: "Employee-wise status, completion percentage, and completion date.",
+    description:
+      "Employee-wise status, completion percentage, and completion date.",
     endpoint: "/hr/reports/employees",
     fileName: "employee_training_report.xlsx",
     icon: <GroupsIcon />,
@@ -37,7 +38,8 @@ const reports = [
   },
   {
     title: "Department Report",
-    description: "Department-wise total employees, completed, pending, and compliance rate.",
+    description:
+      "Department-wise total employees, completed, pending, and compliance rate.",
     endpoint: "/hr/reports/departments",
     fileName: "department_compliance_report.xlsx",
     icon: <AssessmentIcon />,
@@ -64,7 +66,8 @@ const reports = [
   },
   {
     title: "Certificate Report",
-    description: "Issued certificates with employee, course, issue date, and status.",
+    description:
+      "Issued certificates with employee, course, issue date, and status.",
     endpoint: "/hr/reports/certificates",
     fileName: "certificate_report.xlsx",
     icon: <BadgeIcon />,
@@ -103,6 +106,12 @@ function buildSummary(analytics) {
   ];
 }
 
+function downloadNameFromResponse(res, fallback) {
+  const disposition = res.headers?.["content-disposition"] || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || fallback;
+}
+
 export function HRReportsPage() {
   const [analytics, setAnalytics] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
@@ -138,11 +147,13 @@ export function HRReportsPage() {
     setDownloading(report.title);
     setError("");
     try {
-      const res = await apiClient.get(report.endpoint, { responseType: "blob" });
+      const res = await apiClient.get(report.endpoint, {
+        responseType: "blob",
+      });
       const url = URL.createObjectURL(res.data);
       const link = document.createElement("a");
       link.href = url;
-      link.download = report.fileName;
+      link.download = downloadNameFromResponse(res, report.fileName);
       link.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -157,7 +168,6 @@ export function HRReportsPage() {
       title="IC Analytics & Reports"
       subtitle="Company-scoped employee compliance analytics and report downloads."
     >
-
       {error && (
         <div
           style={{
@@ -177,7 +187,9 @@ export function HRReportsPage() {
       <div className="portal-auto-grid" style={{ marginBottom: "22px" }}>
         {summary.map((metric) => (
           <div key={metric.label} className="portal-card">
-            <div className="portal-kpi-value">{loadingAnalytics ? "-" : metric.value}</div>
+            <div className="portal-kpi-value">
+              {loadingAnalytics ? "-" : metric.value}
+            </div>
             <div className="portal-kpi-label">{metric.label}</div>
             <div className="portal-kpi-trend">Current company</div>
           </div>
@@ -185,7 +197,10 @@ export function HRReportsPage() {
       </div>
 
       <div className="portal-section-title">Department Compliance</div>
-      <div className="portal-card" style={{ marginBottom: "22px", overflowX: "auto" }}>
+      <div
+        className="portal-card"
+        style={{ marginBottom: "22px", overflowX: "auto" }}
+      >
         <div style={tableStyle}>
           <div style={{ ...tableRowStyle, ...tableHeaderRowStyle }}>
             <span>Department</span>
@@ -204,7 +219,9 @@ export function HRReportsPage() {
             </div>
           ))}
           {!loadingAnalytics && !analytics?.department_breakdown?.length && (
-            <div style={emptyRowStyle}>No employee departments available yet.</div>
+            <div style={emptyRowStyle}>
+              No employee departments available yet.
+            </div>
           )}
         </div>
       </div>
@@ -220,7 +237,10 @@ export function HRReportsPage() {
               disabled={!available || downloading === report.title}
               onClick={() => downloadReport(report)}
               className="portal-card portal-tile"
-              style={{ cursor: available ? "pointer" : "not-allowed", opacity: available ? 1 : 0.76 }}
+              style={{
+                cursor: available ? "pointer" : "not-allowed",
+                opacity: available ? 1 : 0.76,
+              }}
             >
               <div
                 style={{
@@ -231,7 +251,9 @@ export function HRReportsPage() {
                   marginBottom: "14px",
                 }}
               >
-                  <span style={{ color: "#4A2E83", display: "flex" }}>{report.icon}</span>
+                <span style={{ color: "#4A2E83", display: "flex" }}>
+                  {report.icon}
+                </span>
                 <span
                   className={`portal-badge ${available ? "portal-badge-green" : "portal-badge-purple"}`}
                 >
@@ -252,7 +274,9 @@ export function HRReportsPage() {
                   }}
                 >
                   <DownloadIcon fontSize="small" />
-                  {downloading === report.title ? "Downloading..." : `Download ${report.format}`}
+                  {downloading === report.title
+                    ? "Downloading..."
+                    : `Download ${report.format}`}
                 </span>
               )}
             </button>
@@ -263,7 +287,11 @@ export function HRReportsPage() {
       <LoadingOverlay
         show={loadingAnalytics || Boolean(downloading)}
         title={downloading ? "Preparing report" : "Loading analytics"}
-        message={downloading ? `Downloading ${downloading}.` : "Fetching company compliance metrics."}
+        message={
+          downloading
+            ? `Downloading ${downloading}.`
+            : "Fetching company compliance metrics."
+        }
       />
     </PortalShell>
   );

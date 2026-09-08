@@ -1,5 +1,7 @@
 import AddIcon from "@mui/icons-material/Add";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import KeyIcon from "@mui/icons-material/Key";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import apiClient from "../../api/client";
@@ -10,7 +12,7 @@ import { useAuthStore } from "../../store/authStore";
 
 const ROLES = {
   1: "Super Admin",
-  2: "Corp Admin",
+  2: "Admin",
   5: "Admin",
   3: "IC",
   4: "Employee",
@@ -34,7 +36,7 @@ function defaultIcRoleFor(roleId) {
 
 function emptyMessageFor(user) {
   if (user?.role_id === 2) {
-    return "No Client / Management, IC, or Employee users found. Company Admin can create and manage these users here.";
+    return "No Client / Management, IC, or Employee users found. Admin can create and manage these users here.";
   }
   if (user?.role_id === 5) {
     return "No Employee or IC users found. Admin can create and manage its own Employee and IC users here.";
@@ -47,7 +49,10 @@ function emptyMessageFor(user) {
 
 function cleanUserPayload(payload) {
   return Object.fromEntries(
-    Object.entries(payload).map(([key, value]) => [key, value === "" ? null : value]),
+    Object.entries(payload).map(([key, value]) => [
+      key,
+      value === "" ? null : value,
+    ]),
   );
 }
 
@@ -148,8 +153,10 @@ export function UserListPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [bulkUploading, setBulkUploading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [bulkErrors, setBulkErrors] = useState([]);
   const [search, setSearch] = useState("");
   const isHrRoute = location.pathname.startsWith("/hr/");
   const pageTitle =
@@ -177,7 +184,7 @@ export function UserListPage() {
           ? apiClient.get("/companies/")
           : user?.role_id === 2
             ? apiClient.get("/companies/registration-candidates/")
-          : Promise.resolve({ data: [] });
+            : Promise.resolve({ data: [] });
       const [userRes, companyRes] = await Promise.all([userReq, companyReq]);
       setUsers(userRes.data || []);
       setCompanies(companyRes.data || []);
@@ -185,7 +192,8 @@ export function UserListPage() {
       setForm((current) => ({
         ...current,
         role_id: current.role_id || nextRole,
-        ic_role: current.ic_role || defaultIcRoleFor(current.role_id || nextRole),
+        ic_role:
+          current.ic_role || defaultIcRoleFor(current.role_id || nextRole),
         company_id:
           user?.role_id === 1 || user?.role_id === 2
             ? current.company_id || companyRes.data?.[0]?.company_id || ""
@@ -234,11 +242,17 @@ export function UserListPage() {
         email: form.email.trim().toLowerCase(),
         role_id: Number(form.role_id),
         company_id: Number(
-          user?.role_id === 1 || user?.role_id === 2 ? form.company_id : user.company_id,
+          user?.role_id === 1 || user?.role_id === 2
+            ? form.company_id
+            : user.company_id,
         ),
       };
       await apiClient.post("/users/", cleanUserPayload(payload));
-      setSuccess(form.password ? "User created successfully." : "User created successfully. Temporary password was emailed.");
+      setSuccess(
+        form.password
+          ? "User created successfully."
+          : "User created successfully. Temporary password was emailed.",
+      );
       setForm({
         ...initialForm,
         role_id: defaultRoleFor(user),
@@ -266,7 +280,11 @@ export function UserListPage() {
       await apiClient.post(`/users/${passwordForm.userId}/reset-password`, {
         new_password: passwordForm.password,
       });
-      setSuccess(passwordForm.password ? "Password changed successfully." : "Temporary password generated and emailed.");
+      setSuccess(
+        passwordForm.password
+          ? "Password changed successfully."
+          : "Temporary password generated and emailed.",
+      );
       setPasswordForm({ userId: "", password: "" });
       setShowPassword(false);
     } catch (err) {
@@ -298,12 +316,15 @@ export function UserListPage() {
     setError("");
     setSuccess("");
     try {
-      await apiClient.put(`/users/${editingUser.user_id}`, cleanUserPayload({
-        ...editForm,
-        password: undefined,
-        email: editForm.email.trim().toLowerCase(),
-        role_id: Number(editForm.role_id),
-      }));
+      await apiClient.put(
+        `/users/${editingUser.user_id}`,
+        cleanUserPayload({
+          ...editForm,
+          password: undefined,
+          email: editForm.email.trim().toLowerCase(),
+          role_id: Number(editForm.role_id),
+        }),
+      );
       setSuccess("User updated successfully.");
       setEditingUser(null);
       await loadData();
@@ -345,6 +366,73 @@ export function UserListPage() {
     }
   };
 
+  const upgradeToIc = async (target) => {
+    const name = `${target.first_name || ""} ${target.last_name || ""}`.trim();
+    const confirmed = window.confirm(
+      `Upgrade ${name || target.email} from Employee to IC?`,
+    );
+    if (!confirmed) return;
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await apiClient.post(`/users/${target.user_id}/upgrade-to-ic`, {
+        ic_role: target.ic_role || "Internal Committee Member",
+      });
+      setSuccess("Employee upgraded to IC successfully.");
+      await loadData();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to upgrade employee to IC."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const downloadBulkTemplate = async () => {
+    setError("");
+    try {
+      const res = await apiClient.get("/users/bulk-template", {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(
+        new Blob([res.data], { type: "text/csv" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "user_bulk_template.csv";
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to download user bulk template."));
+    }
+  };
+
+  const uploadBulkUsers = async (file) => {
+    if (!file) return;
+    setBulkUploading(true);
+    setError("");
+    setSuccess("");
+    setBulkErrors([]);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await apiClient.post("/users/bulk-upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setBulkErrors(res.data?.errors || []);
+      setSuccess(
+        `Bulk upload finished. Created ${res.data?.created_count || 0} user(s), ${
+          res.data?.error_count || 0
+        } error(s).`,
+      );
+      await loadData();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to upload users."));
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
   return (
     <PortalShell
       title={pageTitle}
@@ -367,6 +455,28 @@ export function UserListPage() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ ...inputStyle, width: "220px" }}
           />
+          <button
+            type="button"
+            onClick={downloadBulkTemplate}
+            style={secondaryButtonStyle}
+          >
+            <FileDownloadIcon fontSize="small" />
+            Template
+          </button>
+          <label style={{ ...secondaryButtonStyle, cursor: "pointer" }}>
+            <UploadFileIcon fontSize="small" />
+            {bulkUploading ? "Uploading..." : "Bulk Upload"}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              disabled={bulkUploading}
+              onChange={(event) => {
+                uploadBulkUsers(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+              style={{ display: "none" }}
+            />
+          </label>
           <button
             type="button"
             onClick={() => {
@@ -395,10 +505,22 @@ export function UserListPage() {
 
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
+      {bulkErrors.length > 0 && (
+        <div style={errorStyle}>
+          <strong>Rows needing correction:</strong>{" "}
+          {bulkErrors
+            .slice(0, 5)
+            .map((item) => `Row ${item.row}: ${item.error}`)
+            .join(" | ")}
+          {bulkErrors.length > 5 ? ` | ${bulkErrors.length - 5} more...` : ""}
+        </div>
+      )}
 
       {showCreate && (
         <form onSubmit={submitCreate} style={panelStyle}>
-          <h2 style={panelTitleStyle}>Create {ROLES[defaultRoleFor(user)] || "User"}</h2>
+          <h2 style={panelTitleStyle}>
+            Create {ROLES[defaultRoleFor(user)] || "User"}
+          </h2>
           <div style={sectionLabelStyle}>Personal Information</div>
           <div style={formGridStyle}>
             {personalFields.map(([field, label, type = "text"]) => (
@@ -427,29 +549,31 @@ export function UserListPage() {
           <div style={sectionLabelStyle}>Employment Details</div>
           <div style={formGridStyle}>
             {employmentFields
-              .filter(([field]) => field !== "ic_role" || Number(form.role_id) === 3)
+              .filter(
+                ([field]) => field !== "ic_role" || Number(form.role_id) === 3,
+              )
               .map(([field, label, type = "text"]) => (
-              <label key={field} style={labelStyle}>
-                {label}
-                <input
-                  required={[
-                    "joining_date",
-                    "designation",
-                    "department",
-                    "transfer_location",
-                    "employee_status",
-                    "branch_name",
-                    "branch_id",
-                  ].includes(field)}
-                  type={type}
-                  value={form[field] || ""}
-                  onChange={(e) =>
-                    setForm({ ...form, [field]: e.target.value })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-            ))}
+                <label key={field} style={labelStyle}>
+                  {label}
+                  <input
+                    required={[
+                      "joining_date",
+                      "designation",
+                      "department",
+                      "transfer_location",
+                      "employee_status",
+                      "branch_name",
+                      "branch_id",
+                    ].includes(field)}
+                    type={type}
+                    value={form[field] || ""}
+                    onChange={(e) =>
+                      setForm({ ...form, [field]: e.target.value })
+                    }
+                    style={inputStyle}
+                  />
+                </label>
+              ))}
             <label style={labelStyle}>
               Role
               <select
@@ -499,9 +623,7 @@ export function UserListPage() {
                 maxLength={15}
                 value={form.password || ""}
                 placeholder="Leave blank to auto-generate"
-                onChange={(e) =>
-                  setForm({ ...form, password: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
                 style={inputStyle}
               />
             </label>
@@ -587,29 +709,32 @@ export function UserListPage() {
           <div style={sectionLabelStyle}>Employment Details</div>
           <div style={formGridStyle}>
             {employmentFields
-              .filter(([field]) => field !== "ic_role" || Number(editForm.role_id) === 3)
+              .filter(
+                ([field]) =>
+                  field !== "ic_role" || Number(editForm.role_id) === 3,
+              )
               .map(([field, label, type = "text"]) => (
-              <label key={field} style={labelStyle}>
-                {label}
-                <input
-                  required={[
-                    "joining_date",
-                    "designation",
-                    "department",
-                    "transfer_location",
-                    "employee_status",
-                    "branch_name",
-                    "branch_id",
-                  ].includes(field)}
-                  type={type}
-                  value={editForm[field] || ""}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, [field]: e.target.value })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-            ))}
+                <label key={field} style={labelStyle}>
+                  {label}
+                  <input
+                    required={[
+                      "joining_date",
+                      "designation",
+                      "department",
+                      "transfer_location",
+                      "employee_status",
+                      "branch_name",
+                      "branch_id",
+                    ].includes(field)}
+                    type={type}
+                    value={editForm[field] || ""}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, [field]: e.target.value })
+                    }
+                    style={inputStyle}
+                  />
+                </label>
+              ))}
             <label style={labelStyle}>
               Role
               <select
@@ -733,6 +858,16 @@ export function UserListPage() {
                           <KeyIcon fontSize="small" />
                           Password
                         </button>
+                        {target.role_id === 4 &&
+                          [1, 2, 5].includes(user?.role_id) && (
+                            <button
+                              type="button"
+                              onClick={() => upgradeToIc(target)}
+                              style={secondaryButtonStyle}
+                            >
+                              Upgrade to IC
+                            </button>
+                          )}
                         <button
                           type="button"
                           onClick={() => deleteUser(target)}
@@ -753,10 +888,20 @@ export function UserListPage() {
       </div>
 
       <LoadingOverlay
-        show={loading || saving}
-        title={saving ? "Saving user" : "Loading users"}
+        show={loading || saving || bulkUploading}
+        title={
+          bulkUploading
+            ? "Uploading users"
+            : saving
+              ? "Saving user"
+              : "Loading users"
+        }
         message={
-          saving ? "Applying user management changes." : "Fetching user list."
+          bulkUploading
+            ? "Validating CSV rows and creating users."
+            : saving
+              ? "Applying user management changes."
+              : "Fetching user list."
         }
       />
     </PortalShell>

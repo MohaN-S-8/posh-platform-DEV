@@ -247,7 +247,7 @@ async def import_assessment_questions(
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
             403,
-            "Only Super Admin, Company Admin, and Client / Management can import assessment questions.",
+            "Only Super Admin, Admin, and Client / Management can import assessment questions.",
         )
     filename = file.filename or ""
     if not filename.lower().endswith(".docx"):

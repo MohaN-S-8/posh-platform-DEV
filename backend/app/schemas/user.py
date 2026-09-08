@@ -183,3 +183,15 @@ class PasswordResetByAdmin(BaseModel):
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
             raise ValueError("Password must contain at least one special character")
         return v
+
+
+class UpgradeToIcRequest(BaseModel):
+    ic_role: Optional[str] = "Internal Committee Member"
+
+    @field_validator("ic_role")
+    @classmethod
+    def validate_ic_role(cls, v):
+        if v is None:
+            return "Internal Committee Member"
+        value = v.strip()
+        return value or "Internal Committee Member"

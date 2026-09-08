@@ -9,24 +9,22 @@ const emptyForm = {
   email: "",
   contact: "",
   username: "",
+  ic_role: "Internal Committee Member",
   password: "",
 };
 
 const employeeOptionLabel = (employee) => {
-  const name =
-    `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+  const name = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
   const employeeId = employee.employee_id ? ` (${employee.employee_id})` : "";
-  const company = employee.company_id
-    ? ` - Company ${employee.company_id}`
-    : "";
+  const company = employee.company_id ? ` - Company ${employee.company_id}` : "";
   return `${name || employee.email} - ${employee.email}${employeeId}${company}`;
 };
 
-export function CreateAdminPage() {
-  const [admins, setAdmins] = useState([]);
+export function CreateIcPage() {
+  const [icUsers, setIcUsers] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [form, setForm] = useState(emptyForm);
-  const [editingAdmin, setEditingAdmin] = useState(null);
+  const [editingIc, setEditingIc] = useState(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,87 +34,25 @@ export function CreateAdminPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const loadAdmins = useCallback(async () => {
+  const loadIcUsers = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const res = await apiClient.get("/users/");
       const users = res.data || [];
-      setAdmins(users.filter((user) => user.role_id === 2));
-      setEmployees(users.filter((user) => user.role_id === 4));
+      setIcUsers(users.filter((item) => item.role_id === 3));
+      setEmployees(users.filter((item) => item.role_id === 4));
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load Admins."));
+      setError(apiErrorMessage(err, "Failed to load IC users."));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(loadAdmins, 0);
+    const timer = window.setTimeout(loadIcUsers, 0);
     return () => window.clearTimeout(timer);
-  }, [loadAdmins]);
-
-  const createAdmin = async (event) => {
-    event.preventDefault();
-    if (!editingAdmin && !selectedEmployee) {
-      setError(
-        "Please select an employee from User Master before creating admin access.",
-      );
-      return;
-    }
-    const digits = form.contact.replace(/\D/g, "");
-    const mobile = digits.length > 10 ? digits.slice(-10) : digits;
-    const [firstName, ...restName] = form.name.trim().split(/\s+/);
-
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
-    try {
-      const payload = {
-        employee_id: form.id_no.trim(),
-        first_name: firstName,
-        last_name: restName.join(" ") || "Admin",
-        email: form.email.trim().toLowerCase(),
-        mobile,
-        username: form.username.trim(),
-        role_id: 2,
-        department: "Administration",
-        designation: "Admin",
-      };
-      if (editingAdmin) {
-        await apiClient.put(`/users/${editingAdmin.user_id}`, payload);
-        if (form.password) {
-          await apiClient.post(
-            `/users/${editingAdmin.user_id}/reset-password`,
-            {
-              new_password: form.password,
-            },
-          );
-        }
-        setSuccess("Admin updated.");
-      } else {
-        await apiClient.put(`/users/${selectedEmployee.user_id}`, payload);
-        if (form.password) {
-          await apiClient.post(
-            `/users/${selectedEmployee.user_id}/reset-password`,
-            {
-              new_password: form.password,
-            },
-          );
-        }
-        setSuccess("Employee upgraded to Admin.");
-      }
-      setForm(emptyForm);
-      setEditingAdmin(null);
-      setSelectedEmployee(null);
-      setEmployeeSearch("");
-      await loadAdmins();
-    } catch (err) {
-      setError(apiErrorMessage(err, "Failed to create Admin."));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  }, [loadIcUsers]);
 
   const handleEmployeeSearch = (value) => {
     setEmployeeSearch(value);
@@ -143,28 +79,87 @@ export function CreateAdminPage() {
       email: match.email || "",
       contact: match.mobile || "",
       username: match.username || match.email || "",
+      ic_role: "Internal Committee Member",
       password: "",
     });
   };
 
-  const startEdit = (admin) => {
-    setEditingAdmin(admin);
+  const submitIc = async (event) => {
+    event.preventDefault();
+    if (!editingIc && !selectedEmployee) {
+      setError("Please select an employee from User Master before creating IC access.");
+      return;
+    }
+
+    const digits = form.contact.replace(/\D/g, "");
+    const mobile = digits.length > 10 ? digits.slice(-10) : digits;
+    const [firstName, ...restName] = form.name.trim().split(/\s+/);
+
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+    try {
+      if (editingIc) {
+        await apiClient.put(`/users/${editingIc.user_id}`, {
+          employee_id: form.id_no.trim(),
+          first_name: firstName,
+          last_name: restName.join(" ") || "IC",
+          email: form.email.trim().toLowerCase(),
+          mobile,
+          username: form.username.trim(),
+          role_id: 3,
+          ic_role: form.ic_role.trim() || "Internal Committee Member",
+          department: editingIc.department || "Internal Committee",
+          designation: editingIc.designation || "IC Member",
+        });
+        if (form.password) {
+          await apiClient.post(`/users/${editingIc.user_id}/reset-password`, {
+            new_password: form.password,
+          });
+        }
+        setSuccess("IC user updated.");
+      } else {
+        await apiClient.post(`/users/${selectedEmployee.user_id}/upgrade-to-ic`, {
+          ic_role: form.ic_role.trim() || "Internal Committee Member",
+        });
+        if (form.password) {
+          await apiClient.post(`/users/${selectedEmployee.user_id}/reset-password`, {
+            new_password: form.password,
+          });
+        }
+        setSuccess("Employee upgraded to IC.");
+      }
+      setForm(emptyForm);
+      setEditingIc(null);
+      setSelectedEmployee(null);
+      setEmployeeSearch("");
+      await loadIcUsers();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to save IC user."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const startEdit = (icUser) => {
+    setEditingIc(icUser);
     setSelectedEmployee(null);
     setEmployeeSearch("");
     setError("");
     setSuccess("");
     setForm({
-      name: `${admin.first_name || ""} ${admin.last_name || ""}`.trim(),
-      id_no: admin.employee_id || "",
-      email: admin.email || "",
-      contact: admin.mobile || "",
-      username: admin.username || admin.email || "",
+      name: `${icUser.first_name || ""} ${icUser.last_name || ""}`.trim(),
+      id_no: icUser.employee_id || "",
+      email: icUser.email || "",
+      contact: icUser.mobile || "",
+      username: icUser.username || icUser.email || "",
+      ic_role: icUser.ic_role || "Internal Committee Member",
       password: "",
     });
   };
 
   const cancelEdit = () => {
-    setEditingAdmin(null);
+    setEditingIc(null);
     setSelectedEmployee(null);
     setEmployeeSearch("");
     setForm(emptyForm);
@@ -172,98 +167,74 @@ export function CreateAdminPage() {
     setSuccess("");
   };
 
-  const deleteAdmin = async (admin) => {
-    const adminName = `${admin.first_name} ${admin.last_name || ""}`.trim();
-    if (
-      !window.confirm(`Delete ${adminName || admin.email} from Admin logins?`)
-    ) {
-      return;
-    }
-    setDeletingId(admin.user_id);
+  const deleteIc = async (icUser) => {
+    const name = `${icUser.first_name || ""} ${icUser.last_name || ""}`.trim();
+    if (!window.confirm(`Delete ${name || icUser.email} from IC users?`)) return;
+    setDeletingId(icUser.user_id);
     setError("");
     setSuccess("");
     try {
-      await apiClient.delete(`/users/${admin.user_id}`);
-      setSuccess("Admin deleted.");
-      await loadAdmins();
+      await apiClient.delete(`/users/${icUser.user_id}`);
+      setSuccess("IC user deleted.");
+      await loadIcUsers();
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to delete Admin."));
+      setError(apiErrorMessage(err, "Failed to delete IC user."));
     } finally {
       setDeletingId("");
     }
   };
 
-  const toggleAdminStatus = async (admin) => {
-    const nextStatus = admin.status === "Active" ? "Inactive" : "Active";
-    setStatusUpdatingId(admin.user_id);
+  const toggleIcStatus = async (icUser) => {
+    const nextStatus = icUser.status === "Active" ? "Inactive" : "Active";
+    setStatusUpdatingId(icUser.user_id);
     setError("");
     setSuccess("");
     try {
-      await apiClient.patch(
-        `/users/${admin.user_id}/status?status=${nextStatus}`,
-      );
-      setSuccess(
-        `Admin ${nextStatus === "Active" ? "activated" : "deactivated"}.`,
-      );
-      await loadAdmins();
+      await apiClient.patch(`/users/${icUser.user_id}/status?status=${nextStatus}`);
+      setSuccess(`IC user ${nextStatus === "Active" ? "activated" : "deactivated"}.`);
+      await loadIcUsers();
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to update Admin status."));
+      setError(apiErrorMessage(err, "Failed to update IC status."));
     } finally {
       setStatusUpdatingId("");
     }
   };
 
   return (
-    <PortalShell
-      title="Create Admin"
-      subtitle="Super Admin upgrades User Master users to Admin role"
-    >
-      {/* <div style={noticeStyle}>
-        Only the Super Admin can create an Admin login. This mirrors only Master Admin has rights from the master file.
-      </div> */}
-
+    <PortalShell title="Create IC" subtitle="Upgrade User Master employees to IC users">
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
       <section style={panelStyle}>
-        <h3 style={titleStyle}>
-          {editingAdmin ? "Edit Admin" : "Create Admin"}
-        </h3>
+        <h3 style={titleStyle}>{editingIc ? "Edit IC User" : "Create IC User"}</h3>
         <p style={mutedStyle}>
-          {editingAdmin
-            ? "Update Admin details and optionally set a new password."
-            : "Select an existing User Master user. Their ID, email, contact, and username are filled automatically before upgrading access."}
+          {editingIc
+            ? "Update IC user details and optionally set a new password."
+            : "Select an existing Employee from User Master. Their ID, email, contact, and username are filled automatically before upgrading access."}
         </p>
-        <form onSubmit={createAdmin}>
-          {!editingAdmin && (
+        <form onSubmit={submitIc}>
+          {!editingIc && (
             <label style={{ ...labelStyle, marginBottom: "16px" }}>
-              Search User *
+              Search Employee *
               <input
                 required
                 type="text"
-                list="company-admin-employee-options"
+                list="ic-employee-options"
                 value={employeeSearch}
                 placeholder="Type user name, email, employee ID, or user ID"
-                onChange={(e) => handleEmployeeSearch(e.target.value)}
+                onChange={(event) => handleEmployeeSearch(event.target.value)}
                 style={inputStyle}
               />
-              <datalist id="company-admin-employee-options">
+              <datalist id="ic-employee-options">
                 {employees.map((employee) => (
-                  <option
-                    key={employee.user_id}
-                    value={employeeOptionLabel(employee)}
-                  />
+                  <option key={employee.user_id} value={employeeOptionLabel(employee)} />
                 ))}
               </datalist>
               {!loading && employees.length === 0 && (
-                <span style={hintStyle}>
-                  No User Master users are available to upgrade.
-                </span>
+                <span style={hintStyle}>No Employee users are available to upgrade.</span>
               )}
               {selectedEmployee && (
-                <span style={hintStyle}>
-                  Selected employee will be converted to Admin.
-                </span>
+                <span style={hintStyle}>Selected employee will be converted to IC.</span>
               )}
             </label>
           )}
@@ -274,7 +245,7 @@ export function CreateAdminPage() {
                 required
                 value={form.name}
                 placeholder="Full name"
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
                 style={inputStyle}
               />
             </label>
@@ -283,10 +254,8 @@ export function CreateAdminPage() {
               <input
                 required
                 value={form.id_no}
-                placeholder="e.g. SCS-ADM-002"
-                onChange={(e) =>
-                  setForm({ ...form, id_no: e.target.value.toUpperCase() })
-                }
+                placeholder="e.g. IC-001"
+                onChange={(event) => setForm({ ...form, id_no: event.target.value.toUpperCase() })}
                 style={inputStyle}
               />
             </label>
@@ -297,7 +266,7 @@ export function CreateAdminPage() {
                 type="email"
                 value={form.email}
                 placeholder="name@example.com"
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(event) => setForm({ ...form, email: event.target.value })}
                 style={inputStyle}
               />
             </label>
@@ -306,8 +275,8 @@ export function CreateAdminPage() {
               <input
                 required
                 value={form.contact}
-                placeholder="+91 ..."
-                onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                placeholder="10 digit mobile"
+                onChange={(event) => setForm({ ...form, contact: event.target.value })}
                 style={inputStyle}
               />
             </label>
@@ -317,45 +286,47 @@ export function CreateAdminPage() {
                 required
                 value={form.username}
                 placeholder="e.g. jane.doe"
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                onChange={(event) => setForm({ ...form, username: event.target.value })}
                 style={inputStyle}
               />
             </label>
             <label style={labelStyle}>
-              {editingAdmin ? "New Password" : "New Password"}
+              IC Responsibility *
+              <input
+                required
+                value={form.ic_role}
+                placeholder="Internal Committee Member"
+                onChange={(event) => setForm({ ...form, ic_role: event.target.value })}
+                style={inputStyle}
+              />
+            </label>
+            <label style={labelStyle}>
+              New Password
               <input
                 type="password"
                 value={form.password}
                 placeholder={
-                  editingAdmin
+                  editingIc
                     ? "Leave blank to keep current password"
                     : "Optional. Leave blank to keep employee password"
                 }
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={(event) => setForm({ ...form, password: event.target.value })}
                 style={inputStyle}
               />
             </label>
           </div>
           <div style={actionGroupStyle}>
-            <button
-              type="submit"
-              disabled={submitting}
-              style={primaryButtonStyle}
-            >
+            <button type="submit" disabled={submitting} style={primaryButtonStyle}>
               {submitting
-                ? editingAdmin
+                ? editingIc
                   ? "Saving..."
                   : "Upgrading..."
-                : editingAdmin
-                  ? "Save Admin"
-                  : "Upgrade to Admin"}
+                : editingIc
+                  ? "Save IC User"
+                  : "Upgrade to IC"}
             </button>
-            {editingAdmin && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                style={secondaryButtonStyle}
-              >
+            {editingIc && (
+              <button type="button" onClick={cancelEdit} style={secondaryButtonStyle}>
                 Cancel Edit
               </button>
             )}
@@ -364,97 +335,55 @@ export function CreateAdminPage() {
       </section>
 
       <section>
-        <div style={sectionTitleStyle}>Admins Created</div>
+        <div style={sectionTitleStyle}>IC Users Created</div>
         <div style={tableWrapStyle}>
-          <table
-            style={{
-              width: "100%",
-              minWidth: "860px",
-              borderCollapse: "collapse",
-            }}
-          >
+          <table style={{ width: "100%", minWidth: "860px", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#faf8ff" }}>
-                {[
-                  "Name",
-                  "ID No",
-                  "Email",
-                  "Contact",
-                  "Username",
-                  "Role",
-                  "Status",
-                  "Action",
-                ].map((heading) => (
-                  <th key={heading} style={thStyle}>
-                    {heading}
-                  </th>
+                {["Name", "ID No", "Email", "Contact", "Username", "IC Responsibility", "Status", "Action"].map((heading) => (
+                  <th key={heading} style={thStyle}>{heading}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={8} style={emptyStyle}>
-                    Loading admins...
-                  </td>
-                </tr>
-              ) : admins.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={emptyStyle}>
-                    No Admin logins created yet.
-                  </td>
-                </tr>
+                <tr><td colSpan={8} style={emptyStyle}>Loading IC users...</td></tr>
+              ) : icUsers.length === 0 ? (
+                <tr><td colSpan={8} style={emptyStyle}>No IC users created yet.</td></tr>
               ) : (
-                admins.map((admin) => (
-                  <tr
-                    key={admin.user_id}
-                    style={{ borderTop: "1px solid var(--portal-border)" }}
-                  >
-                    <td style={tdStyle}>
-                      {admin.first_name} {admin.last_name || ""}
-                    </td>
-                    <td style={tdStyle}>{admin.employee_id}</td>
-                    <td style={tdStyle}>{admin.email}</td>
-                    <td style={tdStyle}>{admin.mobile || "-"}</td>
-                    <td style={tdStyle}>{admin.username || admin.email}</td>
-                    <td style={tdStyle}>
-                      <span style={roleBadgeStyle}>Admin</span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={statusBadgeStyle(admin.status)}>
-                        {admin.status}
-                      </span>
-                    </td>
+                icUsers.map((icUser) => (
+                  <tr key={icUser.user_id} style={{ borderTop: "1px solid var(--portal-border)" }}>
+                    <td style={tdStyle}>{icUser.first_name} {icUser.last_name || ""}</td>
+                    <td style={tdStyle}>{icUser.employee_id}</td>
+                    <td style={tdStyle}>{icUser.email}</td>
+                    <td style={tdStyle}>{icUser.mobile || "-"}</td>
+                    <td style={tdStyle}>{icUser.username || icUser.email}</td>
+                    <td style={tdStyle}><span style={roleBadgeStyle}>{icUser.ic_role || "IC"}</span></td>
+                    <td style={tdStyle}><span style={statusBadgeStyle(icUser.status)}>{icUser.status}</span></td>
                     <td style={tdStyle}>
                       <div style={actionGroupStyle}>
-                        <button
-                          type="button"
-                          onClick={() => startEdit(admin)}
-                          style={secondaryButtonStyle}
-                        >
+                        <button type="button" onClick={() => startEdit(icUser)} style={secondaryButtonStyle}>
                           Edit
                         </button>
                         <button
                           type="button"
-                          disabled={statusUpdatingId === admin.user_id}
-                          onClick={() => toggleAdminStatus(admin)}
+                          disabled={statusUpdatingId === icUser.user_id}
+                          onClick={() => toggleIcStatus(icUser)}
                           style={secondaryButtonStyle}
                         >
-                          {statusUpdatingId === admin.user_id
+                          {statusUpdatingId === icUser.user_id
                             ? "Updating..."
-                            : admin.status === "Active"
+                            : icUser.status === "Active"
                               ? "Deactivate"
                               : "Activate"}
                         </button>
                         <button
                           type="button"
-                          disabled={deletingId === admin.user_id}
-                          onClick={() => deleteAdmin(admin)}
+                          disabled={deletingId === icUser.user_id}
+                          onClick={() => deleteIc(icUser)}
                           style={dangerButtonStyle}
                         >
-                          {deletingId === admin.user_id
-                            ? "Deleting..."
-                            : "Delete"}
+                          {deletingId === icUser.user_id ? "Deleting..." : "Delete"}
                         </button>
                       </div>
                     </td>
@@ -468,16 +397,6 @@ export function CreateAdminPage() {
     </PortalShell>
   );
 }
-
-// const noticeStyle = {
-//   background: "#fff1f2",
-//   border: "1px solid #fecdd3",
-//   borderRadius: "8px",
-//   padding: "12px 16px",
-//   color: "#9f1239",
-//   fontWeight: 800,
-//   marginBottom: "18px",
-// };
 
 const panelStyle = {
   background: "white",

@@ -31,7 +31,7 @@ async def list_videos(
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
             403,
-            "Only Super Admin, Company Admin, and Client / Management can upload or manage videos.",
+            "Only Super Admin, Admin, and Client / Management can upload or manage videos.",
         )
     company_id = None if current_user.role_id == 1 else current_user.company_id
     return await video_service.list_videos(db, company_id)
@@ -79,7 +79,7 @@ async def upload_video(
     if current_user.role_id not in [1, 2, 5]:
         raise HTTPException(
             403,
-            "Only Super Admin, Company Admin, and Client / Management can upload videos.",
+            "Only Super Admin, Admin, and Client / Management can upload videos.",
         )
     metadata = VideoCreate(
         title=title,

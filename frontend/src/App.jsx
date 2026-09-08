@@ -23,8 +23,10 @@ import { AdminAnalyticsPage } from "./features/admin/AdminAnalyticsPage";
 import { AdminConcernsPage } from "./features/admin/AdminConcernsPage";
 import { AdminConfigPage } from "./features/admin/AdminConfigPage";
 import { AdminReportsPage } from "./features/admin/AdminReportsPage";
+import { AnnualReturnsPage } from "./features/admin/AnnualReturnsPage";
 import { AssignedWorkOrdersPage } from "./features/admin/AssignedWorkOrdersPage";
 import { CreateAdminPage } from "./features/admin/CreateAdminPage";
+import { CreateIcPage } from "./features/admin/CreateIcPage";
 import { EmployeeMasterPage } from "./features/admin/EmployeeMasterPage";
 import { MastersPage } from "./features/admin/MastersPage";
 import { PoshOfficeMasterPage } from "./features/admin/PoshOfficeMasterPage";
@@ -181,7 +183,7 @@ function App() {
           path="/super-admin/employee-master"
           element={
             <ProtectedRoute>
-              <RoleRoute allowedRoles={[1]} accessItem="Employee Master">
+              <RoleRoute allowedRoles={[1]} accessItem="User Master">
                 <EmployeeMasterPage />
               </RoleRoute>
             </ProtectedRoute>
@@ -214,7 +216,7 @@ function App() {
               <RoleRoute
                 allowedRoles={[1, 2, 5]}
                 requiredPermission="users.manage"
-                accessItem="Employee Master"
+                accessItem="User Master"
               >
                 <UserListPage />
               </RoleRoute>
@@ -352,6 +354,20 @@ function App() {
           }
         />
         <Route
+          path="/admin/create-ic"
+          element={
+            <ProtectedRoute>
+              <RoleRoute allowedRoles={[1, 2, 5]} accessItem="Create IC">
+                <CreateIcPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/create-ic"
+          element={<Navigate to="/admin/create-ic" replace />}
+        />
+        <Route
           path="/super-admin/masters"
           element={
             <ProtectedRoute>
@@ -404,6 +420,34 @@ function App() {
                 accessItem="Analytics & Reports"
               >
                 <AdminReportsPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/annual-returns"
+          element={
+            <ProtectedRoute>
+              <RoleRoute
+                allowedRoles={[2, 5]}
+                requiredPermission="reports.view"
+                accessItem="Annual Returns"
+              >
+                <AnnualReturnsPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/annual-returns"
+          element={
+            <ProtectedRoute>
+              <RoleRoute
+                allowedRoles={[1]}
+                requiredPermission="reports.view"
+                accessItem="Annual Returns"
+              >
+                <AnnualReturnsPage />
               </RoleRoute>
             </ProtectedRoute>
           }

@@ -12,6 +12,15 @@ router = APIRouter(prefix="/hr", tags=["IC Portal"])
 hr_service = HRService()
 
 
+def _report_company_scope(current_user) -> int | None:
+    return None if current_user.role_id == 1 else current_user.company_id
+
+
+def _scoped_filename(base_name: str, extension: str, current_user) -> str:
+    scope = "platform" if current_user.role_id == 1 else f"company-{current_user.company_id}"
+    return f"{base_name}_{scope}.{extension}"
+
+
 @router.get("/employees")
 async def list_assignable_employees(
     db: AsyncSession = Depends(get_db),
@@ -112,12 +121,16 @@ async def download_employee_report(
     Download employee training report as Excel file.
     Contains all employees with their training status and completion %.
     """
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     excel_bytes = await hr_service.generate_employee_report(db, company_id)
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=employee_training_report.xlsx"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('employee_training_report', 'xlsx', current_user)}"
+            )
+        },
     )
 
 
@@ -127,12 +140,16 @@ async def download_department_report(
     current_user=Depends(require_permission("reports.view")),
 ):
     """Download department compliance report as Excel file."""
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     excel_bytes = await hr_service.generate_department_report(db, company_id)
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=department_compliance_report.xlsx"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('department_compliance_report', 'xlsx', current_user)}"
+            )
+        },
     )
 
 
@@ -142,12 +159,16 @@ async def download_certificate_report(
     current_user=Depends(require_permission("reports.view")),
 ):
     """Download issued certificate report as Excel file."""
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     excel_bytes = await hr_service.generate_certificate_report(db, company_id)
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=certificate_report.xlsx"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('certificate_report', 'xlsx', current_user)}"
+            )
+        },
     )
 
 
@@ -156,12 +177,16 @@ async def download_employee_report_csv(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     csv_bytes = await hr_service.generate_employee_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=employee_training_report.csv"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('employee_training_report', 'csv', current_user)}"
+            )
+        },
     )
 
 
@@ -170,12 +195,16 @@ async def download_department_report_csv(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     csv_bytes = await hr_service.generate_department_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=department_compliance_report.csv"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('department_compliance_report', 'csv', current_user)}"
+            )
+        },
     )
 
 
@@ -184,12 +213,16 @@ async def download_certificate_report_csv(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     csv_bytes = await hr_service.generate_certificate_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=certificate_report.csv"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('certificate_report', 'csv', current_user)}"
+            )
+        },
     )
 
 
@@ -198,12 +231,16 @@ async def download_employee_report_pdf(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     pdf_bytes = await hr_service.generate_employee_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=employee_training_report.pdf"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('employee_training_report', 'pdf', current_user)}"
+            )
+        },
     )
 
 
@@ -212,12 +249,16 @@ async def download_department_report_pdf(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     pdf_bytes = await hr_service.generate_department_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=department_compliance_report.pdf"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('department_compliance_report', 'pdf', current_user)}"
+            )
+        },
     )
 
 
@@ -226,12 +267,16 @@ async def download_certificate_report_pdf(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = None if current_user.role_id == 1 else current_user.company_id
+    company_id = _report_company_scope(current_user)
     pdf_bytes = await hr_service.generate_certificate_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=certificate_report.pdf"},
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename={_scoped_filename('certificate_report', 'pdf', current_user)}"
+            )
+        },
     )
 
 

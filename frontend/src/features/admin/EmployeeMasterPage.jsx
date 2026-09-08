@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
@@ -79,11 +81,16 @@ const transferFields = [
 
 const cleanPayload = (payload) =>
   Object.fromEntries(
-    Object.entries(payload).map(([key, value]) => [key, value === "" ? null : value]),
+    Object.entries(payload).map(([key, value]) => [
+      key,
+      value === "" ? null : value,
+    ]),
   );
 
 const formPayload = (form) =>
-  Object.fromEntries(Object.keys(emptyForm).map((key) => [key, form[key] ?? ""]));
+  Object.fromEntries(
+    Object.keys(emptyForm).map((key) => [key, form[key] ?? ""]),
+  );
 
 export function EmployeeMasterPage() {
   const [companies, setCompanies] = useState([]);
@@ -94,12 +101,17 @@ export function EmployeeMasterPage() {
   const [editingId, setEditingId] = useState("");
   const [deletingId, setDeletingId] = useState("");
   const [statusUpdatingId, setStatusUpdatingId] = useState("");
+  const [bulkUploading, setBulkUploading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [bulkErrors, setBulkErrors] = useState([]);
   const [search, setSearch] = useState("");
 
   const selectedCompany = useMemo(
-    () => companies.find((company) => String(company.company_id) === String(form.company_id)),
+    () =>
+      companies.find(
+        (company) => String(company.company_id) === String(form.company_id),
+      ),
     [companies, form.company_id],
   );
 
@@ -111,10 +123,14 @@ export function EmployeeMasterPage() {
         apiClient.get("/companies/registration-candidates/"),
         apiClient.get("/companies/employee-master/"),
       ]);
-      setCompanies((companyRes.data || []).filter((company) => Number(company.company_id) !== 1));
+      setCompanies(
+        (companyRes.data || []).filter(
+          (company) => Number(company.company_id) !== 1,
+        ),
+      );
       setEmployees(employeeRes.data || []);
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to load employee master."));
+      setError(apiErrorMessage(err, "Failed to load User Master."));
     } finally {
       setLoading(false);
     }
@@ -133,11 +149,13 @@ export function EmployeeMasterPage() {
     setEditingId(employee.id);
     setError("");
     setSuccess("");
-    setForm(formPayload({
-      ...emptyForm,
-      ...employee,
-      company_id: String(employee.company_id),
-    }));
+    setForm(
+      formPayload({
+        ...emptyForm,
+        ...employee,
+        company_id: String(employee.company_id),
+      }),
+    );
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -167,12 +185,16 @@ export function EmployeeMasterPage() {
       } else {
         await apiClient.post("/companies/employee-master/", payload);
       }
-      setSuccess(editingId ? "Employee master record updated." : "Employee master record created.");
+      setSuccess(
+        editingId
+          ? "User Master record updated."
+          : "User Master record created.",
+      );
       setForm({ ...emptyForm, company_id: form.company_id });
       setEditingId("");
       await loadData();
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to create employee master record."));
+      setError(apiErrorMessage(err, "Failed to create User Master record."));
     } finally {
       setSaving(false);
     }
@@ -180,7 +202,11 @@ export function EmployeeMasterPage() {
 
   const deleteEmployee = async (employee) => {
     const name = `${employee.first_name} ${employee.last_name || ""}`.trim();
-    if (!window.confirm(`Delete ${name || employee.employee_id} from Employee Master?`)) {
+    if (
+      !window.confirm(
+        `Delete ${name || employee.employee_id} from User Master?`,
+      )
+    ) {
       return;
     }
     setDeletingId(employee.id);
@@ -188,10 +214,10 @@ export function EmployeeMasterPage() {
     setSuccess("");
     try {
       await apiClient.delete(`/companies/employee-master/${employee.id}`);
-      setSuccess("Employee master record deleted.");
+      setSuccess("User Master record deleted.");
       await loadData();
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to delete employee master record."));
+      setError(apiErrorMessage(err, "Failed to delete User Master record."));
     } finally {
       setDeletingId("");
     }
@@ -203,13 +229,68 @@ export function EmployeeMasterPage() {
     setError("");
     setSuccess("");
     try {
-      await apiClient.patch(`/companies/employee-master/${employee.id}/status?status=${nextStatus}`);
-      setSuccess(`Employee master record ${nextStatus === "Active" ? "activated" : "deactivated"}.`);
+      await apiClient.patch(
+        `/companies/employee-master/${employee.id}/status?status=${nextStatus}`,
+      );
+      setSuccess(
+        `User Master record ${nextStatus === "Active" ? "activated" : "deactivated"}.`,
+      );
       await loadData();
     } catch (err) {
-      setError(apiErrorMessage(err, "Failed to update employee master status."));
+      setError(apiErrorMessage(err, "Failed to update User Master status."));
     } finally {
       setStatusUpdatingId("");
+    }
+  };
+
+  const downloadBulkTemplate = async () => {
+    setError("");
+    try {
+      const res = await apiClient.get("/companies/employee-master/template", {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(
+        new Blob([res.data], { type: "text/csv" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "user_master_template.csv";
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        apiErrorMessage(err, "Unable to download User Master template."),
+      );
+    }
+  };
+
+  const uploadBulkEmployees = async (file) => {
+    if (!file) return;
+    setBulkUploading(true);
+    setError("");
+    setSuccess("");
+    setBulkErrors([]);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await apiClient.post(
+        "/companies/employee-master/bulk-upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+      setBulkErrors(res.data?.errors || []);
+      setSuccess(
+        `Bulk upload finished. Created ${res.data?.created_count || 0} employee record(s), ${
+          res.data?.error_count || 0
+        } error(s).`,
+      );
+      await loadData();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Unable to upload User Master records."));
+    } finally {
+      setBulkUploading(false);
     }
   };
 
@@ -221,17 +302,28 @@ export function EmployeeMasterPage() {
 
   return (
     <PortalShell
-      title="Employee Master"
-      subtitle="Create employee master records used by Company Registration contacts."
+      title="User Master"
+      subtitle="Create User Master records used by Company Registration contacts."
     >
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
+      {bulkErrors.length > 0 && (
+        <div style={errorStyle}>
+          <strong>Rows needing correction:</strong>{" "}
+          {bulkErrors
+            .slice(0, 5)
+            .map((item) => `Row ${item.row}: ${item.error}`)
+            .join(" | ")}
+          {bulkErrors.length > 5 ? ` | ${bulkErrors.length - 5} more...` : ""}
+        </div>
+      )}
 
       <form style={panelStyle} onSubmit={saveEmployee}>
-        <h3 style={panelTitleStyle}>Employee Master</h3>
+        <h3 style={panelTitleStyle}>User Master</h3>
         {editingId && (
           <div style={editNoticeStyle}>
-            Editing employee master record. Save to update or cancel to create a new record.
+            Editing User Master record. Save to update or cancel to create a new
+            record.
           </div>
         )}
         <div style={twoGridStyle}>
@@ -253,20 +345,48 @@ export function EmployeeMasterPage() {
           </label>
           <label style={labelStyle}>
             Company Code
-            <input readOnly value={selectedCompany?.company_code || ""} style={{ ...inputStyle, background: "#f7f3ff" }} />
+            <input
+              readOnly
+              value={selectedCompany?.company_code || ""}
+              style={{ ...inputStyle, background: "#f7f3ff" }}
+            />
           </label>
         </div>
 
-        <Section title="Personal Information" fields={personalFields} form={form} onChange={updateForm} />
-        <Section title="Employment Information" fields={employmentFields} form={form} onChange={updateForm} />
-        <Section title="Transfer / IC Information" fields={transferFields} form={form} onChange={updateForm} />
+        <Section
+          title="Personal Information"
+          fields={personalFields}
+          form={form}
+          onChange={updateForm}
+        />
+        <Section
+          title="Employment Information"
+          fields={employmentFields}
+          form={form}
+          onChange={updateForm}
+        />
+        <Section
+          title="Transfer / IC Information"
+          fields={transferFields}
+          form={form}
+          onChange={updateForm}
+        />
 
         <div style={actionsStyle}>
           <button type="submit" disabled={saving} style={primaryButtonStyle}>
-            {saving ? "Saving..." : editingId ? "Update Employee" : "Save Employee"}
+            {saving
+              ? "Saving..."
+              : editingId
+                ? "Update Employee"
+                : "Save Employee"}
           </button>
           {editingId && (
-            <button type="button" onClick={cancelEdit} disabled={saving} style={secondaryButtonStyle}>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              disabled={saving}
+              style={secondaryButtonStyle}
+            >
               Cancel Edit
             </button>
           )}
@@ -276,12 +396,43 @@ export function EmployeeMasterPage() {
       <section style={listSectionStyle}>
         <div style={sectionHeaderStyle}>
           <h3 style={listTitleStyle}>Employees Created</h3>
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search employees"
-            style={{ ...inputStyle, maxWidth: "320px" }}
-          />
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+            }}
+          >
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search employees"
+              style={{ ...inputStyle, maxWidth: "320px" }}
+            />
+            <button
+              type="button"
+              onClick={downloadBulkTemplate}
+              style={secondaryButtonStyle}
+            >
+              <FileDownloadIcon fontSize="small" />
+              Template
+            </button>
+            <label style={{ ...secondaryButtonStyle, cursor: "pointer" }}>
+              <UploadFileIcon fontSize="small" />
+              {bulkUploading ? "Uploading..." : "Bulk Upload"}
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                disabled={bulkUploading}
+                onChange={(event) => {
+                  uploadBulkEmployees(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+                style={{ display: "none" }}
+              />
+            </label>
+          </div>
         </div>
         {loading ? (
           <div style={emptyStyle}>Loading employees...</div>
@@ -290,30 +441,52 @@ export function EmployeeMasterPage() {
             <table style={tableStyle}>
               <thead>
                 <tr>
-                  {["Company", "Employee ID", "Name", "Email", "Contact", "Department", "Designation", "Status", "Action"].map((heading) => (
-                    <th key={heading} style={thStyle}>{heading}</th>
+                  {[
+                    "Company",
+                    "Employee ID",
+                    "Name",
+                    "Email",
+                    "Contact",
+                    "Department",
+                    "Designation",
+                    "Status",
+                    "Action",
+                  ].map((heading) => (
+                    <th key={heading} style={thStyle}>
+                      {heading}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={emptyCellStyle}>No employee master records found.</td>
+                    <td colSpan={9} style={emptyCellStyle}>
+                      No User Master records found.
+                    </td>
                   </tr>
                 ) : (
                   filteredEmployees.map((employee) => {
-                    const company = companies.find((item) => item.company_id === employee.company_id);
+                    const company = companies.find(
+                      (item) => item.company_id === employee.company_id,
+                    );
                     return (
                       <tr key={employee.id}>
-                        <td style={tdStyle}>{company?.company_name || employee.company_id}</td>
+                        <td style={tdStyle}>
+                          {company?.company_name || employee.company_id}
+                        </td>
                         <td style={strongCellStyle}>{employee.employee_id}</td>
-                        <td style={tdStyle}>{employee.first_name} {employee.last_name || ""}</td>
+                        <td style={tdStyle}>
+                          {employee.first_name} {employee.last_name || ""}
+                        </td>
                         <td style={tdStyle}>{employee.email}</td>
                         <td style={tdStyle}>{employee.mobile}</td>
                         <td style={tdStyle}>{employee.department || "-"}</td>
                         <td style={tdStyle}>{employee.designation || "-"}</td>
                         <td style={tdStyle}>
-                          <span style={statusBadgeStyle(employee.status)}>{employee.status}</span>
+                          <span style={statusBadgeStyle(employee.status)}>
+                            {employee.status}
+                          </span>
                         </td>
                         <td style={tdStyle}>
                           <div style={actionGroupStyle}>
@@ -342,7 +515,9 @@ export function EmployeeMasterPage() {
                               onClick={() => deleteEmployee(employee)}
                               style={dangerButtonStyle}
                             >
-                              {deletingId === employee.id ? "Deleting..." : "Delete"}
+                              {deletingId === employee.id
+                                ? "Deleting..."
+                                : "Delete"}
                             </button>
                           </div>
                         </td>
@@ -366,7 +541,8 @@ function Section({ title, fields, form, onChange }) {
       <div style={formGridStyle}>
         {fields.map(([key, label, type = "text", required = false]) => (
           <label key={key} style={labelStyle}>
-            {label}{required ? " *" : ""}
+            {label}
+            {required ? " *" : ""}
             <input
               type={type}
               required={required}
@@ -384,7 +560,9 @@ function Section({ title, fields, form, onChange }) {
 Section.propTypes = {
   title: PropTypes.string.isRequired,
   fields: PropTypes.arrayOf(PropTypes.array).isRequired,
-  form: PropTypes.objectOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number])).isRequired,
+  form: PropTypes.objectOf(
+    PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  ).isRequired,
   onChange: PropTypes.func.isRequired,
 };
 
@@ -480,6 +658,9 @@ const secondaryButtonStyle = {
   padding: "8px 12px",
   fontWeight: 800,
   cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
 };
 
 const dangerButtonStyle = {

@@ -19,7 +19,7 @@ ROLE_ACCESS_LABELS = {
 }
 
 PERMISSION_ACCESS_ITEMS = {
-    "users.manage": ["Employee Master", "Employee Master - PoSH"],
+    "users.manage": ["User Master", "Employee Master", "Employee Master - PoSH"],
     "videos.upload": ["PoSH Training", "IC Member Training"],
     "videos.publish": ["PoSH Training", "IC Member Training"],
     "certificates.manage": ["Assessment & Certificate", "Assessment & Certificates"],

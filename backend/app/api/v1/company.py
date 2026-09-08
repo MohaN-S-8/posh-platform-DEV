@@ -1,6 +1,9 @@
+import csv
+import io
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_roles, require_roles_with_matrix
@@ -30,7 +33,41 @@ REGISTRATION_ACCESS = [
     "Company Registration",
     "Company Registration - PoSH",
 ]
-EMPLOYEE_MASTER_ACCESS = ["Employee Master", "Employee Master - PoSH"]
+EMPLOYEE_MASTER_ACCESS = ["User Master", "Employee Master", "Employee Master - PoSH"]
+
+EMPLOYEE_MASTER_BULK_TEMPLATE_COLUMNS = [
+    "company_id",
+    "employee_id",
+    "first_name",
+    "last_name",
+    "email",
+    "mobile",
+    "date_of_birth",
+    "father_name",
+    "emergency_contact",
+    "gender",
+    "blood_group",
+    "physically_challenged",
+    "marital_status",
+    "pan_number",
+    "foreign_national",
+    "joining_date",
+    "designation",
+    "department",
+    "location_city",
+    "employment_status",
+    "employee_status",
+    "resignation_date",
+    "resignation_reason",
+    "reporting_to",
+    "branch_name",
+    "branch_id",
+    "transfer_date",
+    "transfer_location",
+    "transfer_branch_name",
+    "transfer_branch_id",
+    "ic_role",
+]
 
 
 @router.get("/", response_model=list[CompanyResponse])
@@ -79,6 +116,111 @@ async def create_employee_master(
 ):
     """Create employee-master records used by POSH registration."""
     return await company_service.create_employee_master_record(db, data, current_user)
+
+
+@router.get("/employee-master/template")
+async def download_user_master_template(
+    current_user=Depends(require_roles_with_matrix([1, 2, 5, 3], EMPLOYEE_MASTER_ACCESS)),
+):
+    """Download the CSV template for User Master bulk upload."""
+    default_company_id = "" if current_user.role_id in ADMIN_ROLES else current_user.company_id
+    rows = [
+        EMPLOYEE_MASTER_BULK_TEMPLATE_COLUMNS,
+        [
+            default_company_id,
+            "EMP001",
+            "Employee",
+            "User",
+            "employee@example.com",
+            "9876543210",
+            "1990-01-01",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "2026-01-01",
+            "Executive",
+            "Operations",
+            "Chennai",
+            "Active",
+            "Active",
+            "",
+            "",
+            "",
+            "Main Branch",
+            "BR001",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ],
+    ]
+    output = io.StringIO()
+    csv.writer(output).writerows(rows)
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="user_master_template.csv"'},
+    )
+
+
+@router.post("/employee-master/bulk-upload")
+async def bulk_upload_employee_master(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles_with_matrix([1, 2, 5, 3], EMPLOYEE_MASTER_ACCESS)),
+):
+    """Bulk-create User Master records from the CSV template."""
+    content = (await file.read()).decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(content))
+    if not reader.fieldnames:
+        raise HTTPException(400, "Upload a CSV file with a header row.")
+
+    created = []
+    errors = []
+    for row_number, row in enumerate(reader, start=2):
+        if not any(str(value or "").strip() for value in row.values()):
+            continue
+        try:
+            payload = {
+                key: (str(row.get(key) or "").strip() or None)
+                for key in EMPLOYEE_MASTER_BULK_TEMPLATE_COLUMNS
+            }
+            payload["company_id"] = int(payload["company_id"] or current_user.company_id or 0)
+            data = EmployeeMasterCreate(**payload)
+            employee = await company_service.create_employee_master_record(
+                db,
+                data,
+                current_user,
+            )
+            created.append(
+                {
+                    "row": row_number,
+                    "id": employee["id"],
+                    "employee_id": employee["employee_id"],
+                    "email": employee["email"],
+                }
+            )
+        except (HTTPException, ValidationError, ValueError) as exc:
+            detail = getattr(exc, "detail", None)
+            if isinstance(exc, ValidationError):
+                detail = "; ".join(
+                    f"{'.'.join(str(loc) for loc in error['loc'])}: {error['msg']}"
+                    for error in exc.errors()
+                )
+            errors.append({"row": row_number, "error": str(detail or exc)})
+
+    return {
+        "created_count": len(created),
+        "error_count": len(errors),
+        "created": created,
+        "errors": errors,
+    }
 
 
 @router.put("/employee-master/{employee_master_id}", response_model=EmployeeMasterResponse)
@@ -161,6 +303,30 @@ async def update_company_registration(
 ):
     """Save POSH company registration details for an approved work-order company."""
     return await company_service.update_registration(db, company_id, data, current_user)
+
+
+@router.post("/{company_id}/policy-document", response_model=CompanyResponse)
+async def upload_company_policy_document(
+    company_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles([1, 2, 5])),
+):
+    """Upload the company-specific PoSH policy PDF used by employee and IC portals."""
+    filename = file.filename or "posh-policy.pdf"
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if extension != "pdf" or file.content_type not in {
+        "application/pdf",
+        "application/octet-stream",
+    }:
+        raise HTTPException(400, "Please upload a PDF policy document.")
+    return await company_service.upload_policy_document(
+        db,
+        company_id,
+        await file.read(),
+        filename,
+        current_user,
+    )
 
 
 @router.post("/{company_id}/client-admin", response_model=UserResponse, status_code=201)

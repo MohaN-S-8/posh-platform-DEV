@@ -7,7 +7,7 @@ import { hasPermission } from "../utils/accessControl";
 
 const roleLabels = {
   1: "Super Admin",
-  2: "Company Admin",
+  2: "Admin",
   5: "Client Admin (Mgmt)",
   3: "IC",
   4: "Employee",
@@ -23,20 +23,24 @@ const defaultAllowed = {
     "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
+    "Annual Returns",
     "Create Admin",
+    "Create IC",
     "Masters",
     "Company Setup",
-    "Employee Master",
+    "User Master",
     "Role & Access Matrix",
   ]),
-  "Company Admin": new Set([
+  Admin: new Set([
     "Home",
     "PoSH Policy",
     "PoSH Training",
     "IC Member Training",
     "Company Setup",
-    "Employee Master",
+    "User Master",
+    "Create IC",
     "Masters",
+    "Annual Returns",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -48,7 +52,9 @@ const defaultAllowed = {
     "POSH Complaints",
     "Audit",
     "Analytics & Reports",
-    "Employee Master",
+    "User Master",
+    "Create IC",
+    "Annual Returns",
   ]),
   IC: new Set([
     "Home",
@@ -59,7 +65,7 @@ const defaultAllowed = {
     "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
-    "Employee Master",
+    "User Master",
   ]),
   Employee: new Set([
     "Home",
@@ -86,8 +92,9 @@ const accessAliases = {
     "Company Registration",
     "Company Registration - PoSH",
   ],
-  "Employee Master": ["Employee Master", "Employee Master - PoSH"],
+  "User Master": ["User Master", "Employee Master", "Employee Master - PoSH"],
   Masters: ["Masters", "Masters (State/City/Scope)", "PoSH Office Master"],
+  "Annual Returns": ["Annual Returns"],
 };
 
 const accessNamesFor = (accessItem) =>

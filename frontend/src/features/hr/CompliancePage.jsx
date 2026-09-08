@@ -39,6 +39,12 @@ const complianceContextForRole = (roleId) => {
   };
 };
 
+function downloadNameFromResponse(res, fallback) {
+  const disposition = res.headers?.["content-disposition"] || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || fallback;
+}
+
 export function CompliancePage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -90,7 +96,10 @@ export function CompliancePage() {
       const url = URL.createObjectURL(res.data);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "employee_training_report.xlsx";
+      link.download = downloadNameFromResponse(
+        res,
+        "employee_training_report.xlsx",
+      );
       link.click();
       URL.revokeObjectURL(url);
     } catch (err) {

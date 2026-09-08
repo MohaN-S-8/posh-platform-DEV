@@ -3,13 +3,7 @@ import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
 
-const roles = [
-  "Super Admin",
-  "Company Admin",
-  "Client Admin (Mgmt)",
-  "IC",
-  "Employee",
-];
+const roles = ["Super Admin", "Admin", "Client Admin (Mgmt)", "IC", "Employee"];
 
 const pages = [
   "Home",
@@ -22,9 +16,10 @@ const pages = [
   "Audit",
   "Analytics & Reports",
   "Create Admin",
+  "Create IC",
   "Masters",
   "Company Setup",
-  "Employee Master",
+  "User Master",
   "Role & Access Matrix",
 ];
 
@@ -40,18 +35,20 @@ const defaultAllowed = {
     "Audit",
     "Analytics & Reports",
     "Create Admin",
+    "Create IC",
     "Masters",
     "Company Setup",
-    "Employee Master",
+    "User Master",
     "Role & Access Matrix",
   ]),
-  "Company Admin": new Set([
+  Admin: new Set([
     "Home",
     "PoSH Policy",
     "PoSH Training",
     "IC Member Training",
     "Company Setup",
-    "Employee Master",
+    "User Master",
+    "Create IC",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -63,7 +60,8 @@ const defaultAllowed = {
     "POSH Complaints",
     "Audit",
     "Analytics & Reports",
-    "Employee Master",
+    "User Master",
+    "Create IC",
   ]),
   IC: new Set([
     "Home",
@@ -90,7 +88,8 @@ const accessItemAliases = {
   "Company Registration - PoSH": "Company Setup",
   "Company Registration": "Company Setup",
   "Create Company & Work Order": "Company Setup",
-  "Employee Master - PoSH": "Employee Master",
+  "Employee Master": "User Master",
+  "Employee Master - PoSH": "User Master",
   "Masters (State/City/Scope)": "Masters",
   "PoSH Office Master": "Masters",
   "POSH Awareness Training": "PoSH Training",

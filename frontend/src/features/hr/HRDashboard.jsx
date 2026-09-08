@@ -24,9 +24,15 @@ export function HRDashboard() {
       setLoading(true);
       setError("");
       try {
+        const summaryRequest =
+          user?.role_id === 3
+            ? Promise.resolve({
+                data: { total_employees: 0, department_breakdown: [] },
+              })
+            : apiClient.get("/hr/employees/summary");
         const [employeeRes, icTrainingRes, poshTrainingRes] = await Promise.all(
           [
-            apiClient.get("/hr/employees/summary"),
+            summaryRequest,
             apiClient.get("/employee/summary?training_type=ic"),
             apiClient.get("/employee/summary?training_type=posh"),
           ],
@@ -51,7 +57,7 @@ export function HRDashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user?.role_id]);
 
   const stats = useMemo(
     () => [
@@ -184,18 +190,20 @@ export function HRDashboard() {
         </div>
       </section>
 
-      <section style={{ marginBottom: "28px" }}>
-        <div className="portal-section-title">Employee Snapshot</div>
-        <div className="portal-auto-grid">
-          {stats.map((stat) => (
-            <div key={stat.label} className="portal-card">
-              <div className="portal-kpi-value">{stat.value}</div>
-              <div className="portal-kpi-label">{stat.label}</div>
-              <div className="portal-kpi-trend">Current company</div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {user?.role_id !== 3 && (
+        <section style={{ marginBottom: "28px" }}>
+          <div className="portal-section-title">User Snapshot</div>
+          <div className="portal-auto-grid">
+            {stats.map((stat) => (
+              <div key={stat.label} className="portal-card">
+                <div className="portal-kpi-value">{stat.value}</div>
+                <div className="portal-kpi-label">{stat.label}</div>
+                <div className="portal-kpi-trend">Current company</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section
         style={{
@@ -208,7 +216,7 @@ export function HRDashboard() {
       >
         <div className="portal-card">
           <h2 style={{ margin: "0 0 16px", fontSize: "14.5px" }}>
-            Employee Departments
+            User Departments
           </h2>
           {data?.department_breakdown?.length ? (
             <div style={{ display: "grid", gap: "12px" }}>
@@ -241,7 +249,7 @@ export function HRDashboard() {
             </div>
           ) : (
             <p style={{ color: "#64748b", margin: 0 }}>
-              Departments appear after employees are uploaded.
+              Departments appear after users are uploaded.
             </p>
           )}
         </div>

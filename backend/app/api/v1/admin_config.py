@@ -22,14 +22,14 @@ SUPER_ADMIN_ROLES = [1]
 MASTER_VIEW_ROLES = [1, 2]
 ROLE_ACCESS_LABELS = {
     1: "Super Admin",
-    2: "Company Admin",
+    2: "Admin",
     5: "Client Admin (Mgmt)",
     3: "IC",
     4: "Employee",
 }
 ROLE_ACCESS_ALIASES = {
     1: ["Super Admin"],
-    2: ["Company Admin", "Corp Admin", "Admin"],
+    2: ["Admin", "Company Admin", "Corp Admin"],
     5: ["Client Admin (Mgmt)", "Client / Management"],
     3: ["IC", "HR", "HR / IC", "PO / Member"],
     4: ["Employee"],
