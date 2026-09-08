@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime, timedelta
+from html import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import func, or_, select
@@ -33,6 +34,11 @@ def _json_list(value) -> list[dict]:
 
 def _text_or_empty(value) -> str:
     return value or ""
+
+
+def _html(value, fallback: str = "-") -> str:
+    text_value = str(value if value is not None else "").strip()
+    return escape(text_value or fallback).replace("\n", "<br />")
 
 
 def _annual_extra_fields(saved: AnnualReturn | None, counts: dict | None = None) -> dict:
@@ -399,18 +405,147 @@ async def annual_return_cover_letter(
         raise HTTPException(404, "Annual return not found.")
     annual_return, company = row
     await _ensure_company_access(db, company.company_id, current_user)
+    report_date = (
+        annual_return.return_date.strftime("%d/%m/%Y") if annual_return.return_date else "-"
+    )
+    year_end = f"31 December {annual_return.year}"
+    ic_members = _json_list(annual_return.ic_members_json)
+    complaint_rows = _json_list(annual_return.complaint_rows_json)
+    ic_rows = (
+        "".join(
+            f"""
+        <tr>
+          <td>{index}</td>
+          <td>{_html(member.get('name'))}</td>
+          <td>{_html(member.get('designation'))}</td>
+          <td>{_html(member.get('contact_no'))}</td>
+          <td>{_html(member.get('email'))}</td>
+        </tr>
+        """
+            for index, member in enumerate(ic_members, start=1)
+        )
+        or "<tr><td colspan='5' class='center'>NIL</td></tr>"
+    )
+    complaint_rows_html = (
+        "".join(
+            f"""
+        <tr>
+          <td>{index}</td>
+          <td>{_html(item.get('case_no'))}</td>
+          <td>{_html(item.get('complainant_f'))}</td>
+          <td>{_html(item.get('complainant_m'))}</td>
+          <td>{_html(item.get('respondent'))}</td>
+          <td>{_html(item.get('action'))}</td>
+        </tr>
+        """
+            for index, item in enumerate(complaint_rows, start=1)
+        )
+        or "<tr><td colspan='6' class='center'>NIL</td></tr>"
+    )
+    to_address = (
+        annual_return.posh_office_recipient
+        or annual_return.posh_office_address
+        or "Office of the District Collector\nCollectorate\nChennai\nTamil Nadu - 600001"
+    )
+    from_address = (
+        annual_return.covering_from_address
+        or f"{company.company_name}\n{annual_return.branch_name}"
+    )
     content = f"""
-    <html><body style="font-family: Arial, sans-serif; line-height: 1.6;">
-      <h2>Covering Letter - Annual Return {annual_return.year}</h2>
-      <p>To,<br />{annual_return.posh_office_recipient or 'The District Officer'}</p>
-      <p>
-        Please find enclosed the Annual Return under Section 21(1) / Rule 14
-        for {company.company_name}, {annual_return.branch_name}, for the year
-        {annual_return.year}.
-      </p>
-      <p>Status: <strong>{annual_return.status}</strong></p>
-      <p>Presiding Officer: {annual_return.presiding_officer or '-'}</p>
-      <p style="margin-top: 48px;">Authorized Signatory</p>
-    </body></html>
+    <html>
+      <head>
+        <title>Annual Return {annual_return.year}</title>
+        <style>
+          body {{ font-family: "Times New Roman", Times, serif; color: #111827; background: #f3f4f6; margin: 0; font-size: 12px; line-height: 1.45; }}
+          .toolbar {{ position: sticky; top: 0; display: flex; justify-content: center; gap: 10px; padding: 16px; background: white; border-bottom: 1px solid #e5e7eb; }}
+          button {{ background: #4a2e83; color: white; border: 0; border-radius: 6px; padding: 9px 18px; font-weight: 700; cursor: pointer; }}
+          .note {{ max-width: 760px; margin: 10px auto 18px; text-align: center; color: #475569; font-size: 11px; }}
+          .page {{ width: 760px; min-height: 1080px; margin: 0 auto 32px; background: white; padding: 28px 44px 48px; }}
+          header {{ text-align: center; }}
+          header h1 {{ margin: 0 0 8px; font-size: 24px; text-transform: uppercase; }}
+          .rule {{ border-top: 2px solid #111827; margin: 20px 0; }}
+          .date {{ text-align: right; font-weight: 700; margin-bottom: 18px; }}
+          .address {{ margin-bottom: 18px; font-weight: 700; }}
+          .title {{ text-align: center; margin: 12px 0 20px; }}
+          .title h2 {{ margin: 0 0 6px; font-size: 18px; text-transform: uppercase; }}
+          .title p {{ margin: 0 auto; max-width: 650px; font-style: italic; }}
+          h3 {{ margin: 24px 0 8px; padding-bottom: 5px; border-bottom: 1px solid #111827; font-size: 13px; }}
+          table {{ width: 100%; border-collapse: collapse; margin-bottom: 16px; }}
+          th, td {{ border: 1px solid #9ca3af; padding: 7px 9px; vertical-align: top; text-align: left; }}
+          th {{ background: #f8fafc; font-weight: 700; }}
+          .meta th {{ width: 35%; }}
+          .center {{ text-align: center; }}
+          ol {{ margin: 0 0 18px; padding-left: 18px; }}
+          li {{ margin-bottom: 8px; }}
+          .declaration {{ margin-top: 24px; font-weight: 700; }}
+          .signature {{ display: grid; grid-template-columns: 1fr 260px; gap: 24px; margin-top: 78px; text-align: center; }}
+          .signature-line {{ border-top: 1px solid #111827; margin-bottom: 8px; }}
+          .signature p {{ margin: 3px 0; }}
+          .seal {{ margin-top: 60px; }}
+          @media print {{ body {{ background: white; }} .toolbar, .note {{ display: none; }} .page {{ width: auto; min-height: auto; margin: 0; padding: 0; }} @page {{ size: A4; margin: 18mm; }} }}
+        </style>
+      </head>
+      <body>
+        <div class="toolbar">
+          <button onclick="window.print()">Print</button>
+          <button onclick="window.close()">Close</button>
+        </div>
+        <p class="note">Editable preview - correct any wording before printing. This Annual Return must go out on the employer's letterhead, signed by the Presiding Officer, under Section 21(1) of the POSH Act, 2013.</p>
+        <main class="page">
+          <header>
+            <h1>{_html(company.company_name, 'Company Name')}</h1>
+            <div>{_html(from_address)}</div>
+          </header>
+          <div class="rule"></div>
+          <div class="date">Date: {report_date}</div>
+          <section class="address"><strong>To</strong><br />{_html(to_address)}</section>
+          <section class="title">
+            <h2>Annual Return of the Internal Committee</h2>
+            <p>Submitted under Section 21(1) of the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, read with Rule 14 of the Rules made thereunder, for the calendar year {annual_return.year}.</p>
+          </section>
+          <table class="meta">
+            <tbody>
+              <tr><th>Branch</th><td>{_html(annual_return.branch_name)}</td></tr>
+              <tr><th>Year</th><td>{annual_return.year}</td></tr>
+              <tr><th>Date of Report</th><td>{report_date}</td></tr>
+              <tr><th>Presiding Officer</th><td>{_html(annual_return.presiding_officer)}</td></tr>
+              <tr><th>Sector / Nature of Business</th><td>{_html(annual_return.sector_nature)}</td></tr>
+              <tr><th>Shift Breakdown</th><td>{_html(annual_return.shift_breakdown)}</td></tr>
+            </tbody>
+          </table>
+          <h3>Statement of Particulars</h3>
+          <table>
+            <thead><tr><th>Sr.</th><th>Particular</th><th>Details</th></tr></thead>
+            <tbody>
+              <tr><td>(a)</td><td>Number of complaints of sexual harassment received during the year</td><td>{annual_return.complaints_received or 0}</td></tr>
+              <tr><td>(b)</td><td>Number of complaints disposed of during the year</td><td>{annual_return.complaints_disposed or 0}</td></tr>
+              <tr><td>(c)</td><td>Number of cases pending for more than ninety days as on {year_end}</td><td>{annual_return.complaints_pending_90 or 0}</td></tr>
+              <tr><td>-</td><td>Nature of action taken by the employer</td><td>{_html(annual_return.action_taken)}</td></tr>
+              <tr><td>(d)</td><td>Number of workshops / awareness programmes conducted</td><td>{annual_return.workshops_count or 0}<br />{_html(annual_return.workshop_details)}</td></tr>
+              <tr><td>-</td><td>Number of employees who attended such sessions</td><td>{annual_return.awareness_attendees or 0}</td></tr>
+              <tr><td>-</td><td>Number of employees working</td><td>Women - {annual_return.employees_female or 0}<br />Men - {annual_return.employees_male or 0}<br />Total - {annual_return.employees_total or 0}</td></tr>
+            </tbody>
+          </table>
+          <h3>Initiatives Taken During the Year</h3>
+          <ol>
+            <li>The Internal Committee was constituted on {_html(annual_return.ic_constituted_date)}.</li>
+            <li>Change in Internal Committee members during the year: {_html(annual_return.ic_member_change, 'NIL')}.</li>
+            <li>An orientation programme for IC members was conducted on {_html(annual_return.orientation_programme_date)}.</li>
+            <li>The Anti-Sexual Harassment Policy is disseminated to all employees: {_html(annual_return.policy_disseminated)}.</li>
+            <li>Notice of constitution of the Internal Committee has been displayed at the workplace from {_html(annual_return.notice_displayed_from)}.</li>
+            <li>A Work-From-Home awareness session was conducted on {_html(annual_return.wfh_awareness_session_date)}.</li>
+            <li>New joiners are given orientation on the POSH policy: {_html(annual_return.new_joiner_orientation_timing)}.</li>
+            <li>POSH Awareness Programme - Date: {_html(annual_return.posh_awareness_date)}; Mode of Training: {_html(annual_return.posh_awareness_mode)}; Resource Person: {_html(annual_return.posh_awareness_resource_person)}.</li>
+          </ol>
+          <h3>Internal Committee Members (as on {year_end})</h3>
+          <table><thead><tr><th>Sr.</th><th>Name</th><th>Designation</th><th>Contact No.</th><th>Email</th></tr></thead><tbody>{ic_rows}</tbody></table>
+          <h3>Summary of Action Taken on Complaints</h3>
+          <table><thead><tr><th>Sr.</th><th>Complaint No.</th><th>Complainant (F)</th><th>Complainant (M)</th><th>Respondent</th><th>Disciplinary Action</th></tr></thead><tbody>{complaint_rows_html}</tbody></table>
+          <p class="declaration">This is to certify that the above particulars are true to the best of our knowledge and are submitted in compliance with Section 21(1) of the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013.</p>
+          <section class="signature"><div></div><div><div class="signature-line"></div><p>Signature of Presiding Officer</p><p>Name: {_html(annual_return.presiding_officer)}</p><p>Presiding Officer, Internal Committee</p><p>Date: {report_date}</p></div></section>
+          <p class="seal">Company Seal:</p>
+        </main>
+      </body>
+    </html>
     """
     return Response(content=content, media_type="text/html")
