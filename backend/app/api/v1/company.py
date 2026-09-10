@@ -10,6 +10,7 @@ from app.core.dependencies import require_roles, require_roles_with_matrix
 from app.db.session import get_db
 from app.schemas.company import (
     CompanyCreate,
+    CompanyIcMeetingUpdate,
     CompanyLanguagePreference,
     CompanyLanguageUpdate,
     CompanyResponse,
@@ -401,6 +402,23 @@ async def update_company_languages(
         company_id,
         data.language_ids,
         data.default_language_id,
+    )
+
+
+@router.patch("/{company_id}/ic-meetings", response_model=CompanyResponse)
+async def update_company_ic_meeting(
+    company_id: int,
+    data: CompanyIcMeetingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles([1, 2, 5])),
+):
+    """Update one quarterly IC meeting completion status for a company."""
+    return await company_service.update_ic_meeting_status(
+        db,
+        company_id,
+        data.quarter,
+        data.completed,
+        current_user,
     )
 
 

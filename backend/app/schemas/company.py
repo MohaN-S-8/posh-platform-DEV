@@ -203,6 +203,19 @@ class CompanyLanguageUpdate(BaseModel):
     default_language_id: Optional[int] = None
 
 
+class CompanyIcMeetingUpdate(BaseModel):
+    quarter: str
+    completed: bool
+
+    @field_validator("quarter")
+    @classmethod
+    def validate_quarter(cls, v):
+        value = v.strip().upper()
+        if value not in {"Q1", "Q2", "Q3", "Q4"}:
+            raise ValueError("Quarter must be Q1, Q2, Q3, or Q4")
+        return value
+
+
 class EmployeeMasterCreate(BaseModel):
     company_id: int
     employee_id: str

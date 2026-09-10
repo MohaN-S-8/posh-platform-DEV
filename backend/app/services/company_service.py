@@ -347,6 +347,47 @@ class CompanyService:
         await db.refresh(company)
         return company
 
+    async def update_ic_meeting_status(
+        self,
+        db: AsyncSession,
+        company_id: int,
+        quarter: str,
+        completed: bool,
+        current_user,
+    ) -> CompanyMaster:
+        company = await self.get_by_id(db, company_id)
+        if current_user.role_id == 2 and not self._has_assigned_service(
+            company, current_user.user_id
+        ):
+            raise HTTPException(403, "You do not have permission to update this company.")
+        if current_user.role_id == 5 and current_user.company_id != company_id:
+            raise HTTPException(403, "You can only update your own company status.")
+
+        rows = self._json_list(company.service_details_json)
+        if not rows:
+            rows = [{"scope": "POSH", "deliverables": "PoSH Training & Compliance"}]
+        posh_index = next(
+            (
+                index
+                for index, row in enumerate(rows)
+                if str(row.get("scope") or "").strip().upper() == "POSH"
+            ),
+            0,
+        )
+        posh_row = dict(rows[posh_index])
+        meetings = {
+            item: bool(posh_row.get("ic_meetings", {}).get(item, False))
+            for item in ["Q1", "Q2", "Q3", "Q4"]
+            if isinstance(posh_row.get("ic_meetings"), dict)
+        }
+        meetings[quarter] = completed
+        posh_row["ic_meetings"] = meetings
+        rows[posh_index] = posh_row
+        company.service_details_json = json.dumps(rows)
+        await db.commit()
+        await db.refresh(company)
+        return company
+
     async def delete(self, db: AsyncSession, company_id: int) -> dict:
         if company_id == 1:
             raise HTTPException(400, "The default platform company cannot be deleted.")

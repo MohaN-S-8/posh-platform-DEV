@@ -21,6 +21,7 @@ export function ClientStatusPage() {
   const [location, setLocation] = useState("");
   const [awarenessTraining, setAwarenessTraining] = useState("All");
   const [icTraining, setIcTraining] = useState("All");
+  const [meetingUpdatingKey, setMeetingUpdatingKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -33,7 +34,8 @@ export function ClientStatusPage() {
         const res = await apiClient.get("/analytics/overview");
         if (active) setAnalytics(res.data);
       } catch (err) {
-        if (active) setError(apiErrorMessage(err, "Unable to load client status."));
+        if (active)
+          setError(apiErrorMessage(err, "Unable to load client status."));
       } finally {
         if (active) setLoading(false);
       }
@@ -44,7 +46,10 @@ export function ClientStatusPage() {
     };
   }, []);
 
-  const companies = useMemo(() => analytics?.organizations || [], [analytics?.organizations]);
+  const companies = useMemo(
+    () => analytics?.organizations || [],
+    [analytics?.organizations],
+  );
   const employeeRows = useMemo(
     () => analytics?.user_training_rows || [],
     [analytics?.user_training_rows],
@@ -53,7 +58,11 @@ export function ClientStatusPage() {
   const filteredCompanies = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return companies.filter((company) => {
-      if (companyFilter !== "All" && String(company.company_id) !== companyFilter) return false;
+      if (
+        companyFilter !== "All" &&
+        String(company.company_id) !== companyFilter
+      )
+        return false;
       if (!query) return true;
       return [company.company_name, company.client_id, company.company_code]
         .filter(Boolean)
@@ -68,18 +77,56 @@ export function ClientStatusPage() {
     const designationQuery = designation.trim().toLowerCase();
     const locationQuery = location.trim().toLowerCase();
     return employeeRows.filter((row) => {
-      if (companyFilter !== "All" && String(row.company_id) !== companyFilter) return false;
-      if (idQuery && !String(row.employee_id || "").toLowerCase().includes(idQuery)) return false;
-      if (nameQuery && !String(row.name || "").toLowerCase().includes(nameQuery)) return false;
-      if (departmentQuery && !String(row.department || "").toLowerCase().includes(departmentQuery)) return false;
-      if (designationQuery && !String(row.role || "").toLowerCase().includes(designationQuery)) return false;
-      if (locationQuery && !String(row.company_name || "").toLowerCase().includes(locationQuery)) return false;
-      if (awarenessTraining !== "All" && row.completion_status !== awarenessTraining) return false;
+      if (companyFilter !== "All" && String(row.company_id) !== companyFilter)
+        return false;
       if (
-        icTraining !== "All"
-        && String(row.role || "").toLowerCase().includes("ic")
-        && row.completion_status !== icTraining
-      ) return false;
+        idQuery &&
+        !String(row.employee_id || "")
+          .toLowerCase()
+          .includes(idQuery)
+      )
+        return false;
+      if (
+        nameQuery &&
+        !String(row.name || "")
+          .toLowerCase()
+          .includes(nameQuery)
+      )
+        return false;
+      if (
+        departmentQuery &&
+        !String(row.department || "")
+          .toLowerCase()
+          .includes(departmentQuery)
+      )
+        return false;
+      if (
+        designationQuery &&
+        !String(row.role || "")
+          .toLowerCase()
+          .includes(designationQuery)
+      )
+        return false;
+      if (
+        locationQuery &&
+        !String(row.company_name || "")
+          .toLowerCase()
+          .includes(locationQuery)
+      )
+        return false;
+      if (
+        awarenessTraining !== "All" &&
+        row.completion_status !== awarenessTraining
+      )
+        return false;
+      if (
+        icTraining !== "All" &&
+        String(row.role || "")
+          .toLowerCase()
+          .includes("ic") &&
+        row.completion_status !== icTraining
+      )
+        return false;
       return true;
     });
   }, [
@@ -106,12 +153,52 @@ export function ClientStatusPage() {
     setIcTraining("All");
   };
 
+  const updateCompanyMeeting = (companyId, quarter, completed) => {
+    setAnalytics((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        organizations: (current.organizations || []).map((company) => {
+          if (company.company_id !== companyId) return company;
+          return {
+            ...company,
+            ic_meetings: {
+              ...(company.ic_meetings || {}),
+              [quarter]: completed,
+            },
+          };
+        }),
+      };
+    });
+  };
+
+  const toggleIcMeeting = async (company, quarter, completed) => {
+    const key = `${company.company_id}-${quarter}`;
+    setMeetingUpdatingKey(key);
+    setError("");
+    updateCompanyMeeting(company.company_id, quarter, completed);
+    try {
+      await apiClient.patch(`/companies/${company.company_id}/ic-meetings`, {
+        quarter,
+        completed,
+      });
+    } catch (err) {
+      updateCompanyMeeting(company.company_id, quarter, !completed);
+      setError(apiErrorMessage(err, "Unable to update IC meeting status."));
+    } finally {
+      setMeetingUpdatingKey("");
+    }
+  };
+
   const exportCsv = () => {
-    const rows = activeTab === tabs[0]
-      ? complianceCsvRows(filteredCompanies)
-      : employeeCsvRows(filteredEmployees);
+    const rows =
+      activeTab === tabs[0]
+        ? complianceCsvRows(filteredCompanies)
+        : employeeCsvRows(filteredEmployees);
     downloadCsv(
-      activeTab === tabs[0] ? "client_compliance_status.csv" : "client_employee_report.csv",
+      activeTab === tabs[0]
+        ? "client_compliance_status.csv"
+        : "client_employee_report.csv",
       rows,
     );
   };
@@ -119,9 +206,10 @@ export function ClientStatusPage() {
   const exportPdf = () => {
     const popup = window.open("", "_blank", "width=1200,height=900");
     if (!popup) return;
-    const html = activeTab === tabs[0]
-      ? compliancePrintHtml(filteredCompanies)
-      : employeePrintHtml(filteredEmployees);
+    const html =
+      activeTab === tabs[0]
+        ? compliancePrintHtml(filteredCompanies)
+        : employeePrintHtml(filteredEmployees);
     popup.document.write(html);
     popup.document.close();
   };
@@ -189,7 +277,11 @@ export function ClientStatusPage() {
       {loading ? (
         <div style={emptyStyle}>Loading client status...</div>
       ) : activeTab === tabs[0] ? (
-        <CompanyComplianceTable companies={filteredCompanies} />
+        <CompanyComplianceTable
+          companies={filteredCompanies}
+          meetingUpdatingKey={meetingUpdatingKey}
+          onToggleMeeting={toggleIcMeeting}
+        />
       ) : (
         <EmployeeReportTable rows={filteredEmployees} />
       )}
@@ -197,21 +289,43 @@ export function ClientStatusPage() {
   );
 }
 
-function CompanyComplianceFilters({ companies, companyFilter, searchQuery, onCompanyFilter, onSearch, onClear }) {
+function CompanyComplianceFilters({
+  companies,
+  companyFilter,
+  searchQuery,
+  onCompanyFilter,
+  onSearch,
+  onClear,
+}) {
   return (
     <section style={filterPanelStyle}>
-      <label style={labelStyle}>Company
-        <select value={companyFilter} onChange={(event) => onCompanyFilter(event.target.value)} style={inputStyle}>
+      <label style={labelStyle}>
+        Company
+        <select
+          value={companyFilter}
+          onChange={(event) => onCompanyFilter(event.target.value)}
+          style={inputStyle}
+        >
           <option value="All">All Companies</option>
           {companies.map((company) => (
-            <option key={company.company_id} value={company.company_id}>{company.company_name}</option>
+            <option key={company.company_id} value={company.company_id}>
+              {company.company_name}
+            </option>
           ))}
         </select>
       </label>
-      <label style={labelStyle}>Search Company / Code
-        <input value={searchQuery} onChange={(event) => onSearch(event.target.value)} placeholder="Type to search..." style={inputStyle} />
+      <label style={labelStyle}>
+        Search Company / Code
+        <input
+          value={searchQuery}
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Type to search..."
+          style={inputStyle}
+        />
       </label>
-      <button type="button" onClick={onClear} style={clearButtonStyle}>Clear Filters</button>
+      <button type="button" onClick={onClear} style={clearButtonStyle}>
+        Clear Filters
+      </button>
     </section>
   );
 }
@@ -219,52 +333,119 @@ function CompanyComplianceFilters({ companies, companyFilter, searchQuery, onCom
 function EmployeeFilters(props) {
   return (
     <section style={employeeFilterPanelStyle}>
-      <label style={labelStyle}>Company
-        <select value={props.companyFilter} onChange={(event) => props.onCompanyFilter(event.target.value)} style={inputStyle}>
+      <label style={labelStyle}>
+        Company
+        <select
+          value={props.companyFilter}
+          onChange={(event) => props.onCompanyFilter(event.target.value)}
+          style={inputStyle}
+        >
           <option value="All">All Companies</option>
           {props.companies.map((company) => (
-            <option key={company.company_id} value={company.company_id}>{company.company_name}</option>
+            <option key={company.company_id} value={company.company_id}>
+              {company.company_name}
+            </option>
           ))}
         </select>
       </label>
-      <label style={labelStyle}>Employee ID
-        <input value={props.employeeId} onChange={(event) => props.onEmployeeId(event.target.value)} placeholder="e.g. ABCL-001" style={inputStyle} />
+      <label style={labelStyle}>
+        Employee ID
+        <input
+          value={props.employeeId}
+          onChange={(event) => props.onEmployeeId(event.target.value)}
+          placeholder="e.g. ABCL-001"
+          style={inputStyle}
+        />
       </label>
-      <label style={labelStyle}>Employee Name
-        <input value={props.employeeName} onChange={(event) => props.onEmployeeName(event.target.value)} placeholder="Type to search..." style={inputStyle} />
+      <label style={labelStyle}>
+        Employee Name
+        <input
+          value={props.employeeName}
+          onChange={(event) => props.onEmployeeName(event.target.value)}
+          placeholder="Type to search..."
+          style={inputStyle}
+        />
       </label>
-      <label style={labelStyle}>Department
-        <input value={props.department} onChange={(event) => props.onDepartment(event.target.value)} placeholder="Type to search..." style={inputStyle} />
+      <label style={labelStyle}>
+        Department
+        <input
+          value={props.department}
+          onChange={(event) => props.onDepartment(event.target.value)}
+          placeholder="Type to search..."
+          style={inputStyle}
+        />
       </label>
-      <label style={labelStyle}>Designation
-        <input value={props.designation} onChange={(event) => props.onDesignation(event.target.value)} placeholder="Type to search..." style={inputStyle} />
+      <label style={labelStyle}>
+        Designation
+        <input
+          value={props.designation}
+          onChange={(event) => props.onDesignation(event.target.value)}
+          placeholder="Type to search..."
+          style={inputStyle}
+        />
       </label>
-      <label style={labelStyle}>Location / Branch
-        <input value={props.location} onChange={(event) => props.onLocation(event.target.value)} placeholder="Type to search..." style={inputStyle} />
+      <label style={labelStyle}>
+        Location / Branch
+        <input
+          value={props.location}
+          onChange={(event) => props.onLocation(event.target.value)}
+          placeholder="Type to search..."
+          style={inputStyle}
+        />
       </label>
-      <label style={labelStyle}>Awareness Training
-        <select value={props.awarenessTraining} onChange={(event) => props.onAwarenessTraining(event.target.value)} style={inputStyle}>
-          {trainingOptions.map((item) => <option key={item}>{item}</option>)}
+      <label style={labelStyle}>
+        Awareness Training
+        <select
+          value={props.awarenessTraining}
+          onChange={(event) => props.onAwarenessTraining(event.target.value)}
+          style={inputStyle}
+        >
+          {trainingOptions.map((item) => (
+            <option key={item}>{item}</option>
+          ))}
         </select>
       </label>
-      <label style={labelStyle}>IC Training
-        <select value={props.icTraining} onChange={(event) => props.onIcTraining(event.target.value)} style={inputStyle}>
-          {trainingOptions.map((item) => <option key={item}>{item}</option>)}
+      <label style={labelStyle}>
+        IC Training
+        <select
+          value={props.icTraining}
+          onChange={(event) => props.onIcTraining(event.target.value)}
+          style={inputStyle}
+        >
+          {trainingOptions.map((item) => (
+            <option key={item}>{item}</option>
+          ))}
         </select>
       </label>
-      <button type="button" onClick={props.onClear} style={clearButtonStyle}>Clear Filters</button>
+      <button type="button" onClick={props.onClear} style={clearButtonStyle}>
+        Clear Filters
+      </button>
     </section>
   );
 }
 
-function CompanyComplianceTable({ companies }) {
+function CompanyComplianceTable({
+  companies,
+  meetingUpdatingKey,
+  onToggleMeeting,
+}) {
   return (
     <div style={tableWrapStyle}>
       <table style={tableStyle}>
         <thead>
           <tr>
-            {["Company", "IC Policy", "IC Constitution", "Display & Notices", "IC Meetings (Q1-Q4)", "Annual Return", "Complaints"].map((heading) => (
-              <th key={heading} style={thStyle}>{heading}</th>
+            {[
+              "Company",
+              "IC Policy",
+              "IC Constitution",
+              "Display & Notices",
+              "IC Meetings (Q1-Q4)",
+              "Annual Return",
+              "Complaints",
+            ].map((heading) => (
+              <th key={heading} style={thStyle}>
+                {heading}
+              </th>
             ))}
           </tr>
         </thead>
@@ -273,17 +454,59 @@ function CompanyComplianceTable({ companies }) {
             <tr key={company.company_id}>
               <td style={tdStyle}>
                 <strong>{company.company_name}</strong>
-                <small style={mutedBlockStyle}>{company.client_id || company.company_code || "-"}</small>
+                <small style={mutedBlockStyle}>
+                  {company.client_id || company.company_code || "-"}
+                </small>
               </td>
-              <td style={tdStyle}><StatusBadge status={company.services?.length ? "Completed" : "Pending"} /></td>
-              <td style={tdStyle}><StatusBadge status={company.ic_users ? "Completed" : "Pending"} /></td>
-              <td style={tdStyle}><StatusBadge status={company.services?.length ? "Completed" : "Pending"} /></td>
-              <td style={tdStyle}><QuarterChecks complete={company.ic_users > 0} /></td>
-              <td style={tdStyle}><StatusBadge status={company.annual_return_status === "Filed" ? "Completed" : "Pending"} /></td>
-              <td style={tdStyle}><StatusBadge status={company.open_complaints ? `${company.open_complaints} Open` : "No Open Complaints"} /></td>
+              <td style={tdStyle}>
+                <StatusBadge
+                  status={company.services?.length ? "Completed" : "Pending"}
+                />
+              </td>
+              <td style={tdStyle}>
+                <StatusBadge
+                  status={company.ic_users ? "Completed" : "Pending"}
+                />
+              </td>
+              <td style={tdStyle}>
+                <StatusBadge
+                  status={company.services?.length ? "Completed" : "Pending"}
+                />
+              </td>
+              <td style={tdStyle}>
+                <QuarterChecks
+                  company={company}
+                  meetingUpdatingKey={meetingUpdatingKey}
+                  onToggleMeeting={onToggleMeeting}
+                />
+              </td>
+              <td style={tdStyle}>
+                <StatusBadge
+                  status={
+                    company.annual_return_status === "Filed"
+                      ? "Completed"
+                      : "Pending"
+                  }
+                />
+              </td>
+              <td style={tdStyle}>
+                <StatusBadge
+                  status={
+                    company.open_complaints
+                      ? `${company.open_complaints} Open`
+                      : "No Open Complaints"
+                  }
+                />
+              </td>
             </tr>
           ))}
-          {!companies.length && <tr><td colSpan={7} style={emptyCellStyle}>No companies match these filters.</td></tr>}
+          {!companies.length && (
+            <tr>
+              <td colSpan={7} style={emptyCellStyle}>
+                No companies match these filters.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -296,14 +519,27 @@ function EmployeeReportTable({ rows }) {
       <table style={tableStyle}>
         <thead>
           <tr>
-            {["Company", "Employee ID", "Employee Name", "Department", "Designation", "Awareness Training", "IC Training", "Certificate"].map((heading) => (
-              <th key={heading} style={thStyle}>{heading}</th>
+            {[
+              "Company",
+              "Employee ID",
+              "Employee Name",
+              "Department",
+              "Designation",
+              "Awareness Training",
+              "IC Training",
+              "Certificate",
+            ].map((heading) => (
+              <th key={heading} style={thStyle}>
+                {heading}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => {
-            const isIc = String(row.role || "").toLowerCase().includes("ic");
+            const isIc = String(row.role || "")
+              .toLowerCase()
+              .includes("ic");
             return (
               <tr key={row.user_id}>
                 <td style={tdStyle}>{row.company_name}</td>
@@ -311,25 +547,60 @@ function EmployeeReportTable({ rows }) {
                 <td style={tdStyle}>{row.name}</td>
                 <td style={tdStyle}>{row.department}</td>
                 <td style={tdStyle}>{row.role}</td>
-                <td style={tdStyle}><StatusBadge status={row.completion_status === "Completed" ? "Completed" : "Pending"} /></td>
-                <td style={tdStyle}><StatusBadge status={!isIc ? "NA" : row.completion_status === "Completed" ? "Completed" : "Pending"} /></td>
-                <td style={tdStyle}><StatusBadge status={row.certificate_status} /></td>
+                <td style={tdStyle}>
+                  <StatusBadge
+                    status={
+                      row.completion_status === "Completed"
+                        ? "Completed"
+                        : "Pending"
+                    }
+                  />
+                </td>
+                <td style={tdStyle}>
+                  <StatusBadge
+                    status={
+                      !isIc
+                        ? "NA"
+                        : row.completion_status === "Completed"
+                          ? "Completed"
+                          : "Pending"
+                    }
+                  />
+                </td>
+                <td style={tdStyle}>
+                  <StatusBadge status={row.certificate_status} />
+                </td>
               </tr>
             );
           })}
-          {!rows.length && <tr><td colSpan={8} style={emptyCellStyle}>No employees match these filters.</td></tr>}
+          {!rows.length && (
+            <tr>
+              <td colSpan={8} style={emptyCellStyle}>
+                No employees match these filters.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
   );
 }
 
-function QuarterChecks({ complete }) {
+function QuarterChecks({ company, meetingUpdatingKey, onToggleMeeting }) {
+  const meetings = company.ic_meetings || {};
   return (
     <div style={quarterStyle}>
-      {["Q1", "Q2", "Q3", "Q4"].map((quarter, index) => (
+      {["Q1", "Q2", "Q3", "Q4"].map((quarter) => (
         <label key={quarter}>
-          <input type="checkbox" readOnly checked={complete && index === 0} /> {quarter}
+          <input
+            type="checkbox"
+            checked={Boolean(meetings[quarter])}
+            disabled={meetingUpdatingKey === `${company.company_id}-${quarter}`}
+            onChange={(event) =>
+              onToggleMeeting(company, quarter, event.target.checked)
+            }
+          />{" "}
+          {quarter}
         </label>
       ))}
     </div>
@@ -338,16 +609,27 @@ function QuarterChecks({ complete }) {
 
 function StatusBadge({ status }) {
   const normalized = String(status || "Pending");
-  const tone = normalized.includes("Completed") || normalized.includes("No Open") || normalized === "Valid"
-    ? "green"
-    : normalized.includes("Open")
-      ? "amber"
-      : "red";
-  return <span style={{ ...badgeStyle, ...badgeToneStyle[tone] }}>{normalized}</span>;
+  const tone =
+    normalized.includes("Completed") ||
+    normalized.includes("No Open") ||
+    normalized === "Valid"
+      ? "green"
+      : normalized.includes("Open")
+        ? "amber"
+        : "red";
+  return (
+    <span style={{ ...badgeStyle, ...badgeToneStyle[tone] }}>{normalized}</span>
+  );
 }
 
 function downloadCsv(filename, rows) {
-  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+  const csv = rows
+    .map((row) =>
+      row
+        .map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`)
+        .join(","),
+    )
+    .join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -358,21 +640,38 @@ function downloadCsv(filename, rows) {
 
 function complianceCsvRows(companies) {
   return [
-    ["Company", "IC Policy", "IC Constitution", "Display & Notices", "Annual Return", "Complaints"],
+    [
+      "Company",
+      "IC Policy",
+      "IC Constitution",
+      "Display & Notices",
+      "Annual Return",
+      "Complaints",
+    ],
     ...companies.map((company) => [
       company.company_name,
       company.services?.length ? "Completed" : "Pending",
       company.ic_users ? "Completed" : "Pending",
       company.services?.length ? "Completed" : "Pending",
       company.annual_return_status,
-      company.open_complaints ? `${company.open_complaints} Open` : "No Open Complaints",
+      company.open_complaints
+        ? `${company.open_complaints} Open`
+        : "No Open Complaints",
     ]),
   ];
 }
 
 function employeeCsvRows(rows) {
   return [
-    ["Company", "Employee ID", "Employee Name", "Department", "Designation", "Training", "Certificate"],
+    [
+      "Company",
+      "Employee ID",
+      "Employee Name",
+      "Department",
+      "Designation",
+      "Training",
+      "Certificate",
+    ],
     ...rows.map((row) => [
       row.company_name,
       row.employee_id,
@@ -389,7 +688,11 @@ function compliancePrintHtml(companies) {
   const rows = complianceCsvRows(companies).slice(1);
   return printShell(
     "Client Compliance Status Report",
-    `<table><thead><tr>${complianceCsvRows([])[0].map((heading) => `<th>${heading}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`,
+    `<table><thead><tr>${complianceCsvRows([])[0]
+      .map((heading) => `<th>${heading}</th>`)
+      .join(
+        "",
+      )}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`,
   );
 }
 
@@ -397,7 +700,12 @@ function employeePrintHtml(rows) {
   const csvRows = employeeCsvRows(rows);
   return printShell(
     "Client Employee Report",
-    `<table><thead><tr>${csvRows[0].map((heading) => `<th>${heading}</th>`).join("")}</tr></thead><tbody>${csvRows.slice(1).map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`,
+    `<table><thead><tr>${csvRows[0].map((heading) => `<th>${heading}</th>`).join("")}</tr></thead><tbody>${csvRows
+      .slice(1)
+      .map(
+        (row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`,
+      )
+      .join("")}</tbody></table>`,
   );
 }
 
@@ -460,6 +768,8 @@ EmployeeFilters.propTypes = {
 
 CompanyComplianceTable.propTypes = {
   companies: PropTypes.array.isRequired,
+  meetingUpdatingKey: PropTypes.string.isRequired,
+  onToggleMeeting: PropTypes.func.isRequired,
 };
 
 EmployeeReportTable.propTypes = {
@@ -467,7 +777,9 @@ EmployeeReportTable.propTypes = {
 };
 
 QuarterChecks.propTypes = {
-  complete: PropTypes.bool.isRequired,
+  company: PropTypes.object.isRequired,
+  meetingUpdatingKey: PropTypes.string.isRequired,
+  onToggleMeeting: PropTypes.func.isRequired,
 };
 
 StatusBadge.propTypes = {
