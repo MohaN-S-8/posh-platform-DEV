@@ -74,7 +74,7 @@ class EmployeeService:
                 ),
             )
             .where(
-                VideoMaster.company_id == company_id,
+                VideoMaster.company_id.in_([company_id, 1]),
                 VideoMaster.status == "Published",
                 or_(*audience_matches),
             )

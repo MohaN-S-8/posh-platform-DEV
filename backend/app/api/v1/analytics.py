@@ -1,7 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_permission, require_roles
@@ -123,7 +123,7 @@ async def _user_training_rows(db: AsyncSession, company_ids: list[int] | None = 
     filters = [
         UserMaster.is_deleted == "N",
         UserMaster.status == "Active",
-        UserMaster.role_id.in_([2, 5, 3, 4]),
+        UserMaster.role_id == 4,
     ]
     if company_ids is not None:
         filters.append(UserMaster.company_id.in_(company_ids))
@@ -143,12 +143,13 @@ async def _user_training_rows(db: AsyncSession, company_ids: list[int] | None = 
             )
             .join(CompanyMaster, CompanyMaster.company_id == UserMaster.company_id)
             .where(*filters)
-            .order_by(CompanyMaster.company_name, UserMaster.role_id, UserMaster.first_name)
+            .order_by(CompanyMaster.company_name, UserMaster.first_name)
         )
     ).all()
     user_ids = [row.user_id for row in users]
     if not user_ids:
         return []
+    user_company_ids = sorted({row.company_id for row in users if row.company_id})
 
     history_result = await db.execute(
         select(
@@ -179,21 +180,100 @@ async def _user_training_rows(db: AsyncSession, company_ids: list[int] | None = 
     )
     certificates = {user_id: count for user_id, count in cert_result.all()}
 
+    assignment_result = await db.execute(
+        select(
+            CourseAssignment.id,
+            CourseAssignment.video_id,
+            CourseAssignment.company_id,
+            CourseAssignment.assigned_to_user_id,
+            CourseAssignment.assigned_to_department,
+            CourseAssignment.assign_type,
+            CourseAssignment.due_date,
+            VideoMaster.title,
+        )
+        .join(VideoMaster, VideoMaster.video_id == CourseAssignment.video_id)
+        .where(CourseAssignment.company_id.in_(user_company_ids))
+    )
+    assignment_rows = assignment_result.all()
+    assigned_by_user: dict[int, dict] = {
+        row.user_id: {"video_ids": set(), "titles": [], "due_date": None} for row in users
+    }
+    for assignment in assignment_rows:
+        for user_row in users:
+            if user_row.company_id != assignment.company_id:
+                continue
+            if (
+                assignment.assign_type == "Individual"
+                and assignment.assigned_to_user_id != user_row.user_id
+            ):
+                continue
+            if (
+                assignment.assign_type == "Department"
+                and assignment.assigned_to_department != user_row.department
+            ):
+                continue
+            user_assignment = assigned_by_user[user_row.user_id]
+            if assignment.video_id not in user_assignment["video_ids"]:
+                user_assignment["video_ids"].add(assignment.video_id)
+                user_assignment["titles"].append(assignment.title)
+            if assignment.due_date and (
+                not user_assignment["due_date"] or assignment.due_date < user_assignment["due_date"]
+            ):
+                user_assignment["due_date"] = assignment.due_date
+
+    published_company_ids = sorted(set(user_company_ids + [1]))
+    published_result = await db.execute(
+        select(
+            VideoMaster.video_id,
+            VideoMaster.company_id,
+            VideoMaster.title,
+        )
+        .where(
+            VideoMaster.company_id.in_(published_company_ids),
+            VideoMaster.status == "Published",
+            or_(
+                VideoMaster.target_audience == "Employee",
+                VideoMaster.target_audience == "All",
+                VideoMaster.target_audience.is_(None),
+            ),
+        )
+        .order_by(VideoMaster.training_level.asc(), VideoMaster.title.asc())
+    )
+    published_by_company: dict[int, list[dict]] = {}
+    global_published: list[dict] = []
+    for video_id, video_company_id, title in published_result.all():
+        video_row = {"video_id": video_id, "title": title}
+        if video_company_id == 1:
+            global_published.append(video_row)
+        published_by_company.setdefault(video_company_id, []).append(video_row)
+
     rows = []
     for row in users:
         item_history = history.get(row.user_id, {})
+        item_assignment = assigned_by_user.get(row.user_id, {})
         total_history = item_history.get("total", 0)
+        published_videos = [
+            *global_published,
+            *published_by_company.get(row.company_id, []),
+        ]
+        published_video_ids = {video["video_id"] for video in published_videos}
+        total_assigned = len(set(item_assignment.get("video_ids", set())) | published_video_ids)
+        required_total = max(total_history, total_assigned)
+        if not required_total:
+            continue
         completed_history = item_history.get("completed", 0)
         completion_status = (
             "Completed"
-            if total_history and completed_history >= total_history
+            if required_total and completed_history >= required_total
             else "Started" if total_history else "Pending"
         )
         certificate_count = certificates.get(row.user_id, 0)
-        role_name = (
-            row.ic_role if row.role_id == 3 and row.ic_role else ROLE_NAMES.get(row.role_id, "User")
-        )
+        role_name = ROLE_NAMES.get(row.role_id, "User")
         last_access = item_history.get("last_access")
+        assignment_titles = [
+            *item_assignment.get("titles", []),
+            *[video["title"] for video in published_videos],
+        ]
         rows.append(
             {
                 "user_id": row.user_id,
@@ -202,9 +282,14 @@ async def _user_training_rows(db: AsyncSession, company_ids: list[int] | None = 
                 "name": " ".join([row.first_name or "", row.last_name or ""]).strip(),
                 "employee_id": row.employee_id,
                 "department": row.department or "Unassigned",
+                "role_id": row.role_id,
                 "role": role_name,
                 "training_name": item_history.get("training_name")
-                or ("IC Training" if row.role_id == 3 else "POSH Awareness Training"),
+                or (
+                    ", ".join(assignment_titles[:2])
+                    if assignment_titles
+                    else "POSH Awareness Training"
+                ),
                 "completion_status": completion_status,
                 "last_access": last_access.isoformat() if last_access else "",
                 "certificate_status": "Valid" if certificate_count else "Not Issued",
@@ -224,7 +309,9 @@ async def _platform_overview(db: AsyncSession) -> dict:
 
     companies_result = await db.execute(
         select(func.count()).where(
-            CompanyMaster.is_deleted == "N", CompanyMaster.status == "Active"
+            CompanyMaster.is_deleted == "N",
+            CompanyMaster.company_id != 1,
+            CompanyMaster.status == "Active",
         )
     )
     total_companies = companies_result.scalar() or 0
@@ -254,10 +341,12 @@ async def _platform_overview(db: AsyncSession) -> dict:
     company_approval = await grouped_counts(
         CompanyMaster.approval_status,
         CompanyMaster.is_deleted == "N",
+        CompanyMaster.company_id != 1,
     )
     company_status = await grouped_counts(
         CompanyMaster.status,
         CompanyMaster.is_deleted == "N",
+        CompanyMaster.company_id != 1,
     )
     video_status = await grouped_counts(VideoMaster.status)
     service_training_result = await db.execute(
@@ -434,6 +523,7 @@ async def _platform_overview(db: AsyncSession) -> dict:
             }
         )
 
+    user_training_rows = await _user_training_rows(db)
     return {
         "scope": "platform",
         "total_companies": total_companies,
@@ -463,7 +553,7 @@ async def _platform_overview(db: AsyncSession) -> dict:
             "archived": video_status.get("Archived", 0),
         },
         "training": {
-            "assignments": total_assignments,
+            "assignments": max(total_assignments, len(user_training_rows)),
             "completed_users": completed_users,
             "completed_history": total_completions,
             "in_progress": await scalar_count(TrainingHistory.status == "In Progress"),
@@ -501,7 +591,7 @@ async def _platform_overview(db: AsyncSession) -> dict:
         "services": services,
         "service_training": service_training,
         "organizations": organizations,
-        "user_training_rows": await _user_training_rows(db),
+        "user_training_rows": user_training_rows,
     }
 
 
@@ -644,6 +734,7 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
             }
         )
 
+    user_training_rows = await _user_training_rows(db, [company_id])
     return {
         "scope": "company",
         "company_id": company_id,
@@ -658,7 +749,7 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
         "compliance_rate": compliance_rate,
         "certificates_issued": total_certs,
         "average_pass_score": avg_score,
-        "assignments": assignment_count,
+        "assignments": max(assignment_count, len(user_training_rows)),
         "department_breakdown": departments,
         "concerns": {
             "open": concerns.get("Open", 0),
@@ -715,7 +806,7 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
             if company
             else []
         ),
-        "user_training_rows": await _user_training_rows(db, [company_id]),
+        "user_training_rows": user_training_rows,
     }
 
 
@@ -842,12 +933,14 @@ async def _admin_overview(db: AsyncSession, current_user) -> dict:
         )
 
     own_company = await _company_overview(db, own_company_id)
+    admin_training_rows = await _user_training_rows(db, training_company_ids)
     own_company.update(
         {
             "scope": "admin",
             "managed_clients": len(organizations),
             "organizations": organizations,
-            "user_training_rows": await _user_training_rows(db, training_company_ids),
+            "assignments": max(own_company.get("assignments", 0), len(admin_training_rows)),
+            "user_training_rows": admin_training_rows,
         }
     )
     return own_company

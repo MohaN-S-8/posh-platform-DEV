@@ -287,7 +287,7 @@ class VideoService:
         result = await db.execute(
             select(VideoMaster).where(
                 VideoMaster.video_id == video_id,
-                VideoMaster.company_id == company_id,
+                VideoMaster.company_id.in_([company_id, 1]),
                 VideoMaster.status == "Published",
             )
         )
@@ -343,7 +343,7 @@ class VideoService:
                 ORDER BY FIELD(quality_label, '360p', '480p', '720p', '1080p'), quality_label
                 """
             ),
-            {"video_id": video_id, "company_id": company_id},
+            {"video_id": video_id, "company_id": video.company_id},
         )
         qualities = [
             {

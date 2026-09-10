@@ -53,7 +53,6 @@ const defaultAllowed = {
     "Company Setup",
     "User Master",
     "Create IC",
-    "Annual Returns",
   ]),
   "Client Admin (Mgmt)": new Set([
     "Home",
@@ -65,7 +64,6 @@ const defaultAllowed = {
     "POSH Complaints",
     "Audit",
     "Analytics & Reports",
-    "Annual Returns",
     "User Master",
     "Create IC",
   ]),

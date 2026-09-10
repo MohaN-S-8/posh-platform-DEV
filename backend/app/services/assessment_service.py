@@ -40,7 +40,7 @@ class AssessmentService:
         video_result = await db.execute(
             select(VideoMaster).where(
                 VideoMaster.video_id == video_id,
-                VideoMaster.company_id == company_id,
+                VideoMaster.company_id.in_([company_id, 1]),
                 VideoMaster.status == "Published",
             )
         )
@@ -138,7 +138,7 @@ class AssessmentService:
                 & (TrainingHistory.company_id == company_id),
             )
             .where(
-                VideoMaster.company_id == company_id,
+                VideoMaster.company_id.in_([company_id, 1]),
                 VideoMaster.status == "Published",
                 or_(*audience_matches),
             )
@@ -247,7 +247,7 @@ class AssessmentService:
         video_result = await db.execute(
             select(VideoMaster.target_audience).where(
                 VideoMaster.video_id == video_id,
-                VideoMaster.company_id == company_id,
+                VideoMaster.company_id.in_([company_id, 1]),
             )
         )
         required_status = await self._required_training_status(
@@ -324,7 +324,7 @@ class AssessmentService:
         video_result = await db.execute(
             select(VideoMaster.target_audience).where(
                 VideoMaster.video_id == data.video_id,
-                VideoMaster.company_id == company_id,
+                VideoMaster.company_id.in_([company_id, 1]),
             )
         )
         required_status = await self._required_training_status(
