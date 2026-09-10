@@ -25,6 +25,7 @@ PERMISSION_ACCESS_ITEMS = {
     "certificates.manage": ["Assessment & Certificate", "Assessment & Certificates"],
     "reports.view": [
         "Analytics & Reports",
+        "Client Status",
         "Annual Returns",
         "Annual Return",
         "POSH Compliance",

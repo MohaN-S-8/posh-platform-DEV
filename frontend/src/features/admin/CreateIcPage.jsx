@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
@@ -20,6 +20,25 @@ const employeeOptionLabel = (employee) => {
   return `${name || employee.email} - ${employee.email}${employeeId}${company}`;
 };
 
+const icDisplayName = (icUser) =>
+  `${icUser.first_name || ""} ${icUser.last_name || ""}`.trim() ||
+  icUser.email ||
+  "IC User";
+
+const icSearchText = (icUser) =>
+  [
+    icDisplayName(icUser),
+    icUser.employee_id,
+    icUser.email,
+    icUser.mobile,
+    icUser.username,
+    icUser.ic_role,
+    icUser.status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
 export function CreateIcPage() {
   const [icUsers, setIcUsers] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -27,6 +46,8 @@ export function CreateIcPage() {
   const [editingIc, setEditingIc] = useState(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [icFilterId, setIcFilterId] = useState("all");
+  const [icSearch, setIcSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState("");
@@ -53,6 +74,16 @@ export function CreateIcPage() {
     const timer = window.setTimeout(loadIcUsers, 0);
     return () => window.clearTimeout(timer);
   }, [loadIcUsers]);
+
+  const filteredIcUsers = useMemo(() => {
+    const query = icSearch.trim().toLowerCase();
+    return icUsers.filter((icUser) => {
+      const matchesIc =
+        icFilterId === "all" || String(icUser.user_id) === icFilterId;
+      const matchesSearch = !query || icSearchText(icUser).includes(query);
+      return matchesIc && matchesSearch;
+    });
+  }, [icFilterId, icSearch, icUsers]);
 
   const handleEmployeeSearch = (value) => {
     setEmployeeSearch(value);
@@ -336,6 +367,43 @@ export function CreateIcPage() {
 
       <section>
         <div style={sectionTitleStyle}>IC Users Created</div>
+        <div style={filterPanelStyle}>
+          <label style={labelStyle}>
+            IC User
+            <select
+              value={icFilterId}
+              onChange={(event) => setIcFilterId(event.target.value)}
+              style={inputStyle}
+            >
+              <option value="all">All IC Users</option>
+              {icUsers.map((icUser) => (
+                <option key={icUser.user_id} value={String(icUser.user_id)}>
+                  {icDisplayName(icUser)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={labelStyle}>
+            Search IC / ID
+            <input
+              type="search"
+              value={icSearch}
+              placeholder="Type name, ID, email, contact, username, role, or status"
+              onChange={(event) => setIcSearch(event.target.value)}
+              style={inputStyle}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setIcFilterId("all");
+              setIcSearch("");
+            }}
+            style={secondaryButtonStyle}
+          >
+            Clear Filters
+          </button>
+        </div>
         <div style={tableWrapStyle}>
           <table style={{ width: "100%", minWidth: "860px", borderCollapse: "collapse" }}>
             <thead>
@@ -350,8 +418,10 @@ export function CreateIcPage() {
                 <tr><td colSpan={8} style={emptyStyle}>Loading IC users...</td></tr>
               ) : icUsers.length === 0 ? (
                 <tr><td colSpan={8} style={emptyStyle}>No IC users created yet.</td></tr>
+              ) : filteredIcUsers.length === 0 ? (
+                <tr><td colSpan={8} style={emptyStyle}>No IC users match these filters.</td></tr>
               ) : (
-                icUsers.map((icUser) => (
+                filteredIcUsers.map((icUser) => (
                   <tr key={icUser.user_id} style={{ borderTop: "1px solid var(--portal-border)" }}>
                     <td style={tdStyle}>{icUser.first_name} {icUser.last_name || ""}</td>
                     <td style={tdStyle}>{icUser.employee_id}</td>
@@ -492,6 +562,19 @@ const sectionTitleStyle = {
   fontSize: "13px",
   fontWeight: 900,
   textTransform: "uppercase",
+};
+
+const filterPanelStyle = {
+  alignItems: "end",
+  background: "white",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
+  boxShadow: "0 2px 8px rgba(74,46,131,0.08)",
+  display: "grid",
+  gap: "14px",
+  gridTemplateColumns: "minmax(220px, 1fr) minmax(280px, 1.4fr) auto",
+  marginBottom: "14px",
+  padding: "16px",
 };
 
 const tableWrapStyle = {

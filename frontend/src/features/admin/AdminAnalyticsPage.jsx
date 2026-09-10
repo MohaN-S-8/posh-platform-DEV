@@ -25,7 +25,11 @@ const SERVICE_LABELS = {
 };
 
 function normalizeServiceCode(code) {
-  return String(code || "POSH").trim().toUpperCase() || "POSH";
+  return (
+    String(code || "POSH")
+      .trim()
+      .toUpperCase() || "POSH"
+  );
 }
 
 function serviceLabel(code) {
@@ -64,7 +68,7 @@ function summarizeTraining(serviceTraining) {
   );
 }
 
-function buildServiceSections(analytics) {
+function buildServiceSections(analytics, organizationRows) {
   if (!analytics || analytics.scope !== "platform") return [];
   const serviceEntries = poshServiceEntries(analytics.services);
   if (!serviceEntries.some(([code]) => normalizeServiceCode(code) === "POSH")) {
@@ -83,8 +87,10 @@ function buildServiceSections(analytics) {
 
   return serviceEntries.sort(sortServiceEntries).map(([code, service]) => {
     const normalizedCode = normalizeServiceCode(code);
-    const organizations = (analytics.organizations || []).filter((org) =>
-      (org.services || []).some((orgService) => normalizeServiceCode(orgService) === normalizedCode),
+    const organizations = organizationRows.filter((org) =>
+      (org.services || []).some(
+        (orgService) => normalizeServiceCode(orgService) === normalizedCode,
+      ),
     );
 
     return {
@@ -101,12 +107,28 @@ function buildCompanyDetailMetrics(analytics) {
   if (!analytics || analytics.scope !== "company") return [];
   return [
     { label: "Total Users", value: analytics.total_users ?? 0 },
-    { label: "Client / Management", value: analytics.client_management_users ?? 0 },
+    {
+      label: "Client / Management",
+      value: analytics.client_management_users ?? 0,
+    },
     { label: "IC Users", value: analytics.ic_users ?? 0 },
     { label: "Employees", value: analytics.total_employees ?? 0 },
     { label: "Assignments", value: analytics.assignments ?? 0 },
     { label: "Open Concerns", value: analytics.concerns?.open ?? 0 },
   ];
+}
+
+function organizationSearchText(org) {
+  return [
+    org.company_name,
+    org.company_code,
+    org.client_id,
+    org.status,
+    org.approval_status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 }
 
 export function AdminAnalyticsPage() {
@@ -115,6 +137,8 @@ export function AdminAnalyticsPage() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [organizationId, setOrganizationId] = useState("all");
+  const [organizationSearch, setOrganizationSearch] = useState("");
 
   useEffect(() => {
     const loadAnalytics = async () => {
@@ -198,7 +222,24 @@ export function AdminAnalyticsPage() {
   }, [analytics]);
 
   const complianceRate = analytics?.compliance_rate ?? 0;
-  const serviceSections = useMemo(() => buildServiceSections(analytics), [analytics]);
+  const organizationOptions = useMemo(
+    () => analytics?.organizations || [],
+    [analytics],
+  );
+  const filteredOrganizations = useMemo(() => {
+    const query = organizationSearch.trim().toLowerCase();
+    return organizationOptions.filter((org) => {
+      const matchesOrganization =
+        organizationId === "all" || String(org.company_id) === organizationId;
+      const matchesSearch =
+        !query || organizationSearchText(org).includes(query);
+      return matchesOrganization && matchesSearch;
+    });
+  }, [organizationId, organizationOptions, organizationSearch]);
+  const serviceSections = useMemo(
+    () => buildServiceSections(analytics, filteredOrganizations),
+    [analytics, filteredOrganizations],
+  );
   const companyDetailMetrics = useMemo(
     () => buildCompanyDetailMetrics(analytics),
     [analytics],
@@ -213,7 +254,6 @@ export function AdminAnalyticsPage() {
           : "Choose a service to view company analytics."
       }
     >
-
       {error && <div style={errorStyle}>{error}</div>}
 
       {user?.role_id !== 1 && (
@@ -252,24 +292,25 @@ export function AdminAnalyticsPage() {
         </>
       )}
 
-      {(user?.role_id === 1 || selectedService === "posh") && analytics?.scope === "company" && (
-        <section style={panelStyle}>
-          <div style={complianceHeaderStyle}>
-            <div>
-              <div style={labelStyle}>Compliance Rate</div>
-              <div style={heroValueStyle}>{complianceRate}%</div>
+      {(user?.role_id === 1 || selectedService === "posh") &&
+        analytics?.scope === "company" && (
+          <section style={panelStyle}>
+            <div style={complianceHeaderStyle}>
+              <div>
+                <div style={labelStyle}>Compliance Rate</div>
+                <div style={heroValueStyle}>{complianceRate}%</div>
+              </div>
+              <div style={meterOuterStyle}>
+                <div
+                  style={{
+                    ...meterInnerStyle,
+                    width: `${Math.min(100, Math.max(0, complianceRate))}%`,
+                  }}
+                />
+              </div>
             </div>
-            <div style={meterOuterStyle}>
-              <div
-                style={{
-                  ...meterInnerStyle,
-                  width: `${Math.min(100, Math.max(0, complianceRate))}%`,
-                }}
-              />
-            </div>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
       {(user?.role_id === 1 || selectedService === "posh") && (
         <>
@@ -291,6 +332,43 @@ export function AdminAnalyticsPage() {
       {user?.role_id === 1 && (
         <section style={sectionStackStyle}>
           <div className="portal-section-title">Service Analytics</div>
+          <section style={filterPanelStyle}>
+            <label style={filterFieldStyle}>
+              <span style={filterLabelStyle}>Organization</span>
+              <select
+                value={organizationId}
+                onChange={(event) => setOrganizationId(event.target.value)}
+                style={filterControlStyle}
+              >
+                <option value="all">All Organizations</option>
+                {organizationOptions.map((org) => (
+                  <option key={org.company_id} value={String(org.company_id)}>
+                    {org.company_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={filterFieldStyle}>
+              <span style={filterLabelStyle}>Search Organization / Code</span>
+              <input
+                type="search"
+                value={organizationSearch}
+                onChange={(event) => setOrganizationSearch(event.target.value)}
+                placeholder="Type company, code, client ID, status..."
+                style={filterControlStyle}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setOrganizationId("all");
+                setOrganizationSearch("");
+              }}
+              style={clearButtonStyle}
+            >
+              Clear Filters
+            </button>
+          </section>
           {serviceSections.map((section) => (
             <article key={section.code} style={servicePanelStyle}>
               <div style={serviceHeaderStyle}>
@@ -298,40 +376,61 @@ export function AdminAnalyticsPage() {
                   <div style={serviceEyebrowStyle}>Service</div>
                   <h2 style={serviceHeadingStyle}>{section.label}</h2>
                 </div>
-                <span className="portal-badge portal-badge-green">Active view</span>
+                <span className="portal-badge portal-badge-green">
+                  Active view
+                </span>
               </div>
 
               <section style={gridStyle}>
                 <div style={cardStyle}>
-                  <div style={iconStyle}><BusinessIcon /></div>
+                  <div style={iconStyle}>
+                    <BusinessIcon />
+                  </div>
                   <div style={labelStyle}>Active Companies</div>
-                  <div style={valueStyle}>{section.service.active_companies ?? 0}</div>
+                  <div style={valueStyle}>
+                    {section.service.active_companies ?? 0}
+                  </div>
                 </div>
                 <div style={cardStyle}>
-                  <div style={iconStyle}><BusinessIcon /></div>
+                  <div style={iconStyle}>
+                    <BusinessIcon />
+                  </div>
                   <div style={labelStyle}>Approved Companies</div>
-                  <div style={valueStyle}>{section.service.approved_companies ?? 0}</div>
+                  <div style={valueStyle}>
+                    {section.service.approved_companies ?? 0}
+                  </div>
                 </div>
                 <div style={cardStyle}>
-                  <div style={iconStyle}><GroupsIcon /></div>
+                  <div style={iconStyle}>
+                    <GroupsIcon />
+                  </div>
                   <div style={labelStyle}>Employees</div>
                   <div style={valueStyle}>{section.service.employees ?? 0}</div>
                 </div>
                 <div style={cardStyle}>
-                  <div style={iconStyle}><BadgeIcon /></div>
+                  <div style={iconStyle}>
+                    <BadgeIcon />
+                  </div>
                   <div style={labelStyle}>Certificates</div>
-                  <div style={valueStyle}>{section.service.certificates ?? 0}</div>
+                  <div style={valueStyle}>
+                    {section.service.certificates ?? 0}
+                  </div>
                 </div>
                 <div style={cardStyle}>
-                  <div style={iconStyle}><AssessmentIcon /></div>
+                  <div style={iconStyle}>
+                    <AssessmentIcon />
+                  </div>
                   <div style={labelStyle}>Published Videos</div>
                   <div style={valueStyle}>{section.training.published}</div>
                 </div>
                 <div style={cardStyle}>
-                  <div style={iconStyle}><TrendingUpIcon /></div>
+                  <div style={iconStyle}>
+                    <TrendingUpIcon />
+                  </div>
                   <div style={labelStyle}>Pending Approval</div>
                   <div style={valueStyle}>
-                    {(section.service.pending_companies ?? 0) + section.training.draft}
+                    {(section.service.pending_companies ?? 0) +
+                      section.training.draft}
                   </div>
                 </div>
               </section>
@@ -356,7 +455,9 @@ export function AdminAnalyticsPage() {
                     </div>
                   ))}
                   {!section.organizations.length && (
-                    <div style={emptyRowStyle}>No organizations assigned yet.</div>
+                    <div style={emptyRowStyle}>
+                      No organizations assigned yet.
+                    </div>
                   )}
                 </div>
               </div>
@@ -365,67 +466,73 @@ export function AdminAnalyticsPage() {
         </section>
       )}
 
-      {user?.role_id !== 1 && analytics?.scope === "company" && selectedService === "posh" && (
-        <section style={sectionStackStyle}>
-          <div style={sectionHeaderStyle}>
-            <div className="portal-section-title" style={{ margin: 0 }}>
-              Users & Compliance
+      {user?.role_id !== 1 &&
+        analytics?.scope === "company" &&
+        selectedService === "posh" && (
+          <section style={sectionStackStyle}>
+            <div style={sectionHeaderStyle}>
+              <div className="portal-section-title" style={{ margin: 0 }}>
+                Users & Compliance
+              </div>
+              <Link to="/admin/reports" style={reportLinkStyle}>
+                View Reports
+              </Link>
             </div>
-            <Link to="/admin/reports" style={reportLinkStyle}>
-              View Reports
-            </Link>
-          </div>
 
-          <section style={gridStyle}>
-            {companyDetailMetrics.map((metric) => (
-              <div key={metric.label} style={cardStyle}>
-                <div style={labelStyle}>{metric.label}</div>
-                <div style={valueStyle}>{metric.value}</div>
-              </div>
-            ))}
-          </section>
-
-          <div style={tablePanelStyle}>
-            <div style={tableTitleStyle}>Department Compliance</div>
-            <div style={tableStyle}>
-              <div style={{ ...departmentRowStyle, ...tableHeaderRowStyle }}>
-                <span>Department</span>
-                <span>Total</span>
-                <span>Completed</span>
-                <span>Pending</span>
-                <span>Compliance</span>
-              </div>
-              {(analytics.department_breakdown || []).map((department) => (
-                <div key={department.department} style={departmentRowStyle}>
-                  <strong>{department.department}</strong>
-                  <span>{department.total ?? 0}</span>
-                  <span>{department.completed ?? 0}</span>
-                  <span>{department.pending ?? 0}</span>
-                  <span>{department.compliance_rate ?? 0}%</span>
+            <section style={gridStyle}>
+              {companyDetailMetrics.map((metric) => (
+                <div key={metric.label} style={cardStyle}>
+                  <div style={labelStyle}>{metric.label}</div>
+                  <div style={valueStyle}>{metric.value}</div>
                 </div>
               ))}
-              {!analytics.department_breakdown?.length && (
-                <div style={emptyRowStyle}>No employee departments available yet.</div>
-              )}
-            </div>
-          </div>
+            </section>
 
-          <section style={gridStyle}>
-            <div style={cardStyle}>
-              <div style={labelStyle}>Concerns Open</div>
-              <div style={valueStyle}>{analytics.concerns?.open ?? 0}</div>
+            <div style={tablePanelStyle}>
+              <div style={tableTitleStyle}>Department Compliance</div>
+              <div style={tableStyle}>
+                <div style={{ ...departmentRowStyle, ...tableHeaderRowStyle }}>
+                  <span>Department</span>
+                  <span>Total</span>
+                  <span>Completed</span>
+                  <span>Pending</span>
+                  <span>Compliance</span>
+                </div>
+                {(analytics.department_breakdown || []).map((department) => (
+                  <div key={department.department} style={departmentRowStyle}>
+                    <strong>{department.department}</strong>
+                    <span>{department.total ?? 0}</span>
+                    <span>{department.completed ?? 0}</span>
+                    <span>{department.pending ?? 0}</span>
+                    <span>{department.compliance_rate ?? 0}%</span>
+                  </div>
+                ))}
+                {!analytics.department_breakdown?.length && (
+                  <div style={emptyRowStyle}>
+                    No employee departments available yet.
+                  </div>
+                )}
+              </div>
             </div>
-            <div style={cardStyle}>
-              <div style={labelStyle}>Concerns Reviewed</div>
-              <div style={valueStyle}>{analytics.concerns?.reviewed ?? 0}</div>
-            </div>
-            <div style={cardStyle}>
-              <div style={labelStyle}>Concerns Closed</div>
-              <div style={valueStyle}>{analytics.concerns?.closed ?? 0}</div>
-            </div>
+
+            <section style={gridStyle}>
+              <div style={cardStyle}>
+                <div style={labelStyle}>Concerns Open</div>
+                <div style={valueStyle}>{analytics.concerns?.open ?? 0}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={labelStyle}>Concerns Reviewed</div>
+                <div style={valueStyle}>
+                  {analytics.concerns?.reviewed ?? 0}
+                </div>
+              </div>
+              <div style={cardStyle}>
+                <div style={labelStyle}>Concerns Closed</div>
+                <div style={valueStyle}>{analytics.concerns?.closed ?? 0}</div>
+              </div>
+            </section>
           </section>
-        </section>
-      )}
+        )}
 
       {!loading && !error && metrics.length === 0 && (
         <div style={panelStyle}>No analytics available yet.</div>
@@ -522,6 +629,48 @@ const servicePanelStyle = {
   ...panelStyle,
   display: "grid",
   gap: "18px",
+};
+
+const filterPanelStyle = {
+  ...panelStyle,
+  alignItems: "end",
+  display: "grid",
+  gap: "14px",
+  gridTemplateColumns: "minmax(220px, 1fr) minmax(260px, 1.4fr) auto",
+};
+
+const filterFieldStyle = {
+  display: "grid",
+  gap: "7px",
+};
+
+const filterLabelStyle = {
+  color: "#17324d",
+  fontSize: "12px",
+  fontWeight: 800,
+};
+
+const filterControlStyle = {
+  background: "white",
+  border: "1px solid #d9e2ec",
+  borderRadius: "8px",
+  color: "#17324d",
+  fontSize: "13px",
+  minHeight: "40px",
+  padding: "9px 10px",
+  width: "100%",
+};
+
+const clearButtonStyle = {
+  background: "white",
+  border: "1px solid #d9e2ec",
+  borderRadius: "8px",
+  color: "#17324d",
+  cursor: "pointer",
+  fontSize: "13px",
+  fontWeight: 800,
+  minHeight: "40px",
+  padding: "9px 14px",
 };
 
 const serviceHeaderStyle = {

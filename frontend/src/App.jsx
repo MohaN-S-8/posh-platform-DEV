@@ -32,6 +32,7 @@ import { MastersPage } from "./features/admin/MastersPage";
 import { PoshOfficeMasterPage } from "./features/admin/PoshOfficeMasterPage";
 import { RoleAccessMatrixPage } from "./features/admin/RoleAccessMatrixPage";
 import { CertificateTemplatePage } from "./features/admin/CertificateTemplatePage";
+import { ClientStatusPage } from "./features/admin/ClientStatusPage";
 import { CertificateVerifyPage } from "./features/certificates/CertificateVerifyPage";
 import { LandingPage } from "./features/landing/LandingPage";
 import { PoshServicePage } from "./features/landing/PoshServicePage";
@@ -329,6 +330,20 @@ function App() {
                 accessItem="Analytics & Reports"
               >
                 <AdminAnalyticsPage />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/client-status"
+          element={
+            <ProtectedRoute>
+              <RoleRoute
+                allowedRoles={[1]}
+                requiredPermission="reports.view"
+                accessItem="Client Status"
+              >
+                <ClientStatusPage />
               </RoleRoute>
             </ProtectedRoute>
           }

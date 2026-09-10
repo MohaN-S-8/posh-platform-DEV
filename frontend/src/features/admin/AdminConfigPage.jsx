@@ -17,6 +17,8 @@ const emptyMaster = {
 const emptyOffice = {
   office_name: "",
   office_address: "",
+  office_state: "",
+  office_city: "",
   is_active: true,
 };
 
@@ -115,6 +117,45 @@ export function AdminConfigPage() {
       return groups;
     }, {});
   }, [config.role_access]);
+
+  const states = useMemo(
+    () =>
+      config.master_codes.filter(
+        (row) => row.category === "State Code" && row.is_active,
+      ),
+    [config.master_codes],
+  );
+
+  const cities = useMemo(
+    () =>
+      config.master_codes.filter(
+        (row) => row.category === "City Code" && row.is_active,
+      ),
+    [config.master_codes],
+  );
+
+  const cityOptions = useMemo(() => {
+    const state = states.find(
+      (item) =>
+        item.name === officeForm.office_state ||
+        item.code === officeForm.office_state,
+    );
+    const matches = cities.filter((city) => {
+      if (!officeForm.office_state) return true;
+      try {
+        const meta = JSON.parse(city.description || "{}");
+        return (
+          meta.state === officeForm.office_state ||
+          meta.state === state?.code ||
+          meta.state === state?.name ||
+          city.description?.includes(officeForm.office_state)
+        );
+      } catch {
+        return city.description?.includes(officeForm.office_state);
+      }
+    });
+    return matches.length ? matches : cities;
+  }, [cities, officeForm.office_state, states]);
 
   const fetchConfig = async () => {
     setLoading(true);
@@ -415,6 +456,49 @@ export function AdminConfigPage() {
                 />
               </label>
               <label style={labelStyle}>
+                State
+                <select
+                  required
+                  value={officeForm.office_state || ""}
+                  onChange={(e) =>
+                    setOfficeForm({
+                      ...officeForm,
+                      office_state: e.target.value,
+                      office_city: "",
+                    })
+                  }
+                  style={inputStyle}
+                >
+                  <option value="">Select State</option>
+                  {states.map((state) => (
+                    <option key={state.id} value={state.name}>
+                      {state.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={labelStyle}>
+                City
+                <select
+                  required
+                  value={officeForm.office_city || ""}
+                  onChange={(e) =>
+                    setOfficeForm({
+                      ...officeForm,
+                      office_city: e.target.value,
+                    })
+                  }
+                  style={inputStyle}
+                >
+                  <option value="">Select City</option>
+                  {cityOptions.map((city) => (
+                    <option key={city.id} value={city.name}>
+                      {city.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={labelStyle}>
                 Office Address
                 <textarea
                   required
@@ -579,6 +663,11 @@ export function AdminConfigPage() {
                     }}
                   />
                   <h3>{office.office_name}</h3>
+                  <small style={mutedBlockStyle}>
+                    {[office.office_city, office.office_state]
+                      .filter(Boolean)
+                      .join(", ") || "State/city not set"}
+                  </small>
                   <p>{office.office_address}</p>
                   <div style={buttonRowStyle}>
                     <button

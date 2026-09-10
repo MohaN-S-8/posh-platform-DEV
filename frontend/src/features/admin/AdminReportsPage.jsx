@@ -114,7 +114,7 @@ function poshServiceEntries(services) {
   );
 }
 
-function buildServiceSections(analytics) {
+function buildServiceSections(analytics, organizationRows) {
   const serviceEntries = poshServiceEntries(analytics?.services);
   if (!serviceEntries.some(([code]) => normalizeServiceCode(code) === "POSH")) {
     serviceEntries.push([
@@ -122,11 +122,20 @@ function buildServiceSections(analytics) {
       { companies: 0, employees: 0, certificates: 0 },
     ]);
   }
-  return serviceEntries.sort(sortServiceEntries).map(([code, service]) => ({
-    code: normalizeServiceCode(code),
-    label: serviceLabel(code),
-    service,
-  }));
+  return serviceEntries.sort(sortServiceEntries).map(([code, service]) => {
+    const normalizedCode = normalizeServiceCode(code);
+    const organizations = organizationRows.filter((org) =>
+      (org.services || []).some(
+        (orgService) => normalizeServiceCode(orgService) === normalizedCode,
+      ),
+    );
+    return {
+      code: normalizedCode,
+      label: serviceLabel(code),
+      service,
+      organizations,
+    };
+  });
 }
 
 function buildReportSummary(analytics) {
@@ -147,12 +156,27 @@ function downloadNameFromResponse(res, fallback) {
   return match?.[1] || fallback;
 }
 
+function organizationSearchText(org) {
+  return [
+    org.company_name,
+    org.company_code,
+    org.client_id,
+    org.status,
+    org.approval_status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 export function AdminReportsPage() {
   const { user } = useAuthStore();
   const [selectedService, setSelectedService] = useState("posh");
   const [analytics, setAnalytics] = useState(null);
   const [downloading, setDownloading] = useState("");
   const [error, setError] = useState("");
+  const [organizationId, setOrganizationId] = useState("all");
+  const [organizationSearch, setOrganizationSearch] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -174,9 +198,23 @@ export function AdminReportsPage() {
     };
   }, [user?.role_id]);
 
-  const serviceSections = useMemo(
-    () => buildServiceSections(analytics),
+  const organizationOptions = useMemo(
+    () => analytics?.organizations || [],
     [analytics],
+  );
+  const filteredOrganizations = useMemo(() => {
+    const query = organizationSearch.trim().toLowerCase();
+    return organizationOptions.filter((org) => {
+      const matchesOrganization =
+        organizationId === "all" || String(org.company_id) === organizationId;
+      const matchesSearch =
+        !query || organizationSearchText(org).includes(query);
+      return matchesOrganization && matchesSearch;
+    });
+  }, [organizationId, organizationOptions, organizationSearch]);
+  const serviceSections = useMemo(
+    () => buildServiceSections(analytics, filteredOrganizations),
+    [analytics, filteredOrganizations],
   );
   const reportSummary = useMemo(
     () => buildReportSummary(analytics),
@@ -270,6 +308,50 @@ export function AdminReportsPage() {
           {user?.role_id === 1 ? (
             <section style={sectionStackStyle}>
               <div className="portal-section-title">Service Reports</div>
+              <section style={filterPanelStyle}>
+                <label style={filterFieldStyle}>
+                  <span style={filterLabelStyle}>Organization</span>
+                  <select
+                    value={organizationId}
+                    onChange={(event) => setOrganizationId(event.target.value)}
+                    style={filterControlStyle}
+                  >
+                    <option value="all">All Organizations</option>
+                    {organizationOptions.map((org) => (
+                      <option
+                        key={org.company_id}
+                        value={String(org.company_id)}
+                      >
+                        {org.company_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={filterFieldStyle}>
+                  <span style={filterLabelStyle}>
+                    Search Organization / Code
+                  </span>
+                  <input
+                    type="search"
+                    value={organizationSearch}
+                    onChange={(event) =>
+                      setOrganizationSearch(event.target.value)
+                    }
+                    placeholder="Type company, code, client ID, status..."
+                    style={filterControlStyle}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrganizationId("all");
+                    setOrganizationSearch("");
+                  }}
+                  style={clearButtonStyle}
+                >
+                  Clear Filters
+                </button>
+              </section>
               {serviceSections.map((section) => {
                 const sectionReports = reports;
                 return (
@@ -280,8 +362,36 @@ export function AdminReportsPage() {
                         <h2 style={serviceHeadingStyle}>{section.label}</h2>
                       </div>
                       <span className="portal-badge portal-badge-green">
-                        {section.service?.companies ?? 0} Companies
+                        {section.organizations.length} Companies
                       </span>
+                    </div>
+                    <div style={organizationTableStyle}>
+                      <div
+                        style={{
+                          ...organizationRowStyle,
+                          ...organizationHeaderRowStyle,
+                        }}
+                      >
+                        <span>Company</span>
+                        <span>Status</span>
+                        <span>Approval</span>
+                        <span>Employees</span>
+                        <span>Certificates</span>
+                      </div>
+                      {section.organizations.slice(0, 6).map((org) => (
+                        <div key={org.company_id} style={organizationRowStyle}>
+                          <strong>{org.company_name}</strong>
+                          <span>{org.status}</span>
+                          <span>{org.approval_status}</span>
+                          <span>{org.employees ?? 0}</span>
+                          <span>{org.certificates ?? 0}</span>
+                        </div>
+                      ))}
+                      {!section.organizations.length && (
+                        <div style={emptyRowStyle}>
+                          No organizations match these filters.
+                        </div>
+                      )}
                     </div>
                     <div className="portal-auto-grid">
                       {sectionReports.map((report) => {
@@ -457,6 +567,52 @@ const sectionStackStyle = {
   gap: "18px",
 };
 
+const filterPanelStyle = {
+  alignItems: "end",
+  background: "white",
+  border: "1px solid #e7edf3",
+  borderRadius: "8px",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  display: "grid",
+  gap: "14px",
+  gridTemplateColumns: "minmax(220px, 1fr) minmax(260px, 1.4fr) auto",
+  padding: "18px",
+};
+
+const filterFieldStyle = {
+  display: "grid",
+  gap: "7px",
+};
+
+const filterLabelStyle = {
+  color: "#17324d",
+  fontSize: "12px",
+  fontWeight: 800,
+};
+
+const filterControlStyle = {
+  background: "white",
+  border: "1px solid #d9e2ec",
+  borderRadius: "8px",
+  color: "#17324d",
+  fontSize: "13px",
+  minHeight: "40px",
+  padding: "9px 10px",
+  width: "100%",
+};
+
+const clearButtonStyle = {
+  background: "white",
+  border: "1px solid #d9e2ec",
+  borderRadius: "8px",
+  color: "#17324d",
+  cursor: "pointer",
+  fontSize: "13px",
+  fontWeight: 800,
+  minHeight: "40px",
+  padding: "9px 14px",
+};
+
 const servicePanelStyle = {
   background: "white",
   borderRadius: "8px",
@@ -471,6 +627,39 @@ const serviceHeaderStyle = {
   gap: "16px",
   alignItems: "flex-start",
   marginBottom: "16px",
+};
+
+const organizationTableStyle = {
+  border: "1px solid #e7edf3",
+  borderRadius: "8px",
+  display: "grid",
+  marginBottom: "18px",
+  overflow: "hidden",
+};
+
+const organizationRowStyle = {
+  alignItems: "center",
+  borderBottom: "1px solid #eef2f6",
+  color: "#52677a",
+  display: "grid",
+  fontSize: "13px",
+  gap: "12px",
+  gridTemplateColumns: "minmax(160px, 1.5fr) repeat(4, minmax(90px, 1fr))",
+  padding: "12px 14px",
+};
+
+const organizationHeaderRowStyle = {
+  background: "#f8fafc",
+  color: "#17324d",
+  fontSize: "11px",
+  fontWeight: 800,
+  textTransform: "uppercase",
+};
+
+const emptyRowStyle = {
+  color: "#64748b",
+  fontSize: "13px",
+  padding: "14px",
 };
 
 const serviceEyebrowStyle = {

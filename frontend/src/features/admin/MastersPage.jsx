@@ -23,6 +23,8 @@ const emptyByTab = {
 const emptyOffice = {
   office_name: "",
   office_address: "",
+  office_state: "",
+  office_city: "",
   is_active: true,
 };
 
@@ -76,6 +78,7 @@ export function MastersPage() {
 
   const countries = useMemo(() => byCategory("Country Code"), [byCategory]);
   const states = useMemo(() => byCategory("State Code"), [byCategory]);
+  const cities = useMemo(() => byCategory("City Code"), [byCategory]);
   const readOnly = user?.role_id !== 1;
   const updateDraft = (field, value) => {
     setDrafts((current) => ({
@@ -181,8 +184,13 @@ export function MastersPage() {
   };
 
   const createOffice = async () => {
-    if (!officeDraft.office_name.trim() || !officeDraft.office_address.trim()) {
-      setError("Office name and address are required.");
+    if (
+      !officeDraft.office_name.trim() ||
+      !officeDraft.office_state.trim() ||
+      !officeDraft.office_city.trim() ||
+      !officeDraft.office_address.trim()
+    ) {
+      setError("Office name, state, city, and address are required.");
       return;
     }
     setSaving("office-create");
@@ -261,6 +269,8 @@ export function MastersPage() {
       ) : activeTab === "Office Master" ? (
         <OfficeMasterTab
           offices={offices}
+          states={states}
+          cities={cities}
           draft={officeDraft}
           onDraft={setOfficeDraft}
           onCreate={createOffice}
@@ -290,6 +300,8 @@ export function MastersPage() {
 
 function OfficeMasterTab({
   offices,
+  states,
+  cities,
   draft,
   onDraft,
   onCreate,
@@ -298,6 +310,23 @@ function OfficeMasterTab({
   saving,
   readOnly,
 }) {
+  const cityOptions = (stateCodeOrName) => {
+    const state = states.find(
+      (item) => item.name === stateCodeOrName || item.code === stateCodeOrName,
+    );
+    const matches = cities.filter((city) => {
+      const meta = parseDescription(city.description);
+      return (
+        !stateCodeOrName ||
+        meta.state === stateCodeOrName ||
+        meta.state === state?.code ||
+        meta.state === state?.name ||
+        city.description?.includes(stateCodeOrName)
+      );
+    });
+    return matches.length ? matches : cities;
+  };
+
   return (
     <>
       <div style={tableWrapStyle}>
@@ -305,6 +334,8 @@ function OfficeMasterTab({
           <thead>
             <tr>
               <th style={thStyle}>Office Name</th>
+              <th style={thStyle}>State</th>
+              <th style={thStyle}>City</th>
               <th style={thStyle}>Address</th>
               <th style={thStyle} />
             </tr>
@@ -324,6 +355,49 @@ function OfficeMasterTab({
                     }}
                     style={inputStyle}
                   />
+                </td>
+                <td style={tdStyle}>
+                  <select
+                    value={office.office_state || ""}
+                    disabled={readOnly}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value !== (office.office_state || "")) {
+                        onUpdate(office, {
+                          office_state: value,
+                          office_city: "",
+                        });
+                      }
+                    }}
+                    style={inputStyle}
+                  >
+                    <option value="">Select State</option>
+                    {states.map((state) => (
+                      <option key={state.id} value={state.name}>
+                        {state.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td style={tdStyle}>
+                  <select
+                    value={office.office_city || ""}
+                    disabled={readOnly}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value !== (office.office_city || "")) {
+                        onUpdate(office, { office_city: value });
+                      }
+                    }}
+                    style={inputStyle}
+                  >
+                    <option value="">Select City</option>
+                    {cityOptions(office.office_state).map((city) => (
+                      <option key={city.id} value={city.name}>
+                        {city.name}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td style={tdStyle}>
                   <input
@@ -366,6 +440,42 @@ function OfficeMasterTab({
                     }
                     style={inputStyle}
                   />
+                </td>
+                <td style={tdStyle}>
+                  <select
+                    value={draft.office_state}
+                    onChange={(event) =>
+                      onDraft({
+                        ...draft,
+                        office_state: event.target.value,
+                        office_city: "",
+                      })
+                    }
+                    style={inputStyle}
+                  >
+                    <option value="">Select State</option>
+                    {states.map((state) => (
+                      <option key={state.id} value={state.name}>
+                        {state.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td style={tdStyle}>
+                  <select
+                    value={draft.office_city}
+                    onChange={(event) =>
+                      onDraft({ ...draft, office_city: event.target.value })
+                    }
+                    style={inputStyle}
+                  >
+                    <option value="">Select City</option>
+                    {cityOptions(draft.office_state).map((city) => (
+                      <option key={city.id} value={city.name}>
+                        {city.name}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td style={tdStyle}>
                   <input
@@ -597,6 +707,8 @@ const officeShape = PropTypes.shape({
   id: PropTypes.number.isRequired,
   office_name: PropTypes.string.isRequired,
   office_address: PropTypes.string.isRequired,
+  office_state: PropTypes.string,
+  office_city: PropTypes.string,
   is_active: PropTypes.bool,
 });
 
@@ -622,9 +734,13 @@ StandardTab.propTypes = {
 
 OfficeMasterTab.propTypes = {
   offices: PropTypes.arrayOf(officeShape).isRequired,
+  states: PropTypes.arrayOf(masterRowShape).isRequired,
+  cities: PropTypes.arrayOf(masterRowShape).isRequired,
   draft: PropTypes.shape({
     office_name: PropTypes.string.isRequired,
     office_address: PropTypes.string.isRequired,
+    office_state: PropTypes.string,
+    office_city: PropTypes.string,
     is_active: PropTypes.bool,
   }).isRequired,
   onDraft: PropTypes.func.isRequired,

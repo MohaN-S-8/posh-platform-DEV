@@ -38,6 +38,8 @@ class MasterCodeResponse(MasterCodeBase):
 class PoshOfficeBase(BaseModel):
     office_name: str
     office_address: str
+    office_state: Optional[str] = None
+    office_city: Optional[str] = None
     is_active: bool = True
 
     @field_validator("office_name", "office_address")
@@ -56,6 +58,8 @@ class PoshOfficeCreate(PoshOfficeBase):
 class PoshOfficeUpdate(BaseModel):
     office_name: Optional[str] = None
     office_address: Optional[str] = None
+    office_state: Optional[str] = None
+    office_city: Optional[str] = None
     is_active: Optional[bool] = None
 
 

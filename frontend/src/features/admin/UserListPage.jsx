@@ -56,6 +56,34 @@ function cleanUserPayload(payload) {
   );
 }
 
+function userDisplayName(target) {
+  return (
+    `${target.first_name || ""} ${target.last_name || ""}`.trim() ||
+    target.email ||
+    "User"
+  );
+}
+
+function userSearchText(target) {
+  return [
+    target.employee_id,
+    userDisplayName(target),
+    target.email,
+    target.mobile,
+    target.username,
+    target.department,
+    target.designation,
+    target.branch_name,
+    target.branch_id,
+    target.ic_role,
+    ROLES[target.role_id],
+    target.status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 const inputStyle = {
   width: "100%",
   padding: "10px 12px",
@@ -158,6 +186,7 @@ export function UserListPage() {
   const [success, setSuccess] = useState("");
   const [bulkErrors, setBulkErrors] = useState([]);
   const [search, setSearch] = useState("");
+  const [userFilterId, setUserFilterId] = useState("all");
   const isHrRoute = location.pathname.startsWith("/hr/");
   const pageTitle =
     user?.role_id === 2
@@ -222,11 +251,15 @@ export function UserListPage() {
     [user?.role_id],
   );
 
-  const filtered = users.filter((u) =>
-    `${u.employee_id} ${u.first_name} ${u.last_name || ""} ${u.email} ${u.department || ""}`
-      .toLowerCase()
-      .includes(search.trim().toLowerCase()),
-  );
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return users.filter((target) => {
+      const matchesUser =
+        userFilterId === "all" || String(target.user_id) === userFilterId;
+      const matchesSearch = !query || userSearchText(target).includes(query);
+      return matchesUser && matchesSearch;
+    });
+  }, [search, userFilterId, users]);
 
   const canManageUser = (target) =>
     (ROLE_CREATE_FLOW[user?.role_id] || []).includes(target.role_id);
@@ -449,12 +482,34 @@ export function UserListPage() {
         }}
       >
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <select
+            value={userFilterId}
+            onChange={(e) => setUserFilterId(e.target.value)}
+            style={{ ...inputStyle, width: "220px" }}
+          >
+            <option value="all">All Users</option>
+            {users.map((target) => (
+              <option key={target.user_id} value={String(target.user_id)}>
+                {userDisplayName(target)}
+              </option>
+            ))}
+          </select>
           <input
             placeholder="Search users"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ ...inputStyle, width: "220px" }}
+            style={{ ...inputStyle, width: "260px" }}
           />
+          <button
+            type="button"
+            onClick={() => {
+              setUserFilterId("all");
+              setSearch("");
+            }}
+            style={secondaryButtonStyle}
+          >
+            Clear Filters
+          </button>
           <button
             type="button"
             onClick={downloadBulkTemplate}
@@ -801,7 +856,9 @@ export function UserListPage() {
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} style={{ padding: "32px", color: "#64748b" }}>
-                  {emptyMessageFor(user)}
+                  {users.length === 0
+                    ? emptyMessageFor(user)
+                    : "No users match these filters."}
                 </td>
               </tr>
             ) : (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
@@ -6,11 +6,14 @@ import { PortalShell } from "../../components/PortalShell";
 const emptyOffice = {
   office_name: "",
   office_address: "",
+  office_state: "",
+  office_city: "",
   is_active: true,
 };
 
 export function PoshOfficeMasterPage() {
   const [offices, setOffices] = useState([]);
+  const [masterCodes, setMasterCodes] = useState([]);
   const [draft, setDraft] = useState(emptyOffice);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -22,7 +25,10 @@ export function PoshOfficeMasterPage() {
     setError("");
     try {
       const res = await apiClient.get("/admin-config/");
-      setOffices((res.data?.offices || []).filter((office) => office.is_active));
+      setOffices(
+        (res.data?.offices || []).filter((office) => office.is_active),
+      );
+      setMasterCodes(res.data?.master_codes || []);
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to load PoSH offices."));
     } finally {
@@ -36,8 +42,13 @@ export function PoshOfficeMasterPage() {
   }, [loadOffices]);
 
   const createOffice = async () => {
-    if (!draft.office_name.trim() || !draft.office_address.trim()) {
-      setError("Office name and address are required.");
+    if (
+      !draft.office_name.trim() ||
+      !draft.office_state.trim() ||
+      !draft.office_city.trim() ||
+      !draft.office_address.trim()
+    ) {
+      setError("Office name, state, city, and address are required.");
       return;
     }
     setSaving("create");
@@ -57,6 +68,47 @@ export function PoshOfficeMasterPage() {
       setSaving("");
     }
   };
+
+  const states = useMemo(
+    () =>
+      masterCodes.filter(
+        (row) => row.category === "State Code" && row.is_active,
+      ),
+    [masterCodes],
+  );
+
+  const cities = useMemo(
+    () =>
+      masterCodes.filter(
+        (row) => row.category === "City Code" && row.is_active,
+      ),
+    [masterCodes],
+  );
+
+  const cityOptions = useCallback(
+    (stateCodeOrName) => {
+      const state = states.find(
+        (item) =>
+          item.name === stateCodeOrName || item.code === stateCodeOrName,
+      );
+      const matches = cities.filter((city) => {
+        if (!stateCodeOrName) return true;
+        try {
+          const meta = JSON.parse(city.description || "{}");
+          return (
+            meta.state === stateCodeOrName ||
+            meta.state === state?.code ||
+            meta.state === state?.name ||
+            city.description?.includes(stateCodeOrName)
+          );
+        } catch {
+          return city.description?.includes(stateCodeOrName);
+        }
+      });
+      return matches.length ? matches : cities;
+    },
+    [cities, states],
+  );
 
   const updateOffice = async (office, patch) => {
     setSaving(`office-${office.id}`);
@@ -99,7 +151,9 @@ export function PoshOfficeMasterPage() {
 
       <section style={panelStyle}>
         <h3 style={panelTitleStyle}>Office Master</h3>
-        <p style={helperTextStyle}>Regional PoSH support office directory used across client work.</p>
+        <p style={helperTextStyle}>
+          Regional PoSH support office directory used across client work.
+        </p>
 
         {loading ? (
           <div style={emptyStyle}>Loading offices...</div>
@@ -109,6 +163,8 @@ export function PoshOfficeMasterPage() {
               <thead>
                 <tr>
                   <th style={thStyle}>Office Name</th>
+                  <th style={thStyle}>State</th>
+                  <th style={thStyle}>City</th>
                   <th style={thStyle}>Address</th>
                   <th style={thStyle} />
                 </tr>
@@ -127,6 +183,43 @@ export function PoshOfficeMasterPage() {
                         }}
                         style={inputStyle}
                       />
+                    </td>
+                    <td style={tdStyle}>
+                      <select
+                        value={office.office_state || ""}
+                        onChange={(event) =>
+                          updateOffice(office, {
+                            office_state: event.target.value,
+                            office_city: "",
+                          })
+                        }
+                        style={inputStyle}
+                      >
+                        <option value="">Select State</option>
+                        {states.map((state) => (
+                          <option key={state.id} value={state.name}>
+                            {state.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={tdStyle}>
+                      <select
+                        value={office.office_city || ""}
+                        onChange={(event) =>
+                          updateOffice(office, {
+                            office_city: event.target.value,
+                          })
+                        }
+                        style={inputStyle}
+                      >
+                        <option value="">Select City</option>
+                        {cityOptions(office.office_state).map((city) => (
+                          <option key={city.id} value={city.name}>
+                            {city.name}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td style={tdStyle}>
                       <input
@@ -154,22 +247,70 @@ export function PoshOfficeMasterPage() {
                 ))}
                 {offices.length === 0 && (
                   <tr>
-                    <td colSpan={3} style={emptyCellStyle}>No PoSH offices found.</td>
+                    <td colSpan={5} style={emptyCellStyle}>
+                      No PoSH offices found.
+                    </td>
                   </tr>
                 )}
                 <tr>
                   <td style={tdStyle}>
                     <input
                       value={draft.office_name}
-                      onChange={(event) => setDraft({ ...draft, office_name: event.target.value.toUpperCase() })}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          office_name: event.target.value.toUpperCase(),
+                        })
+                      }
                       placeholder="Office name"
                       style={inputStyle}
                     />
                   </td>
                   <td style={tdStyle}>
+                    <select
+                      value={draft.office_state}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          office_state: event.target.value,
+                          office_city: "",
+                        })
+                      }
+                      style={inputStyle}
+                    >
+                      <option value="">Select State</option>
+                      {states.map((state) => (
+                        <option key={state.id} value={state.name}>
+                          {state.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={tdStyle}>
+                    <select
+                      value={draft.office_city}
+                      onChange={(event) =>
+                        setDraft({ ...draft, office_city: event.target.value })
+                      }
+                      style={inputStyle}
+                    >
+                      <option value="">Select City</option>
+                      {cityOptions(draft.office_state).map((city) => (
+                        <option key={city.id} value={city.name}>
+                          {city.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={tdStyle}>
                     <input
                       value={draft.office_address}
-                      onChange={(event) => setDraft({ ...draft, office_address: event.target.value })}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          office_address: event.target.value,
+                        })
+                      }
                       placeholder="Office address"
                       style={inputStyle}
                     />

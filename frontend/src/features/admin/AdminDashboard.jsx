@@ -86,6 +86,12 @@ const dashboardItems = [
     accessItem: "Analytics & Reports",
   },
   {
+    title: "Client Status",
+    description: "Master-company compliance status and employee report.",
+    path: "/super-admin/client-status",
+    accessItem: "Client Status",
+  },
+  {
     title: "Masters",
     description: "Country, state, city, and office masters.",
     path: "/super-admin/masters",
@@ -137,6 +143,7 @@ const defaultAllowed = {
     "POSH Complaints",
     "Audit",
     "Analytics & Reports",
+    "Client Status",
     "Create Admin",
     "Create IC",
     "Masters",
@@ -199,9 +206,7 @@ export function AdminDashboard() {
       setAnalyticsError("");
       try {
         const endpoint =
-          user?.role_id === 1
-            ? "/analytics/overview"
-            : `/analytics/company/${user?.company_id}`;
+          user?.role_id === 1 ? "/analytics/overview" : "/analytics/current";
         const res = await apiClient.get(endpoint);
         setAnalytics(res.data);
       } catch (err) {

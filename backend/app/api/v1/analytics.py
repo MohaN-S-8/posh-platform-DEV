@@ -1,7 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import require_permission, require_roles
@@ -15,6 +15,204 @@ from app.models.user import UserMaster
 from app.models.video import VideoMaster
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
+
+
+ROLE_NAMES = {
+    1: "Super Admin",
+    2: "Admin",
+    5: "Client / Management",
+    3: "IC Member",
+    4: "Employee",
+}
+
+
+def _service_codes(scope_codes_json: str | None) -> list[str]:
+    try:
+        scopes = json.loads(scope_codes_json or "[]")
+    except json.JSONDecodeError:
+        scopes = []
+    if not isinstance(scopes, list):
+        scopes = []
+    return [
+        str(scope or "Unassigned").strip().upper() or "Unassigned"
+        for scope in scopes
+        if str(scope or "").strip().upper() == "POSH"
+    ]
+
+
+def _service_summary(service_details_json: str | None) -> dict:
+    try:
+        rows = json.loads(service_details_json or "[]")
+    except json.JSONDecodeError:
+        rows = []
+    if not isinstance(rows, list):
+        rows = []
+    posh_rows = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and str(row.get("scope") or "").strip().upper() == "POSH"
+    ]
+    row = posh_rows[0] if posh_rows else (rows[0] if rows and isinstance(rows[0], dict) else {})
+    return {
+        "client_id": row.get("client_id") or "",
+        "frequency": row.get("frequency") or "",
+        "billing": row.get("billing_amount") or "",
+        "start_date": row.get("start_date") or "",
+        "stop_date": row.get("stop_date") or "",
+        "assigned_to_name": row.get("assigned_to_name") or "",
+        "deliverables": [
+            item.get("deliverables") or item.get("scope") or "PoSH Compliance"
+            for item in posh_rows
+        ]
+        or [row.get("deliverables") or "PoSH Compliance"],
+    }
+
+
+async def _annual_status_by_company(
+    db: AsyncSession, company_ids: list[int] | None = None
+) -> dict[int, str]:
+    query = select(AnnualReturn.company_id, AnnualReturn.status, func.count()).group_by(
+        AnnualReturn.company_id,
+        AnnualReturn.status,
+    )
+    if company_ids is not None:
+        query = query.where(AnnualReturn.company_id.in_(company_ids))
+    result = await db.execute(query)
+    statuses: dict[int, set[str]] = {}
+    for company_id, status, _count in result.all():
+        statuses.setdefault(company_id, set()).add(status or "Pending")
+    return {
+        company_id: (
+            "Filed"
+            if "Submitted" in status_set
+            else "Overdue" if "Overdue" in status_set else "Pending"
+        )
+        for company_id, status_set in statuses.items()
+    }
+
+
+async def _open_complaints_by_company(
+    db: AsyncSession, company_ids: list[int] | None = None
+) -> dict[int, int]:
+    query = (
+        select(Concern.company_id, func.count())
+        .where(Concern.status != "Closed")
+        .group_by(Concern.company_id)
+    )
+    if company_ids is not None:
+        query = query.where(Concern.company_id.in_(company_ids))
+    result = await db.execute(query)
+    return {company_id: count for company_id, count in result.all()}
+
+
+async def _training_completed_users_by_company(
+    db: AsyncSession,
+    company_ids: list[int] | None = None,
+) -> dict[int, int]:
+    query = (
+        select(TrainingHistory.company_id, func.count(TrainingHistory.user_id.distinct()))
+        .where(TrainingHistory.status == "Completed")
+        .group_by(TrainingHistory.company_id)
+    )
+    if company_ids is not None:
+        query = query.where(TrainingHistory.company_id.in_(company_ids))
+    result = await db.execute(query)
+    return {company_id: count for company_id, count in result.all()}
+
+
+async def _user_training_rows(db: AsyncSession, company_ids: list[int] | None = None) -> list[dict]:
+    filters = [
+        UserMaster.is_deleted == "N",
+        UserMaster.status == "Active",
+        UserMaster.role_id.in_([2, 5, 3, 4]),
+    ]
+    if company_ids is not None:
+        filters.append(UserMaster.company_id.in_(company_ids))
+    users = (
+        await db.execute(
+            select(
+                UserMaster.user_id,
+                UserMaster.company_id,
+                CompanyMaster.company_name,
+                UserMaster.employee_id,
+                UserMaster.first_name,
+                UserMaster.last_name,
+                UserMaster.department,
+                UserMaster.designation,
+                UserMaster.role_id,
+                UserMaster.ic_role,
+            )
+            .join(CompanyMaster, CompanyMaster.company_id == UserMaster.company_id)
+            .where(*filters)
+            .order_by(CompanyMaster.company_name, UserMaster.role_id, UserMaster.first_name)
+        )
+    ).all()
+    user_ids = [row.user_id for row in users]
+    if not user_ids:
+        return []
+
+    history_result = await db.execute(
+        select(
+            TrainingHistory.user_id,
+            func.max(TrainingHistory.updated_date),
+            func.max(VideoMaster.title),
+            func.sum(case((TrainingHistory.status == "Completed", 1), else_=0)),
+            func.count(TrainingHistory.id),
+        )
+        .join(VideoMaster, VideoMaster.video_id == TrainingHistory.video_id)
+        .where(TrainingHistory.user_id.in_(user_ids))
+        .group_by(TrainingHistory.user_id)
+    )
+    history = {
+        user_id: {
+            "last_access": last_access,
+            "training_name": training_name,
+            "completed": int(completed or 0),
+            "total": int(total or 0),
+        }
+        for user_id, last_access, training_name, completed, total in history_result.all()
+    }
+
+    cert_result = await db.execute(
+        select(Certificate.user_id, func.count())
+        .where(Certificate.user_id.in_(user_ids), Certificate.status == "Valid")
+        .group_by(Certificate.user_id)
+    )
+    certificates = {user_id: count for user_id, count in cert_result.all()}
+
+    rows = []
+    for row in users:
+        item_history = history.get(row.user_id, {})
+        total_history = item_history.get("total", 0)
+        completed_history = item_history.get("completed", 0)
+        completion_status = (
+            "Completed"
+            if total_history and completed_history >= total_history
+            else "Started" if total_history else "Pending"
+        )
+        certificate_count = certificates.get(row.user_id, 0)
+        role_name = (
+            row.ic_role if row.role_id == 3 and row.ic_role else ROLE_NAMES.get(row.role_id, "User")
+        )
+        last_access = item_history.get("last_access")
+        rows.append(
+            {
+                "user_id": row.user_id,
+                "company_id": row.company_id,
+                "company_name": row.company_name,
+                "name": " ".join([row.first_name or "", row.last_name or ""]).strip(),
+                "employee_id": row.employee_id,
+                "department": row.department or "Unassigned",
+                "role": role_name,
+                "training_name": item_history.get("training_name")
+                or ("IC Training" if row.role_id == 3 else "POSH Awareness Training"),
+                "completion_status": completion_status,
+                "last_access": last_access.isoformat() if last_access else "",
+                "certificate_status": "Valid" if certificate_count else "Not Issued",
+            }
+        )
+    return rows
 
 
 async def _platform_overview(db: AsyncSession) -> dict:
@@ -119,9 +317,11 @@ async def _platform_overview(db: AsyncSession) -> dict:
                 CompanyMaster.approval_status,
                 CompanyMaster.status,
                 CompanyMaster.scope_codes_json,
+                CompanyMaster.service_details_json,
             ).where(CompanyMaster.is_deleted == "N", CompanyMaster.company_id != 1)
         )
     ).all()
+    company_ids = [row.company_id for row in company_rows]
     employees_by_company = {
         company_id: count
         for company_id, count in (
@@ -142,6 +342,19 @@ async def _platform_overview(db: AsyncSession) -> dict:
             )
         ).all()
     }
+    ic_by_company = {
+        company_id: count
+        for company_id, count in (
+            await db.execute(
+                select(UserMaster.company_id, func.count())
+                .where(UserMaster.is_deleted == "N", UserMaster.role_id == 3)
+                .group_by(UserMaster.company_id)
+            )
+        ).all()
+    }
+    annual_status_map = await _annual_status_by_company(db, company_ids)
+    open_complaints_map = await _open_complaints_by_company(db, company_ids)
+    completed_by_company = await _training_completed_users_by_company(db, company_ids)
     services = {}
     organizations = []
     for (
@@ -150,7 +363,9 @@ async def _platform_overview(db: AsyncSession) -> dict:
         approval_status,
         status,
         scope_codes_json,
+        service_details_json,
     ) in company_rows:
+        service_summary = _service_summary(service_details_json)
         try:
             scopes = json.loads(scope_codes_json or "[]")
         except json.JSONDecodeError:
@@ -163,6 +378,15 @@ async def _platform_overview(db: AsyncSession) -> dict:
         service_codes = [service_code for service_code in service_codes if service_code == "POSH"]
         employee_count = employees_by_company.get(company_id, 0)
         certificate_count = certificates_by_company.get(company_id, 0)
+        completed_count = completed_by_company.get(company_id, 0)
+        training_rate = round((completed_count / employee_count * 100), 2) if employee_count else 0
+        org_annual_status = annual_status_map.get(company_id, "Pending")
+        open_complaints = open_complaints_map.get(company_id, 0)
+        health = "Green"
+        if open_complaints or org_annual_status == "Overdue":
+            health = "Red"
+        elif org_annual_status == "Pending" or training_rate < 80:
+            health = "Amber"
         for service_code in service_codes:
             service = services.setdefault(
                 service_code,
@@ -191,6 +415,22 @@ async def _platform_overview(db: AsyncSession) -> dict:
                 "status": status,
                 "approval_status": approval_status or "Pending",
                 "services": service_codes,
+                "client_id": service_summary["client_id"],
+                "frequency": service_summary["frequency"],
+                "billing": service_summary["billing"],
+                "start_date": service_summary["start_date"],
+                "stop_date": service_summary["stop_date"],
+                "assigned_to_name": service_summary["assigned_to_name"],
+                "deliverables": service_summary["deliverables"],
+                "annual_return_status": org_annual_status,
+                "training_rate": training_rate,
+                "completed_training": completed_count,
+                "open_complaints": open_complaints,
+                "ic_users": ic_by_company.get(company_id, 0),
+                "contract": (
+                    "Active" if status == "Active" and approval_status == "Approved" else "Pending"
+                ),
+                "health": health,
                 "employees": employee_count,
                 "certificates": certificate_count,
             }
@@ -263,6 +503,7 @@ async def _platform_overview(db: AsyncSession) -> dict:
         "services": services,
         "service_training": service_training,
         "organizations": organizations,
+        "user_training_rows": await _user_training_rows(db),
     }
 
 
@@ -273,9 +514,11 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
             CompanyMaster.company_name,
             CompanyMaster.status,
             CompanyMaster.approval_status,
+            CompanyMaster.service_details_json,
         ).where(CompanyMaster.company_id == company_id, CompanyMaster.is_deleted == "N")
     )
     company = company_result.first()
+    company_service_summary = _service_summary(company.service_details_json if company else None)
     role_counts_result = await db.execute(
         select(UserMaster.role_id, func.count())
         .where(
@@ -359,6 +602,9 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
     annual_return_status = {
         str(status or "Pending"): count for status, count in annual_return_status_result.all()
     }
+    company_annual_status = await _annual_status_by_company(db, [company_id])
+    company_open_complaints = await _open_complaints_by_company(db, [company_id])
+    company_completed = await _training_completed_users_by_company(db, [company_id])
     department_result = await db.execute(
         select(UserMaster.department, func.count())
         .where(
@@ -434,8 +680,32 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
                     "company_name": company.company_name,
                     "status": company.status,
                     "approval_status": company.approval_status or "Pending",
-                    "annual_return_status": "Pending",
+                    "annual_return_status": company_annual_status.get(company.company_id, "Pending"),
                     "services": ["POSH"],
+                    "client_id": company_service_summary["client_id"],
+                    "frequency": company_service_summary["frequency"],
+                    "billing": company_service_summary["billing"],
+                    "start_date": company_service_summary["start_date"],
+                    "stop_date": company_service_summary["stop_date"],
+                    "assigned_to_name": company_service_summary["assigned_to_name"],
+                    "deliverables": company_service_summary["deliverables"],
+                    "training_rate": compliance_rate,
+                    "completed_training": company_completed.get(company.company_id, 0),
+                    "open_complaints": company_open_complaints.get(company.company_id, 0),
+                    "ic_users": role_counts.get("3", 0),
+                    "contract": (
+                        "Active"
+                        if company.status == "Active" and company.approval_status == "Approved"
+                        else "Pending"
+                    ),
+                    "health": (
+                        "Red"
+                        if company_open_complaints.get(company.company_id, 0)
+                        else "Amber"
+                        if company_annual_status.get(company.company_id, "Pending") == "Pending"
+                        or compliance_rate < 80
+                        else "Green"
+                    ),
                     "employees": total,
                     "certificates": total_certs,
                 }
@@ -443,7 +713,135 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
             if company
             else []
         ),
+        "user_training_rows": await _user_training_rows(db, [company_id]),
     }
+
+
+async def _admin_overview(db: AsyncSession, current_user) -> dict:
+    all_company_rows = (
+        await db.execute(
+            select(
+                CompanyMaster.company_id,
+                CompanyMaster.company_name,
+                CompanyMaster.approval_status,
+                CompanyMaster.status,
+                CompanyMaster.scope_codes_json,
+                CompanyMaster.service_details_json,
+            ).where(CompanyMaster.is_deleted == "N", CompanyMaster.company_id != 1)
+        )
+    ).all()
+    visible_rows = []
+    for row in all_company_rows:
+        try:
+            service_rows = json.loads(row.service_details_json or "[]")
+        except json.JSONDecodeError:
+            service_rows = []
+        if not isinstance(service_rows, list):
+            service_rows = []
+        is_assigned = any(
+            str(item.get("assigned_to") or "") == str(current_user.user_id)
+            or str(item.get("created_by") or "") == str(current_user.user_id)
+            for item in service_rows
+            if isinstance(item, dict)
+        )
+        if is_assigned:
+            visible_rows.append(row)
+
+    company_ids = [row.company_id for row in visible_rows]
+    own_company_id = current_user.company_id
+    training_company_ids = sorted(set(company_ids + ([own_company_id] if own_company_id else [])))
+    employees_by_company = {
+        company_id: count
+        for company_id, count in (
+            await db.execute(
+                select(UserMaster.company_id, func.count())
+                .where(
+                    UserMaster.company_id.in_(training_company_ids or [0]),
+                    UserMaster.is_deleted == "N",
+                    UserMaster.role_id == 4,
+                )
+                .group_by(UserMaster.company_id)
+            )
+        ).all()
+    }
+    certificates_by_company = {
+        company_id: count
+        for company_id, count in (
+            await db.execute(
+                select(Certificate.company_id, func.count())
+                .where(Certificate.company_id.in_(training_company_ids or [0]), Certificate.status == "Valid")
+                .group_by(Certificate.company_id)
+            )
+        ).all()
+    }
+    ic_by_company = {
+        company_id: count
+        for company_id, count in (
+            await db.execute(
+                select(UserMaster.company_id, func.count())
+                .where(
+                    UserMaster.company_id.in_(training_company_ids or [0]),
+                    UserMaster.is_deleted == "N",
+                    UserMaster.role_id == 3,
+                )
+                .group_by(UserMaster.company_id)
+            )
+        ).all()
+    }
+    annual_status_map = await _annual_status_by_company(db, company_ids)
+    open_complaints_map = await _open_complaints_by_company(db, company_ids)
+    completed_by_company = await _training_completed_users_by_company(db, training_company_ids)
+    organizations = []
+    for row in visible_rows:
+        service_codes = _service_codes(row.scope_codes_json)
+        service_summary = _service_summary(row.service_details_json)
+        employee_count = employees_by_company.get(row.company_id, 0)
+        completed_count = completed_by_company.get(row.company_id, 0)
+        training_rate = round((completed_count / employee_count * 100), 2) if employee_count else 0
+        org_annual_status = annual_status_map.get(row.company_id, "Pending")
+        open_complaints = open_complaints_map.get(row.company_id, 0)
+        organizations.append(
+            {
+                "company_id": row.company_id,
+                "company_name": row.company_name,
+                "status": row.status,
+                "approval_status": row.approval_status or "Pending",
+                "services": service_codes,
+                "client_id": service_summary["client_id"],
+                "frequency": service_summary["frequency"],
+                "billing": service_summary["billing"],
+                "start_date": service_summary["start_date"],
+                "stop_date": service_summary["stop_date"],
+                "assigned_to_name": service_summary["assigned_to_name"],
+                "deliverables": service_summary["deliverables"],
+                "annual_return_status": org_annual_status,
+                "training_rate": training_rate,
+                "completed_training": completed_count,
+                "open_complaints": open_complaints,
+                "ic_users": ic_by_company.get(row.company_id, 0),
+                "contract": "Active" if row.status == "Active" and row.approval_status == "Approved" else "Pending",
+                "health": (
+                    "Red"
+                    if open_complaints or org_annual_status == "Overdue"
+                    else "Amber"
+                    if org_annual_status == "Pending" or training_rate < 80
+                    else "Green"
+                ),
+                "employees": employee_count,
+                "certificates": certificates_by_company.get(row.company_id, 0),
+            }
+        )
+
+    own_company = await _company_overview(db, own_company_id)
+    own_company.update(
+        {
+            "scope": "admin",
+            "managed_clients": len(organizations),
+            "organizations": organizations,
+            "user_training_rows": await _user_training_rows(db, training_company_ids),
+        }
+    )
+    return own_company
 
 
 @router.get("/current")
@@ -454,6 +852,8 @@ async def current_analytics(
     """Analytics for the current admin scope."""
     if current_user.role_id == 1:
         return await _platform_overview(db)
+    if current_user.role_id == 2:
+        return await _admin_overview(db, current_user)
     return await _company_overview(db, current_user.company_id)
 
 

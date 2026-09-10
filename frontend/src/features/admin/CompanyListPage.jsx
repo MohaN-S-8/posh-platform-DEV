@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
@@ -330,6 +330,24 @@ const nextReferenceNo = (companies) => {
   return `${maxNumber + 1}/${year}`;
 };
 
+const companySearchText = (company) =>
+  [
+    company.reference_no,
+    company.company_name,
+    company.company_code,
+    company.company_status_type,
+    company.client_id,
+    company.posh_policy_version,
+    company.posh_policy_effective_date,
+    company.posh_policy_document_name,
+    company.certificate_issue_mode,
+    company.approval_status,
+    company.status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
 export function CompanyListPage() {
   const { user } = useAuthStore();
   const [companies, setCompanies] = useState([]);
@@ -345,6 +363,8 @@ export function CompanyListPage() {
   const [assignableUsers, setAssignableUsers] = useState([]);
   const [approvingCompanyId, setApprovingCompanyId] = useState(null);
   const [policyDocumentFile, setPolicyDocumentFile] = useState(null);
+  const [companyFilterId, setCompanyFilterId] = useState("all");
+  const [companySearch, setCompanySearch] = useState("");
 
   const fetchMasters = useCallback(async () => {
     try {
@@ -667,6 +687,17 @@ export function CompanyListPage() {
       POSH_SERVICE_CODE,
       nextClientSequence(companies),
     );
+  const filteredCompanies = useMemo(() => {
+    const query = companySearch.trim().toLowerCase();
+    return companies.filter((company) => {
+      const matchesCompany =
+        companyFilterId === "all" ||
+        String(company.company_id) === companyFilterId;
+      const matchesSearch =
+        !query || companySearchText(company).includes(query);
+      return matchesCompany && matchesSearch;
+    });
+  }, [companies, companyFilterId, companySearch]);
 
   return (
     <PortalShell
@@ -1195,6 +1226,46 @@ export function CompanyListPage() {
       ) : (
         <>
           <h3 style={tableHeadingStyle}>Companies & Work Orders</h3>
+          <div style={filterPanelStyle}>
+            <label style={labelStyle}>
+              Company
+              <select
+                value={companyFilterId}
+                onChange={(event) => setCompanyFilterId(event.target.value)}
+                style={inputStyle}
+              >
+                <option value="all">All Companies</option>
+                {companies.map((company) => (
+                  <option
+                    key={company.company_id}
+                    value={String(company.company_id)}
+                  >
+                    {company.company_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={labelStyle}>
+              Search Company / Work Order
+              <input
+                type="search"
+                value={companySearch}
+                placeholder="Type ref no, company, code, client ID, policy, certificate, or status"
+                onChange={(event) => setCompanySearch(event.target.value)}
+                style={inputStyle}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setCompanyFilterId("all");
+                setCompanySearch("");
+              }}
+              style={secondaryButtonStyle}
+            >
+              Clear Filters
+            </button>
+          </div>
           <div style={tableWrapStyle}>
             <table
               style={{
@@ -1241,8 +1312,21 @@ export function CompanyListPage() {
                       No companies found. Create one above.
                     </td>
                   </tr>
+                ) : filteredCompanies.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={9}
+                      style={{
+                        padding: "40px",
+                        textAlign: "center",
+                        color: "#999",
+                      }}
+                    >
+                      No companies match these filters.
+                    </td>
+                  </tr>
                 ) : (
-                  companies.map((company, index) => (
+                  filteredCompanies.map((company, index) => (
                     <tr
                       key={company.company_id}
                       style={{
@@ -1706,6 +1790,19 @@ const tableHeadingStyle = {
   fontSize: "14px",
   textTransform: "uppercase",
   letterSpacing: 0,
+};
+
+const filterPanelStyle = {
+  alignItems: "end",
+  background: "var(--portal-card)",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
+  boxShadow: "0 2px 8px rgba(74,46,131,0.08)",
+  display: "grid",
+  gap: "14px",
+  gridTemplateColumns: "minmax(220px, 1fr) minmax(280px, 1.4fr) auto",
+  marginBottom: "14px",
+  padding: "16px",
 };
 
 const formGridStyle = {

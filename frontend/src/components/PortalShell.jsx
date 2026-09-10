@@ -44,6 +44,7 @@ const defaultAllowed = {
     "POSH Complaints",
     "Audit",
     "Analytics & Reports",
+    "Client Status",
     "Annual Returns",
     "Create Admin",
     "Create IC",
@@ -216,6 +217,13 @@ const moduleCatalog = [
     },
     icon: <AssessmentIcon fontSize="small" />,
     allowedRoles: [1, 2, 3, 5],
+  },
+  {
+    accessItem: "Client Status",
+    label: "Client Status",
+    to: () => "/super-admin/client-status",
+    icon: <AssessmentIcon fontSize="small" />,
+    allowedRoles: [1],
   },
   {
     accessItem: "Annual Returns",

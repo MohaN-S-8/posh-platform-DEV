@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
@@ -22,6 +22,25 @@ const employeeOptionLabel = (employee) => {
   return `${name || employee.email} - ${employee.email}${employeeId}${company}`;
 };
 
+const adminDisplayName = (admin) =>
+  `${admin.first_name || ""} ${admin.last_name || ""}`.trim() ||
+  admin.email ||
+  "Admin";
+
+const adminSearchText = (admin) =>
+  [
+    adminDisplayName(admin),
+    admin.employee_id,
+    admin.email,
+    admin.mobile,
+    admin.username,
+    admin.status,
+    "Admin",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
 export function CreateAdminPage() {
   const [admins, setAdmins] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -29,6 +48,8 @@ export function CreateAdminPage() {
   const [editingAdmin, setEditingAdmin] = useState(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [adminFilterId, setAdminFilterId] = useState("all");
+  const [adminSearch, setAdminSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState("");
@@ -55,6 +76,16 @@ export function CreateAdminPage() {
     const timer = window.setTimeout(loadAdmins, 0);
     return () => window.clearTimeout(timer);
   }, [loadAdmins]);
+
+  const filteredAdmins = useMemo(() => {
+    const query = adminSearch.trim().toLowerCase();
+    return admins.filter((admin) => {
+      const matchesAdmin =
+        adminFilterId === "all" || String(admin.user_id) === adminFilterId;
+      const matchesSearch = !query || adminSearchText(admin).includes(query);
+      return matchesAdmin && matchesSearch;
+    });
+  }, [adminFilterId, adminSearch, admins]);
 
   const createAdmin = async (event) => {
     event.preventDefault();
@@ -365,6 +396,43 @@ export function CreateAdminPage() {
 
       <section>
         <div style={sectionTitleStyle}>Admins Created</div>
+        <div style={filterPanelStyle}>
+          <label style={labelStyle}>
+            Admin
+            <select
+              value={adminFilterId}
+              onChange={(event) => setAdminFilterId(event.target.value)}
+              style={inputStyle}
+            >
+              <option value="all">All Admins</option>
+              {admins.map((admin) => (
+                <option key={admin.user_id} value={String(admin.user_id)}>
+                  {adminDisplayName(admin)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={labelStyle}>
+            Search Admin / ID
+            <input
+              type="search"
+              value={adminSearch}
+              placeholder="Type name, ID, email, contact, username, or status"
+              onChange={(event) => setAdminSearch(event.target.value)}
+              style={inputStyle}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setAdminFilterId("all");
+              setAdminSearch("");
+            }}
+            style={secondaryButtonStyle}
+          >
+            Clear Filters
+          </button>
+        </div>
         <div style={tableWrapStyle}>
           <table
             style={{
@@ -404,8 +472,14 @@ export function CreateAdminPage() {
                     No Admin logins created yet.
                   </td>
                 </tr>
+              ) : filteredAdmins.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={emptyStyle}>
+                    No Admin logins match these filters.
+                  </td>
+                </tr>
               ) : (
-                admins.map((admin) => (
+                filteredAdmins.map((admin) => (
                   <tr
                     key={admin.user_id}
                     style={{ borderTop: "1px solid var(--portal-border)" }}
@@ -573,6 +647,19 @@ const sectionTitleStyle = {
   fontSize: "13px",
   fontWeight: 900,
   textTransform: "uppercase",
+};
+
+const filterPanelStyle = {
+  alignItems: "end",
+  background: "white",
+  border: "1px solid var(--portal-border)",
+  borderRadius: "8px",
+  boxShadow: "0 2px 8px rgba(74,46,131,0.08)",
+  display: "grid",
+  gap: "14px",
+  gridTemplateColumns: "minmax(220px, 1fr) minmax(280px, 1.4fr) auto",
+  marginBottom: "14px",
+  padding: "16px",
 };
 
 const tableWrapStyle = {

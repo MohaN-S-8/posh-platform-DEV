@@ -289,6 +289,8 @@ async def run_seed_on_startup():
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
                     office_name VARCHAR(150) NOT NULL UNIQUE,
                     office_address TEXT NOT NULL,
+                    office_state VARCHAR(150) NULL,
+                    office_city VARCHAR(150) NULL,
                     is_active BOOLEAN DEFAULT TRUE,
                     created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -579,6 +581,12 @@ async def run_seed_on_startup():
             ("branches_json", "ADD COLUMN branches_json TEXT NULL"),
         ]:
             await ensure_column("company_master", column_name, column_sql)
+
+        for column_name, column_sql in [
+            ("office_state", "ADD COLUMN office_state VARCHAR(150) NULL"),
+            ("office_city", "ADD COLUMN office_city VARCHAR(150) NULL"),
+        ]:
+            await ensure_column("posh_offices", column_name, column_sql)
 
         for column_name, column_sql in [
             ("date_of_birth", "ADD COLUMN date_of_birth DATE NULL"),
@@ -906,13 +914,16 @@ async def run_seed_on_startup():
         await db.execute(
             text(
                 """
-                INSERT INTO posh_offices (office_name, office_address, is_active)
+                INSERT INTO posh_offices
+                    (office_name, office_address, office_state, office_city, is_active)
                 VALUES
-                    ('ADYAR', 'Office Address', TRUE),
-                    ('AMBATTAUR', 'Office Address', TRUE),
-                    ('BANGALORE', 'Office Address', TRUE)
+                    ('ADYAR', 'Office Address', 'Tamil Nadu', 'Chennai', TRUE),
+                    ('AMBATTAUR', 'Office Address', 'Tamil Nadu', 'Chennai', TRUE),
+                    ('BANGALORE', 'Office Address', 'Karnataka', 'Bangalore', TRUE)
                 ON DUPLICATE KEY UPDATE
                     office_address = VALUES(office_address),
+                    office_state = COALESCE(posh_offices.office_state, VALUES(office_state)),
+                    office_city = COALESCE(posh_offices.office_city, VALUES(office_city)),
                     is_active = VALUES(is_active)
                 """
             )
@@ -938,7 +949,8 @@ async def run_seed_on_startup():
                     ('Super Admin', 'Company Setup', 'Access enabled', TRUE, 13),
                     ('Super Admin', 'User Master', 'Access enabled', TRUE, 14),
                     ('Super Admin', 'Annual Returns', 'Access enabled', TRUE, 15),
-                    ('Super Admin', 'Role & Access Matrix', 'Access enabled', TRUE, 16),
+                    ('Super Admin', 'Client Status', 'Access enabled', TRUE, 16),
+                    ('Super Admin', 'Role & Access Matrix', 'Access enabled', TRUE, 17),
                     ('Admin', 'Home', 'Access enabled', TRUE, 1),
                     ('Admin', 'PoSH Policy', 'Access enabled', TRUE, 2),
                     ('Admin', 'PoSH Training', 'Access enabled', TRUE, 3),

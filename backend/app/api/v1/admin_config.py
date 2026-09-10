@@ -99,7 +99,7 @@ async def get_admin_config(
     office_result = await db.execute(
         text(
             """
-            SELECT id, office_name, office_address, is_active
+            SELECT id, office_name, office_address, office_state, office_city, is_active
             FROM posh_offices
             ORDER BY id
             """
@@ -222,8 +222,10 @@ async def create_office(
     insert_result = await db.execute(
         text(
             """
-            INSERT INTO posh_offices (office_name, office_address, is_active)
-            VALUES (:office_name, :office_address, :is_active)
+            INSERT INTO posh_offices
+                (office_name, office_address, office_state, office_city, is_active)
+            VALUES
+                (:office_name, :office_address, :office_state, :office_city, :is_active)
             """
         ),
         data.model_dump(),
@@ -233,7 +235,7 @@ async def create_office(
     result = await db.execute(
         text(
             """
-            SELECT id, office_name, office_address, is_active
+            SELECT id, office_name, office_address, office_state, office_city, is_active
             FROM posh_offices
             WHERE id = :id
             """
@@ -261,7 +263,7 @@ async def update_office(
     result = await db.execute(
         text(
             """
-            SELECT id, office_name, office_address, is_active
+            SELECT id, office_name, office_address, office_state, office_city, is_active
             FROM posh_offices
             WHERE id = :id
             """

@@ -653,11 +653,18 @@ export function AnnualReturnsPage() {
   const selectOffice = (officeId) => {
     const office = offices.find((item) => String(item.id) === String(officeId));
     if (!office) return;
+    const officeAddress = [
+      office.office_address,
+      office.office_city,
+      office.office_state,
+    ]
+      .filter(Boolean)
+      .join("\n");
     setForm((current) => ({
       ...current,
       posh_office_name: office.office_name,
-      posh_office_address: office.office_address || "",
-      posh_office_recipient: office.office_address || office.office_name,
+      posh_office_address: officeAddress,
+      posh_office_recipient: officeAddress || office.office_name,
     }));
   };
 

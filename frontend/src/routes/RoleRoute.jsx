@@ -23,6 +23,7 @@ const defaultAllowed = {
     "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
+    "Client Status",
     "Annual Returns",
     "Create Admin",
     "Create IC",
@@ -95,6 +96,7 @@ const accessAliases = {
   "User Master": ["User Master", "Employee Master", "Employee Master - PoSH"],
   Masters: ["Masters", "Masters (State/City/Scope)", "PoSH Office Master"],
   "Annual Returns": ["Annual Returns"],
+  "Client Status": ["Client Status"],
 };
 
 const accessNamesFor = (accessItem) =>
