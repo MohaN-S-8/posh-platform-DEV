@@ -50,8 +50,7 @@ def _service_summary(service_details_json: str | None) -> dict:
     posh_rows = [
         row
         for row in rows
-        if isinstance(row, dict)
-        and str(row.get("scope") or "").strip().upper() == "POSH"
+        if isinstance(row, dict) and str(row.get("scope") or "").strip().upper() == "POSH"
     ]
     row = posh_rows[0] if posh_rows else (rows[0] if rows and isinstance(rows[0], dict) else {})
     return {
@@ -62,8 +61,7 @@ def _service_summary(service_details_json: str | None) -> dict:
         "stop_date": row.get("stop_date") or "",
         "assigned_to_name": row.get("assigned_to_name") or "",
         "deliverables": [
-            item.get("deliverables") or item.get("scope") or "PoSH Compliance"
-            for item in posh_rows
+            item.get("deliverables") or item.get("scope") or "PoSH Compliance" for item in posh_rows
         ]
         or [row.get("deliverables") or "PoSH Compliance"],
     }
@@ -680,7 +678,9 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
                     "company_name": company.company_name,
                     "status": company.status,
                     "approval_status": company.approval_status or "Pending",
-                    "annual_return_status": company_annual_status.get(company.company_id, "Pending"),
+                    "annual_return_status": company_annual_status.get(
+                        company.company_id, "Pending"
+                    ),
                     "services": ["POSH"],
                     "client_id": company_service_summary["client_id"],
                     "frequency": company_service_summary["frequency"],
@@ -701,10 +701,12 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
                     "health": (
                         "Red"
                         if company_open_complaints.get(company.company_id, 0)
-                        else "Amber"
-                        if company_annual_status.get(company.company_id, "Pending") == "Pending"
-                        or compliance_rate < 80
-                        else "Green"
+                        else (
+                            "Amber"
+                            if company_annual_status.get(company.company_id, "Pending") == "Pending"
+                            or compliance_rate < 80
+                            else "Green"
+                        )
                     ),
                     "employees": total,
                     "certificates": total_certs,
@@ -769,7 +771,10 @@ async def _admin_overview(db: AsyncSession, current_user) -> dict:
         for company_id, count in (
             await db.execute(
                 select(Certificate.company_id, func.count())
-                .where(Certificate.company_id.in_(training_company_ids or [0]), Certificate.status == "Valid")
+                .where(
+                    Certificate.company_id.in_(training_company_ids or [0]),
+                    Certificate.status == "Valid",
+                )
                 .group_by(Certificate.company_id)
             )
         ).all()
@@ -819,13 +824,17 @@ async def _admin_overview(db: AsyncSession, current_user) -> dict:
                 "completed_training": completed_count,
                 "open_complaints": open_complaints,
                 "ic_users": ic_by_company.get(row.company_id, 0),
-                "contract": "Active" if row.status == "Active" and row.approval_status == "Approved" else "Pending",
+                "contract": (
+                    "Active"
+                    if row.status == "Active" and row.approval_status == "Approved"
+                    else "Pending"
+                ),
                 "health": (
                     "Red"
                     if open_complaints or org_annual_status == "Overdue"
-                    else "Amber"
-                    if org_annual_status == "Pending" or training_rate < 80
-                    else "Green"
+                    else (
+                        "Amber" if org_annual_status == "Pending" or training_rate < 80 else "Green"
+                    )
                 ),
                 "employees": employee_count,
                 "certificates": certificates_by_company.get(row.company_id, 0),
