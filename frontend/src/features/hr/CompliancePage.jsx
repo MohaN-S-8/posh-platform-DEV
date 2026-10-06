@@ -5,6 +5,7 @@ import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
+import { ConstitutionPanel } from "./ConstitutionPanel";
 
 const complianceContextForRole = (roleId) => {
   if (roleId === 1) {
@@ -187,6 +188,7 @@ export function CompliancePage() {
         </div>
       )}
 
+      <ConstitutionPanel />
       <section style={{ marginBottom: "28px" }}>
         <div className="portal-section-title">Compliance Snapshot</div>
         <div className="portal-auto-grid">

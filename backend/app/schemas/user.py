@@ -4,8 +4,10 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 
+from app.schemas.input_validation import PersonInput
 
-class UserCreate(BaseModel):
+
+class UserCreate(PersonInput):
     first_name: str
     last_name: str
     email: EmailStr
@@ -72,7 +74,7 @@ class UserCreate(BaseModel):
         return v
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(PersonInput):
     employee_id: Optional[str] = None
     username: Optional[str] = None
     first_name: Optional[str] = None

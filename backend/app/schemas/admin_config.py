@@ -30,6 +30,13 @@ class MasterCodeUpdate(BaseModel):
     description: Optional[str] = None
     is_active: Optional[bool] = None
 
+    @field_validator("category", "name", "code")
+    @classmethod
+    def required_text(cls, value):
+        if value is None:
+            raise ValueError("This field cannot be empty")
+        return MasterCodeBase.required_text(value)
+
 
 class MasterCodeResponse(MasterCodeBase):
     id: int
@@ -61,6 +68,13 @@ class PoshOfficeUpdate(BaseModel):
     office_state: Optional[str] = None
     office_city: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @field_validator("office_name", "office_address")
+    @classmethod
+    def required_text(cls, value):
+        if value is None:
+            raise ValueError("This field cannot be empty")
+        return PoshOfficeBase.required_text(value)
 
 
 class PoshOfficeResponse(PoshOfficeBase):

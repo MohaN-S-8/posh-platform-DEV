@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.company_scope import assigned_company_ids
 from app.core.dependencies import require_permission
 from app.db.session import get_db
 from app.schemas.hr import TrainingAssignRequest
@@ -12,12 +13,16 @@ router = APIRouter(prefix="/hr", tags=["IC Portal"])
 hr_service = HRService()
 
 
-def _report_company_scope(current_user) -> int | None:
-    return None if current_user.role_id == 1 else current_user.company_id
+async def _report_company_scope(db, current_user) -> list[int]:
+    return await assigned_company_ids(db, current_user)
 
 
 def _scoped_filename(base_name: str, extension: str, current_user) -> str:
-    scope = "platform" if current_user.role_id == 1 else f"company-{current_user.company_id}"
+    scope = (
+        "assigned-companies"
+        if current_user.role_id in (1, 2)
+        else f"company-{current_user.company_id}"
+    )
     return f"{base_name}_{scope}.{extension}"
 
 
@@ -109,7 +114,9 @@ async def compliance_dashboard(
     total employees, completed, in-progress, not-started, compliance rate,
     department breakdown, and overdue employees list.
     """
-    return await hr_service.get_compliance_dashboard(db, current_user.company_id)
+    return await hr_service.get_compliance_dashboard(
+        db, await _report_company_scope(db, current_user)
+    )
 
 
 @router.get("/reports/employees")
@@ -121,7 +128,7 @@ async def download_employee_report(
     Download employee training report as Excel file.
     Contains all employees with their training status and completion %.
     """
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     excel_bytes = await hr_service.generate_employee_report(db, company_id)
     return Response(
         content=excel_bytes,
@@ -140,7 +147,7 @@ async def download_department_report(
     current_user=Depends(require_permission("reports.view")),
 ):
     """Download department compliance report as Excel file."""
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     excel_bytes = await hr_service.generate_department_report(db, company_id)
     return Response(
         content=excel_bytes,
@@ -159,7 +166,7 @@ async def download_certificate_report(
     current_user=Depends(require_permission("reports.view")),
 ):
     """Download issued certificate report as Excel file."""
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     excel_bytes = await hr_service.generate_certificate_report(db, company_id)
     return Response(
         content=excel_bytes,
@@ -177,7 +184,7 @@ async def download_employee_report_csv(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     csv_bytes = await hr_service.generate_employee_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
@@ -195,7 +202,7 @@ async def download_department_report_csv(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     csv_bytes = await hr_service.generate_department_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
@@ -213,7 +220,7 @@ async def download_certificate_report_csv(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     csv_bytes = await hr_service.generate_certificate_report_csv(db, company_id)
     return Response(
         content=csv_bytes,
@@ -231,7 +238,7 @@ async def download_employee_report_pdf(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     pdf_bytes = await hr_service.generate_employee_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,
@@ -249,7 +256,7 @@ async def download_department_report_pdf(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     pdf_bytes = await hr_service.generate_department_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,
@@ -267,7 +274,7 @@ async def download_certificate_report_pdf(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
-    company_id = _report_company_scope(current_user)
+    company_id = await _report_company_scope(db, current_user)
     pdf_bytes = await hr_service.generate_certificate_report_pdf(db, company_id)
     return Response(
         content=pdf_bytes,

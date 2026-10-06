@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useEffect, useMemo, useState } from "react";
 import BusinessIcon from "@mui/icons-material/Business";
 import ChecklistIcon from "@mui/icons-material/Checklist";
@@ -341,7 +342,11 @@ export function AdminConfigPage() {
           </section>
 
           <section style={editorGridStyle}>
-            <form onSubmit={saveMaster} style={editorPanelStyle}>
+            <ValidatedForm
+              error={error}
+              onSubmit={saveMaster}
+              style={editorPanelStyle}
+            >
               <h3 style={editorTitleStyle}>
                 {editing.type === "master" ? "Edit 1A Master" : "Add 1A Master"}
               </h3>
@@ -433,9 +438,13 @@ export function AdminConfigPage() {
                   Clear
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
 
-            <form onSubmit={saveOffice} style={editorPanelStyle}>
+            <ValidatedForm
+              error={error}
+              onSubmit={saveOffice}
+              style={editorPanelStyle}
+            >
               <h3 style={editorTitleStyle}>
                 {editing.type === "office"
                   ? "Edit POSH Office"
@@ -542,9 +551,13 @@ export function AdminConfigPage() {
                   Clear
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
 
-            <form onSubmit={saveAccess} style={editorPanelStyle}>
+            <ValidatedForm
+              error={error}
+              onSubmit={saveAccess}
+              style={editorPanelStyle}
+            >
               <h3 style={editorTitleStyle}>
                 {editing.type === "access"
                   ? "Edit Role Access"
@@ -645,7 +658,7 @@ export function AdminConfigPage() {
                   Clear
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </section>
 
           <section style={{ marginBottom: "24px" }}>

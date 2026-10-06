@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,7 +34,7 @@ export function ResetPasswordPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm({ resolver: zodResolver(schema), mode: "onChange" });
 
   const onSubmit = async (data) => {
@@ -84,7 +85,11 @@ export function ResetPasswordPage() {
           Enter your new password below.
         </p>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <ValidatedForm
+          error={error}
+          fieldErrors={errors}
+          onSubmit={handleSubmit(onSubmit)}
+        >
           <div style={{ marginBottom: "16px" }}>
             <label
               style={{ display: "block", marginBottom: "6px", fontWeight: 500 }}
@@ -157,23 +162,23 @@ export function ResetPasswordPage() {
 
           <button
             type="submit"
-            disabled={!isValid || loading}
+            disabled={loading}
             style={{
               width: "100%",
               padding: "12px",
               marginTop: "24px",
-              background: !isValid || loading ? "#93b8d4" : "#1a3c5e",
+              background: loading ? "#93b8d4" : "#1a3c5e",
               color: "white",
               border: "none",
               borderRadius: "6px",
               fontSize: "16px",
               fontWeight: 600,
-              cursor: !isValid || loading ? "not-allowed" : "pointer",
+              cursor: loading ? "not-allowed" : "pointer",
             }}
           >
             {loading ? "Resetting..." : "Reset Password"}
           </button>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   );

@@ -1,5 +1,14 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
+import { MasterCityInput } from "../../components/MasterCityInput";
+import { BranchMasterSelect } from "../../components/BranchMasterSelect";
+import { branchFields, clearedBranchFields } from "../../utils/branchFields";
+import {
+  employeePersonalOptions,
+  normalizeEmployeeStatus,
+  showEmploymentField,
+} from "../../utils/employeeOptions";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import apiClient from "../../api/client";
@@ -58,12 +67,12 @@ const personalFields = [
 ];
 
 const employmentFields = [
+  ["employee_status", "Status of Employee", "text", true],
+  ["employment_status", "Employment Status"],
   ["joining_date", "Date of Joining", "date"],
   ["designation", "Designation"],
   ["department", "Department"],
   ["location_city", "Location / City"],
-  ["employment_status", "Employment Status"],
-  ["employee_status", "Status of Employee"],
   ["resignation_date", "Date of Resignation", "date"],
   ["resignation_reason", "Reason for Resignation"],
   ["reporting_to", "Reporting To"],
@@ -76,7 +85,6 @@ const transferFields = [
   ["transfer_location", "Transfer Location"],
   ["transfer_branch_name", "Transfer Branch Name"],
   ["transfer_branch_id", "Transfer Branch ID"],
-  ["ic_role", "IC Role"],
 ];
 
 const cleanPayload = (payload) =>
@@ -96,6 +104,7 @@ export function EmployeeMasterPage() {
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [form, setForm] = useState(emptyForm);
+  const [transferEnabled, setTransferEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState("");
@@ -142,10 +151,22 @@ export function EmployeeMasterPage() {
   }, [loadData]);
 
   const updateForm = (key, value) => {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => ({
+      ...current,
+      ...(key === "company_id" ? clearedBranchFields : {}),
+      [key]: value,
+    }));
   };
 
   const startEdit = (employee) => {
+    setTransferEnabled(
+      Boolean(
+        employee.transfer_date ||
+        employee.transfer_location ||
+        employee.transfer_branch_name ||
+        employee.transfer_branch_id,
+      ),
+    );
     setEditingId(employee.id);
     setError("");
     setSuccess("");
@@ -153,6 +174,7 @@ export function EmployeeMasterPage() {
       formPayload({
         ...emptyForm,
         ...employee,
+        employee_status: normalizeEmployeeStatus(employee.employee_status),
         company_id: String(employee.company_id),
       }),
     );
@@ -160,6 +182,7 @@ export function EmployeeMasterPage() {
   };
 
   const cancelEdit = () => {
+    setTransferEnabled(false);
     setEditingId("");
     setForm(emptyForm);
     setError("");
@@ -191,6 +214,7 @@ export function EmployeeMasterPage() {
           : "User Master record created.",
       );
       setForm({ ...emptyForm, company_id: form.company_id });
+      setTransferEnabled(false);
       setEditingId("");
       await loadData();
     } catch (err) {
@@ -318,7 +342,7 @@ export function EmployeeMasterPage() {
         </div>
       )}
 
-      <form style={panelStyle} onSubmit={saveEmployee}>
+      <ValidatedForm error={error} style={panelStyle} onSubmit={saveEmployee}>
         <h3 style={panelTitleStyle}>User Master</h3>
         {editingId && (
           <div style={editNoticeStyle}>
@@ -361,13 +385,46 @@ export function EmployeeMasterPage() {
         />
         <Section
           title="Employment Information"
-          fields={employmentFields}
+          fields={employmentFields.filter(([field]) =>
+            showEmploymentField(field, form.employee_status),
+          )}
           form={form}
           onChange={updateForm}
+          onBranchChange={(branch) =>
+            setForm((current) => ({ ...current, ...branchFields(branch) }))
+          }
         />
+        {form.employee_status === "Employed" && (
+          <>
+            <label
+              style={{ display: "flex", alignItems: "center", gap: "8px" }}
+            >
+              <input
+                type="checkbox"
+                checked={transferEnabled}
+                onChange={(event) => setTransferEnabled(event.target.checked)}
+              />
+              Transfer
+            </label>
+            {transferEnabled && (
+              <Section
+                title="Transfer Information"
+                fields={transferFields}
+                form={form}
+                onChange={updateForm}
+                onBranchChange={(branch) =>
+                  setForm((current) => ({
+                    ...current,
+                    ...branchFields(branch, { transfer: true }),
+                  }))
+                }
+              />
+            )}
+          </>
+        )}
         <Section
-          title="Transfer / IC Information"
-          fields={transferFields}
+          title="IC Information"
+          fields={[["ic_role", "IC Role"]]}
           form={form}
           onChange={updateForm}
         />
@@ -391,7 +448,7 @@ export function EmployeeMasterPage() {
             </button>
           )}
         </div>
-      </form>
+      </ValidatedForm>
 
       <section style={listSectionStyle}>
         <div style={sectionHeaderStyle}>
@@ -534,7 +591,7 @@ export function EmployeeMasterPage() {
   );
 }
 
-function Section({ title, fields, form, onChange }) {
+function Section({ title, fields, form, onChange, onBranchChange }) {
   return (
     <section style={sectionStyle}>
       <h4 style={sectionTitleStyle}>{title}</h4>
@@ -543,13 +600,52 @@ function Section({ title, fields, form, onChange }) {
           <label key={key} style={labelStyle}>
             {label}
             {required ? " *" : ""}
-            <input
-              type={type}
-              required={required}
-              value={form[key] || ""}
-              onChange={(event) => onChange(key, event.target.value)}
-              style={inputStyle}
-            />
+            {employeePersonalOptions[key] ? (
+              <select
+                value={form[key] || ""}
+                required={required}
+                onChange={(event) => onChange(key, event.target.value)}
+                style={inputStyle}
+              >
+                <option value="">Select {label}</option>
+                {form[key] &&
+                  !employeePersonalOptions[key].includes(form[key]) && (
+                    <option value={form[key]}>{form[key]}</option>
+                  )}
+                {employeePersonalOptions[key].map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            ) : ["branch_name", "transfer_branch_name"].includes(key) ? (
+              <BranchMasterSelect
+                companyId={form.company_id}
+                branchId={
+                  key === "branch_name"
+                    ? form.branch_id
+                    : form.transfer_branch_id
+                }
+                branchName={form[key]}
+                required={required}
+                style={inputStyle}
+                onChange={onBranchChange}
+              />
+            ) : ["location_city", "transfer_location"].includes(key) ? (
+              <MasterCityInput
+                value={form[key] || ""}
+                onChange={(value) => onChange(key, value)}
+              />
+            ) : (
+              <input
+                type={type}
+                readOnly={["branch_id", "transfer_branch_id"].includes(key)}
+                required={required}
+                value={form[key] || ""}
+                onChange={(event) => onChange(key, event.target.value)}
+                style={inputStyle}
+              />
+            )}
           </label>
         ))}
       </div>
@@ -564,6 +660,7 @@ Section.propTypes = {
     PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   ).isRequired,
   onChange: PropTypes.func.isRequired,
+  onBranchChange: PropTypes.func,
 };
 
 const panelStyle = {

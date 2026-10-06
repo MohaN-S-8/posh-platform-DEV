@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
@@ -5,7 +6,8 @@ import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
 
 const employeeOptionLabel = (employee) => {
-  const name = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+  const name =
+    `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
   const employeeId = employee.employee_id ? ` (${employee.employee_id})` : "";
   const department = employee.department ? ` - ${employee.department}` : "";
   return `${name} - ${employee.email} - ${employee.role_label || "Employee"}${employeeId}${department}`;
@@ -21,7 +23,9 @@ const audienceOptions = [
 ];
 
 const audienceLabel = (audience) =>
-  audienceOptions.find((option) => option.value === audience)?.label || audience || "Employee";
+  audienceOptions.find((option) => option.value === audience)?.label ||
+  audience ||
+  "Employee";
 
 const videoOptionLabel = (video) =>
   `${video.title}${video.duration_minutes ? ` (${video.duration_minutes} min)` : ""} - ${
@@ -66,7 +70,9 @@ export function TrainingAssignPage() {
         setEmployees(employeeRes.data.employees || []);
         setDepartments(employeeRes.data.departments || []);
       } catch (err) {
-        setError(err.response?.data?.detail || "Unable to load assignment options.");
+        setError(
+          err.response?.data?.detail || "Unable to load assignment options.",
+        );
       } finally {
         setLoadingOptions(false);
       }
@@ -75,7 +81,8 @@ export function TrainingAssignPage() {
   }, []);
 
   const selectedVideo = useMemo(
-    () => videos.find((video) => String(video.video_id) === String(form.video_id)),
+    () =>
+      videos.find((video) => String(video.video_id) === String(form.video_id)),
     [videos, form.video_id],
   );
   const activeTargetAudience = roleLockedAudience || filters.target_audience;
@@ -90,8 +97,12 @@ export function TrainingAssignPage() {
       ),
     [activeTargetAudience, filters.training_level, videos],
   );
-  const publishedVideos = filteredVideos.filter((video) => video.status === "Published");
-  const pendingVideos = filteredVideos.filter((video) => video.status !== "Published");
+  const publishedVideos = filteredVideos.filter(
+    (video) => video.status === "Published",
+  );
+  const pendingVideos = filteredVideos.filter(
+    (video) => video.status !== "Published",
+  );
   const targetLabel =
     activeTargetAudience === "IC Member"
       ? "IC Member"
@@ -148,7 +159,10 @@ export function TrainingAssignPage() {
         String(employee.employee_id || "").toLowerCase() === normalized
       );
     });
-    setForm({ ...form, assigned_to_user_id: match ? String(match.user_id) : "" });
+    setForm({
+      ...form,
+      assigned_to_user_id: match ? String(match.user_id) : "",
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -191,7 +205,22 @@ export function TrainingAssignPage() {
     >
       <div className="portal-section-title">Assignment Details</div>
       <div className="portal-card" style={{ maxWidth: "820px" }}>
-        <form onSubmit={handleSubmit}>
+        <ValidatedForm
+          error={error}
+          validate={() => [
+            ...(!form.video_id || selectedVideo?.status !== "Published"
+              ? ["Select a published training video."]
+              : []),
+            ...(form.assign_type === "Individual" && !form.assigned_to_user_id
+              ? ["Select an employee for this assignment."]
+              : []),
+            ...(form.assign_type === "Department" &&
+            !form.assigned_to_department
+              ? ["Select a department for this assignment."]
+              : []),
+          ]}
+          onSubmit={handleSubmit}
+        >
           <div style={filterGridStyle}>
             <div>
               <label style={labelStyle}>Training Level</label>
@@ -212,7 +241,9 @@ export function TrainingAssignPage() {
               <select
                 value={activeTargetAudience}
                 disabled={audienceLocked}
-                onChange={(e) => updateFilter("target_audience", e.target.value)}
+                onChange={(e) =>
+                  updateFilter("target_audience", e.target.value)
+                }
                 style={inputStyle}
               >
                 {audienceOptions.map((option) => (
@@ -244,7 +275,9 @@ export function TrainingAssignPage() {
                   disabled={video.status !== "Published"}
                 >
                   {videoOptionLabel(video)}
-                  {video.status !== "Published" ? ` - ${video.status}, waiting for approval` : ""}
+                  {video.status !== "Published"
+                    ? ` - ${video.status}, waiting for approval`
+                    : ""}
                 </option>
               ))}
             </select>
@@ -253,23 +286,31 @@ export function TrainingAssignPage() {
                 No videos available yet. Upload a POSH video first.
               </p>
             )}
-            {!loadingOptions && videos.length > 0 && filteredVideos.length === 0 && (
-              <p style={hintStyle}>
-                No videos match this training level and audience.
-              </p>
-            )}
-            {!loadingOptions && filteredVideos.length > 0 && publishedVideos.length === 0 && (
-              <p style={hintStyle}>
-                {pendingVideos.length} video(s) are uploaded and waiting for Super Admin approval.
-                Assignment will unlock after publish.
-              </p>
-            )}
+            {!loadingOptions &&
+              videos.length > 0 &&
+              filteredVideos.length === 0 && (
+                <p style={hintStyle}>
+                  No videos match this training level and audience.
+                </p>
+              )}
+            {!loadingOptions &&
+              filteredVideos.length > 0 &&
+              publishedVideos.length === 0 && (
+                <p style={hintStyle}>
+                  {pendingVideos.length} video(s) are uploaded and waiting for
+                  Super Admin approval. Assignment will unlock after publish.
+                </p>
+              )}
             {!loadingOptions && pendingVideos.length > 0 && (
               <div style={pendingListStyle}>
                 {pendingVideos.map((video) => (
                   <div key={video.video_id} style={pendingItemStyle}>
                     <span>{video.title}</span>
-                    <strong>{video.status === "Draft" ? "Waiting for approval" : video.status}</strong>
+                    <strong>
+                      {video.status === "Draft"
+                        ? "Waiting for approval"
+                        : video.status}
+                    </strong>
                   </div>
                 ))}
               </div>
@@ -303,7 +344,10 @@ export function TrainingAssignPage() {
                       form.assign_type === type
                         ? "var(--portal-purple)"
                         : "#ffffff",
-                    color: form.assign_type === type ? "white" : "var(--portal-purple)",
+                    color:
+                      form.assign_type === type
+                        ? "white"
+                        : "var(--portal-purple)",
                     cursor: "pointer",
                     fontWeight: 700,
                   }}
@@ -328,11 +372,17 @@ export function TrainingAssignPage() {
               />
               <datalist id="training-employee-options">
                 {employees.map((employee) => (
-                  <option key={employee.user_id} value={employeeOptionLabel(employee)} />
+                  <option
+                    key={employee.user_id}
+                    value={employeeOptionLabel(employee)}
+                  />
                 ))}
               </datalist>
               {!loadingOptions && employees.length === 0 && (
-                <p style={hintStyle}>No active {targetLabel.toLowerCase()} users found for this company.</p>
+                <p style={hintStyle}>
+                  No active {targetLabel.toLowerCase()} users found for this
+                  company.
+                </p>
               )}
             </div>
           )}
@@ -375,7 +425,8 @@ export function TrainingAssignPage() {
                 fontSize: "14px",
               }}
             >
-              This will assign the selected video to every active {targetLabel.toLowerCase()} user in this company.
+              This will assign the selected video to every active{" "}
+              {targetLabel.toLowerCase()} user in this company.
             </div>
           )}
 
@@ -418,24 +469,21 @@ export function TrainingAssignPage() {
 
           <button
             type="submit"
-            disabled={submitting || loadingOptions || !canSubmit}
+            disabled={submitting || loadingOptions}
             style={{
               padding: "10px 28px",
               background:
-                submitting || loadingOptions || !canSubmit
-                  ? "#c8b7dc"
-                  : "var(--portal-pink)",
+                submitting || loadingOptions ? "#c8b7dc" : "var(--portal-pink)",
               color: "white",
               border: "none",
               borderRadius: "8px",
-              cursor:
-                submitting || loadingOptions || !canSubmit ? "not-allowed" : "pointer",
+              cursor: submitting || loadingOptions ? "not-allowed" : "pointer",
               fontWeight: 700,
             }}
           >
             {submitting ? "Assigning..." : "Assign Training"}
           </button>
-        </form>
+        </ValidatedForm>
       </div>
 
       <LoadingOverlay

@@ -9,6 +9,12 @@ from app.models.auth import (  # noqa: F401
 )
 from app.models.certificate import Certificate, CertificateTemplate  # noqa: F401
 from app.models.company import CompanyMaster  # noqa: F401
+from app.models.compliance import (  # noqa: F401  # noqa: F401
+    ConstitutionLetter,
+    ExternalMember,
+    NoticeDisplay,
+    QuarterlyMeeting,
+)
 from app.models.concern import Concern  # noqa: F401
 from app.models.hr import EmployeeUploadBatch  # noqa: F401
 from app.models.language import LanguageMaster  # noqa: F401

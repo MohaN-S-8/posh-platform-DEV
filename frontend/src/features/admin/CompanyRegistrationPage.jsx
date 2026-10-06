@@ -1,5 +1,7 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
+import { MasterCityInput } from "../../components/MasterCityInput";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
@@ -290,17 +292,27 @@ export function CompanyRegistrationContent({ embedded = false }) {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const setNested = (section, key, value) => {
+  const setNested = (section, key, value, geography = {}) => {
     setForm((current) => ({
       ...current,
-      [section]: { ...current[section], [key]: value },
+      [section]: {
+        ...current[section],
+        ...(["state", "country"].includes(key) ? { city: "" } : {}),
+        [key]: value,
+        ...geography,
+      },
     }));
   };
 
-  const setBranch = (index, key, value) => {
+  const setBranch = (index, key, value, geography = {}) => {
     setForm((current) => {
       const branches = current.branches.map((branch) => ({ ...branch }));
-      branches[index] = { ...branches[index], [key]: value };
+      branches[index] = {
+        ...branches[index],
+        ...(["state", "country"].includes(key) ? { city: "" } : {}),
+        [key]: value,
+        ...geography,
+      };
       return { ...current, branches };
     });
   };
@@ -439,7 +451,14 @@ export function CompanyRegistrationContent({ embedded = false }) {
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
-      <form style={panelStyle} onSubmit={saveRegistration}>
+      <ValidatedForm
+        error={error}
+        validate={() =>
+          selectedCompany ? [] : ["Select an approved company."]
+        }
+        style={panelStyle}
+        onSubmit={saveRegistration}
+      >
         <h3 style={panelTitleStyle}>Company Registration</h3>
         <p style={helperTextStyle}>
           Only approved companies from Create Company & Work Order appear below.
@@ -722,12 +741,18 @@ export function CompanyRegistrationContent({ embedded = false }) {
                       value={branch.address2}
                       onChange={(value) => setBranch(index, "address2", value)}
                     />
-                    <TextInput
-                      label="Branch City"
-                      list="city-options"
-                      value={branch.city}
-                      onChange={(value) => setBranch(index, "city", value)}
-                    />
+                    <label style={labelStyle}>
+                      Branch City
+                      <MasterCityInput
+                        autoMap
+                        value={branch.city}
+                        state={branch.state}
+                        country={branch.country}
+                        onChange={(value, geography) =>
+                          setBranch(index, "city", value, geography)
+                        }
+                      />
+                    </label>
                     <TextInput
                       label="Branch State"
                       list="state-options"
@@ -748,7 +773,7 @@ export function CompanyRegistrationContent({ embedded = false }) {
             <div style={actionsStyle}>
               <button
                 type="submit"
-                disabled={saving || !selectedCompany}
+                disabled={saving}
                 style={primaryButtonStyle}
               >
                 {saving
@@ -760,7 +785,7 @@ export function CompanyRegistrationContent({ embedded = false }) {
             </div>
           </>
         )}
-      </form>
+      </ValidatedForm>
       <section style={registeredSectionStyle}>
         <h3 style={registeredTitleStyle}>Registered Companies</h3>
         <div style={tableWrapStyle}>
@@ -896,13 +921,19 @@ function AddressSection({ title, section, values, onChange, masterOptions }) {
         />
       </div>
       <div style={fourGridStyle}>
-        <TextInput
-          label="City"
-          required
-          list="city-options"
-          value={values.city}
-          onChange={(value) => onChange(section, "city", value)}
-        />
+        <label style={labelStyle}>
+          City *
+          <MasterCityInput
+            autoMap
+            required
+            value={values.city}
+            state={values.state}
+            country={values.country}
+            onChange={(value, geography) =>
+              onChange(section, "city", value, geography)
+            }
+          />
+        </label>
         <TextInput
           label="State"
           required
@@ -1038,6 +1069,7 @@ function TextInput({
       {label}
       <input
         type={type}
+        data-validation={label === "Name" ? "person" : undefined}
         required={required}
         list={list}
         value={value || ""}

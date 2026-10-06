@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import PrintIcon from "@mui/icons-material/Print";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import PropTypes from "prop-types";
@@ -768,6 +769,7 @@ export function AnnualReturnsPage() {
           offices={offices}
           saving={saving}
           onSubmit={saveAnnualReturn}
+          error={error}
           onClose={() => setShowForm(false)}
           onChange={updateFormRow}
           onBranchChange={changeBranch}
@@ -870,6 +872,7 @@ export function AnnualReturnsPage() {
 }
 
 function AnnualReturnForm({
+  error,
   form,
   branches,
   offices,
@@ -885,7 +888,7 @@ function AnnualReturnForm({
   onUpdateListItem,
 }) {
   return (
-    <form onSubmit={onSubmit} style={panelStyle}>
+    <ValidatedForm error={error} onSubmit={onSubmit} style={panelStyle}>
       <div style={formHeaderStyle}>
         <div>
           <h3 style={panelTitleStyle}>Create / Edit Annual Return</h3>
@@ -1234,7 +1237,7 @@ function AnnualReturnForm({
           Cancel
         </button>
       </div>
-    </form>
+    </ValidatedForm>
   );
 }
 
@@ -1503,6 +1506,7 @@ function Detail({ label, value }) {
 }
 
 AnnualReturnForm.propTypes = {
+  error: PropTypes.string,
   form: PropTypes.object.isRequired,
   branches: PropTypes.array.isRequired,
   offices: PropTypes.array.isRequired,

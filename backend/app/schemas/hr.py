@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class EmployeeRowSchema(BaseModel):
@@ -26,8 +26,8 @@ class TrainingAssignRequest(BaseModel):
     assign_type: str  # Individual / Department / Company-Wide
     assigned_to_user_id: Optional[int] = None
     assigned_to_department: Optional[str] = None
-    due_days: int = 30  # due in N days from now
-    passing_score: float = 70.0
+    due_days: int = Field(default=30, ge=1, le=3650)
+    passing_score: float = Field(default=70.0, ge=0, le=100, allow_inf_nan=False)
 
 
 class ComplianceDashboard(BaseModel):

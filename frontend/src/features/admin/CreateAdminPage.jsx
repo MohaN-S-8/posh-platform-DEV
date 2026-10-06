@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
@@ -265,7 +266,15 @@ export function CreateAdminPage() {
             ? "Update Admin details and optionally set a new password."
             : "Select an existing User Master user. Their ID, email, contact, and username are filled automatically before upgrading access."}
         </p>
-        <form onSubmit={createAdmin}>
+        <ValidatedForm
+          error={error}
+          validate={() =>
+            !editingAdmin && !selectedEmployee
+              ? ["Select an employee from User Master for admin access."]
+              : []
+          }
+          onSubmit={createAdmin}
+        >
           {!editingAdmin && (
             <label style={{ ...labelStyle, marginBottom: "16px" }}>
               Search User *
@@ -304,6 +313,7 @@ export function CreateAdminPage() {
               <input
                 required
                 value={form.name}
+                data-validation="person"
                 placeholder="Full name"
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 style={inputStyle}
@@ -391,7 +401,7 @@ export function CreateAdminPage() {
               </button>
             )}
           </div>
-        </form>
+        </ValidatedForm>
       </section>
 
       <section>

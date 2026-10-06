@@ -1,0 +1,28 @@
+.constitution-panel { margin-bottom: 32px; }
+.constitution-panel label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; min-width: 0; }
+.constitution-panel input, .constitution-panel select { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--portal-border, #d8dde5); border-radius: 6px; background: white; font: inherit; }
+.constitution-company { max-width: 420px; margin-bottom: 24px; }
+.constitution-form { padding: 18px 0; border-top: 1px solid #d8dde5; margin-bottom: 18px; }
+.constitution-form h4 { margin: 0 0 18px; }
+.constitution-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
+.constitution-table { overflow-x: auto; margin-bottom: 28px; }
+.constitution-table table { border-collapse: collapse; width: 100%; min-width: 650px; font-size: 13px; }
+.constitution-table th, .constitution-table td { padding: 12px; border-bottom: 1px solid #d8dde5; text-align: left; overflow-wrap: anywhere; }
+.constitution-table th { background: #f4f5f8; }
+.constitution-table button { cursor: pointer; color: var(--portal-purple); background: white; border: 1px solid #d8dde5; border-radius: 4px; padding: 6px; overflow-wrap: anywhere; }
+.constitution-preview { position: fixed; inset: 5%; background: white; border: 1px solid #d8dde5; box-shadow: 0 4px 24px #0003; padding: 16px; z-index: 1500; display: flex; flex-direction: column; gap: 12px; }
+.constitution-preview iframe { flex: 1; width: 100%; border: 0; }
+.constitution-preview button { align-self: flex-end; }
+.meeting-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.meeting-header h4 { margin: 0; }
+.meeting-wide { grid-column: 1 / -1; }
+.meeting-agenda { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; font-size: 13px; font-weight: 600; }
+.meeting-agenda textarea { box-sizing: border-box; width: 100%; min-height: 82px; padding: 10px; border: 1px solid var(--portal-border, #d8dde5); border-radius: 6px; background: white; font: inherit; resize: vertical; }
+.meeting-filters { margin-top: 18px; }
+.meeting-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.meeting-actions button { display: inline-flex; align-items: center; gap: 4px; }
+.meeting-detail { border-top: 1px solid #d8dde5; padding: 20px 0; scroll-margin-top: 90px; }
+.meeting-detail h4, .meeting-detail h5 { margin: 12px 0 5px; }
+.meeting-detail p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 5px 0 14px; }
+.meeting-header { scroll-margin-top: 90px; }
+@media (max-width: 760px) { .constitution-grid { grid-template-columns: 1fr; } }

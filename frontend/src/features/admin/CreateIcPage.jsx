@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
@@ -14,9 +15,12 @@ const emptyForm = {
 };
 
 const employeeOptionLabel = (employee) => {
-  const name = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+  const name =
+    `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
   const employeeId = employee.employee_id ? ` (${employee.employee_id})` : "";
-  const company = employee.company_id ? ` - Company ${employee.company_id}` : "";
+  const company = employee.company_id
+    ? ` - Company ${employee.company_id}`
+    : "";
   return `${name || employee.email} - ${employee.email}${employeeId}${company}`;
 };
 
@@ -118,7 +122,9 @@ export function CreateIcPage() {
   const submitIc = async (event) => {
     event.preventDefault();
     if (!editingIc && !selectedEmployee) {
-      setError("Please select an employee from User Master before creating IC access.");
+      setError(
+        "Please select an employee from User Master before creating IC access.",
+      );
       return;
     }
 
@@ -150,13 +156,19 @@ export function CreateIcPage() {
         }
         setSuccess("IC user updated.");
       } else {
-        await apiClient.post(`/users/${selectedEmployee.user_id}/upgrade-to-ic`, {
-          ic_role: form.ic_role.trim() || "Internal Committee Member",
-        });
+        await apiClient.post(
+          `/users/${selectedEmployee.user_id}/upgrade-to-ic`,
+          {
+            ic_role: form.ic_role.trim() || "Internal Committee Member",
+          },
+        );
         if (form.password) {
-          await apiClient.post(`/users/${selectedEmployee.user_id}/reset-password`, {
-            new_password: form.password,
-          });
+          await apiClient.post(
+            `/users/${selectedEmployee.user_id}/reset-password`,
+            {
+              new_password: form.password,
+            },
+          );
         }
         setSuccess("Employee upgraded to IC.");
       }
@@ -200,7 +212,8 @@ export function CreateIcPage() {
 
   const deleteIc = async (icUser) => {
     const name = `${icUser.first_name || ""} ${icUser.last_name || ""}`.trim();
-    if (!window.confirm(`Delete ${name || icUser.email} from IC users?`)) return;
+    if (!window.confirm(`Delete ${name || icUser.email} from IC users?`))
+      return;
     setDeletingId(icUser.user_id);
     setError("");
     setSuccess("");
@@ -221,8 +234,12 @@ export function CreateIcPage() {
     setError("");
     setSuccess("");
     try {
-      await apiClient.patch(`/users/${icUser.user_id}/status?status=${nextStatus}`);
-      setSuccess(`IC user ${nextStatus === "Active" ? "activated" : "deactivated"}.`);
+      await apiClient.patch(
+        `/users/${icUser.user_id}/status?status=${nextStatus}`,
+      );
+      setSuccess(
+        `IC user ${nextStatus === "Active" ? "activated" : "deactivated"}.`,
+      );
       await loadIcUsers();
     } catch (err) {
       setError(apiErrorMessage(err, "Failed to update IC status."));
@@ -232,18 +249,31 @@ export function CreateIcPage() {
   };
 
   return (
-    <PortalShell title="Create IC" subtitle="Upgrade User Master employees to IC users">
+    <PortalShell
+      title="Create IC"
+      subtitle="Upgrade User Master employees to IC users"
+    >
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
       <section style={panelStyle}>
-        <h3 style={titleStyle}>{editingIc ? "Edit IC User" : "Create IC User"}</h3>
+        <h3 style={titleStyle}>
+          {editingIc ? "Edit IC User" : "Create IC User"}
+        </h3>
         <p style={mutedStyle}>
           {editingIc
             ? "Update IC user details and optionally set a new password."
             : "Select an existing Employee from User Master. Their ID, email, contact, and username are filled automatically before upgrading access."}
         </p>
-        <form onSubmit={submitIc}>
+        <ValidatedForm
+          error={error}
+          validate={() =>
+            !editingIc && !selectedEmployee
+              ? ["Select an employee from User Master for IC access."]
+              : []
+          }
+          onSubmit={submitIc}
+        >
           {!editingIc && (
             <label style={{ ...labelStyle, marginBottom: "16px" }}>
               Search Employee *
@@ -258,14 +288,21 @@ export function CreateIcPage() {
               />
               <datalist id="ic-employee-options">
                 {employees.map((employee) => (
-                  <option key={employee.user_id} value={employeeOptionLabel(employee)} />
+                  <option
+                    key={employee.user_id}
+                    value={employeeOptionLabel(employee)}
+                  />
                 ))}
               </datalist>
               {!loading && employees.length === 0 && (
-                <span style={hintStyle}>No Employee users are available to upgrade.</span>
+                <span style={hintStyle}>
+                  No Employee users are available to upgrade.
+                </span>
               )}
               {selectedEmployee && (
-                <span style={hintStyle}>Selected employee will be converted to IC.</span>
+                <span style={hintStyle}>
+                  Selected employee will be converted to IC.
+                </span>
               )}
             </label>
           )}
@@ -275,8 +312,11 @@ export function CreateIcPage() {
               <input
                 required
                 value={form.name}
+                data-validation="person"
                 placeholder="Full name"
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, name: event.target.value })
+                }
                 style={inputStyle}
               />
             </label>
@@ -286,7 +326,9 @@ export function CreateIcPage() {
                 required
                 value={form.id_no}
                 placeholder="e.g. IC-001"
-                onChange={(event) => setForm({ ...form, id_no: event.target.value.toUpperCase() })}
+                onChange={(event) =>
+                  setForm({ ...form, id_no: event.target.value.toUpperCase() })
+                }
                 style={inputStyle}
               />
             </label>
@@ -297,7 +339,9 @@ export function CreateIcPage() {
                 type="email"
                 value={form.email}
                 placeholder="name@example.com"
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, email: event.target.value })
+                }
                 style={inputStyle}
               />
             </label>
@@ -307,7 +351,9 @@ export function CreateIcPage() {
                 required
                 value={form.contact}
                 placeholder="10 digit mobile"
-                onChange={(event) => setForm({ ...form, contact: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, contact: event.target.value })
+                }
                 style={inputStyle}
               />
             </label>
@@ -317,7 +363,9 @@ export function CreateIcPage() {
                 required
                 value={form.username}
                 placeholder="e.g. jane.doe"
-                onChange={(event) => setForm({ ...form, username: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, username: event.target.value })
+                }
                 style={inputStyle}
               />
             </label>
@@ -327,7 +375,9 @@ export function CreateIcPage() {
                 required
                 value={form.ic_role}
                 placeholder="Internal Committee Member"
-                onChange={(event) => setForm({ ...form, ic_role: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, ic_role: event.target.value })
+                }
                 style={inputStyle}
               />
             </label>
@@ -341,13 +391,19 @@ export function CreateIcPage() {
                     ? "Leave blank to keep current password"
                     : "Optional. Leave blank to keep employee password"
                 }
-                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, password: event.target.value })
+                }
                 style={inputStyle}
               />
             </label>
           </div>
           <div style={actionGroupStyle}>
-            <button type="submit" disabled={submitting} style={primaryButtonStyle}>
+            <button
+              type="submit"
+              disabled={submitting}
+              style={primaryButtonStyle}
+            >
               {submitting
                 ? editingIc
                   ? "Saving..."
@@ -357,12 +413,16 @@ export function CreateIcPage() {
                   : "Upgrade to IC"}
             </button>
             {editingIc && (
-              <button type="button" onClick={cancelEdit} style={secondaryButtonStyle}>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                style={secondaryButtonStyle}
+              >
                 Cancel Edit
               </button>
             )}
           </div>
-        </form>
+        </ValidatedForm>
       </section>
 
       <section>
@@ -405,34 +465,80 @@ export function CreateIcPage() {
           </button>
         </div>
         <div style={tableWrapStyle}>
-          <table style={{ width: "100%", minWidth: "860px", borderCollapse: "collapse" }}>
+          <table
+            style={{
+              width: "100%",
+              minWidth: "860px",
+              borderCollapse: "collapse",
+            }}
+          >
             <thead>
               <tr style={{ background: "#faf8ff" }}>
-                {["Name", "ID No", "Email", "Contact", "Username", "IC Responsibility", "Status", "Action"].map((heading) => (
-                  <th key={heading} style={thStyle}>{heading}</th>
+                {[
+                  "Name",
+                  "ID No",
+                  "Email",
+                  "Contact",
+                  "Username",
+                  "IC Responsibility",
+                  "Status",
+                  "Action",
+                ].map((heading) => (
+                  <th key={heading} style={thStyle}>
+                    {heading}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} style={emptyStyle}>Loading IC users...</td></tr>
+                <tr>
+                  <td colSpan={8} style={emptyStyle}>
+                    Loading IC users...
+                  </td>
+                </tr>
               ) : icUsers.length === 0 ? (
-                <tr><td colSpan={8} style={emptyStyle}>No IC users created yet.</td></tr>
+                <tr>
+                  <td colSpan={8} style={emptyStyle}>
+                    No IC users created yet.
+                  </td>
+                </tr>
               ) : filteredIcUsers.length === 0 ? (
-                <tr><td colSpan={8} style={emptyStyle}>No IC users match these filters.</td></tr>
+                <tr>
+                  <td colSpan={8} style={emptyStyle}>
+                    No IC users match these filters.
+                  </td>
+                </tr>
               ) : (
                 filteredIcUsers.map((icUser) => (
-                  <tr key={icUser.user_id} style={{ borderTop: "1px solid var(--portal-border)" }}>
-                    <td style={tdStyle}>{icUser.first_name} {icUser.last_name || ""}</td>
+                  <tr
+                    key={icUser.user_id}
+                    style={{ borderTop: "1px solid var(--portal-border)" }}
+                  >
+                    <td style={tdStyle}>
+                      {icUser.first_name} {icUser.last_name || ""}
+                    </td>
                     <td style={tdStyle}>{icUser.employee_id}</td>
                     <td style={tdStyle}>{icUser.email}</td>
                     <td style={tdStyle}>{icUser.mobile || "-"}</td>
                     <td style={tdStyle}>{icUser.username || icUser.email}</td>
-                    <td style={tdStyle}><span style={roleBadgeStyle}>{icUser.ic_role || "IC"}</span></td>
-                    <td style={tdStyle}><span style={statusBadgeStyle(icUser.status)}>{icUser.status}</span></td>
+                    <td style={tdStyle}>
+                      <span style={roleBadgeStyle}>
+                        {icUser.ic_role || "IC"}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={statusBadgeStyle(icUser.status)}>
+                        {icUser.status}
+                      </span>
+                    </td>
                     <td style={tdStyle}>
                       <div style={actionGroupStyle}>
-                        <button type="button" onClick={() => startEdit(icUser)} style={secondaryButtonStyle}>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(icUser)}
+                          style={secondaryButtonStyle}
+                        >
                           Edit
                         </button>
                         <button
@@ -453,7 +559,9 @@ export function CreateIcPage() {
                           onClick={() => deleteIc(icUser)}
                           style={dangerButtonStyle}
                         >
-                          {deletingId === icUser.user_id ? "Deleting..." : "Delete"}
+                          {deletingId === icUser.user_id
+                            ? "Deleting..."
+                            : "Delete"}
                         </button>
                       </div>
                     </td>

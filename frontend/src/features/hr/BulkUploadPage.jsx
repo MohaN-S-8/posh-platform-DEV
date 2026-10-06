@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useState, useRef } from "react";
 import apiClient from "../../api/client";
 import { PortalShell } from "../../components/PortalShell";
@@ -64,8 +65,7 @@ export function BulkUploadPage() {
         <h3 style={{ color: "#1a3c5e", marginTop: 0 }}>Upload Employee List</h3>
         <p style={{ color: "#666", fontSize: "14px", marginBottom: "16px" }}>
           Upload an Excel (.xlsx) or CSV (.csv) file with employee data.
-          Required columns:{" "}
-          <code>employee_id, first_name, email, mobile</code>
+          Required columns: <code>employee_id, first_name, email, mobile</code>
         </p>
 
         <button
@@ -84,7 +84,7 @@ export function BulkUploadPage() {
           Download Template CSV
         </button>
 
-        <form onSubmit={handleUpload}>
+        <ValidatedForm error={error} onSubmit={handleUpload}>
           <div
             style={{
               border: "2px dashed #ddd",
@@ -100,6 +100,8 @@ export function BulkUploadPage() {
             <input
               type="file"
               ref={fileInputRef}
+              required
+              aria-label="Excel or CSV file"
               accept=".xlsx,.xls,.csv"
               style={{ fontSize: "14px" }}
             />
@@ -136,7 +138,7 @@ export function BulkUploadPage() {
           >
             {loading ? "Uploading..." : "Upload & Create Employees"}
           </button>
-        </form>
+        </ValidatedForm>
       </div>
 
       {result && (

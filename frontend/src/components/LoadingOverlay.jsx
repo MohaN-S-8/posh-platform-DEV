@@ -1,6 +1,11 @@
 import PropTypes from "prop-types";
+import { LoadingBrand } from "./LoadingBrand";
 
-export function LoadingOverlay({ show, title = "Working...", message = "Please wait." }) {
+export function LoadingOverlay({
+  show,
+  title = "Working...",
+  message = "Please wait.",
+}) {
   if (!show) return null;
 
   return (
@@ -28,6 +33,7 @@ export function LoadingOverlay({ show, title = "Working...", message = "Please w
           border: "1px solid #e2e8f0",
         }}
       >
+        <LoadingBrand />
         <div
           style={{
             width: "42px",
@@ -42,7 +48,9 @@ export function LoadingOverlay({ show, title = "Working...", message = "Please w
         <h3 style={{ margin: "0 0 6px", color: "#17324d", fontSize: "18px" }}>
           {title}
         </h3>
-        <p style={{ margin: 0, color: "#667085", fontSize: "14px" }}>{message}</p>
+        <p style={{ margin: 0, color: "#667085", fontSize: "14px" }}>
+          {message}
+        </p>
       </div>
       <style>
         {`

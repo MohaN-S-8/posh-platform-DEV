@@ -1,3 +1,4 @@
+import { ValidatedForm } from "./ValidatedForm";
 import CloseIcon from "@mui/icons-material/Close";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import FolderIcon from "@mui/icons-material/Folder";
@@ -24,6 +25,7 @@ import apiClient from "../api/client";
 import { apiErrorMessage } from "../api/errors";
 import { useAuthStore } from "../store/authStore";
 import { canAccess } from "../utils/accessControl";
+import { useBrandingStore } from "../store/brandingStore";
 
 const roleLabels = {
   1: "Super Admin",
@@ -70,7 +72,6 @@ const defaultAllowed = {
     "PoSH Training",
     "IC Member Training",
     "Assessment & Certificate",
-    "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
     "User Master",
@@ -83,7 +84,6 @@ const defaultAllowed = {
     "PoSH Training",
     "IC Member Training",
     "Assessment & Certificate",
-    "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
   ]),
@@ -303,6 +303,7 @@ function navForRole(roleId, enabledAccessItems) {
 }
 
 export function PortalShell({ title, subtitle, children }) {
+  const portalName = useBrandingStore((state) => state.portalName);
   const navigate = useNavigate();
   const location = useLocation();
   const { clearAuth, user } = useAuthStore();
@@ -502,7 +503,7 @@ export function PortalShell({ title, subtitle, children }) {
       <aside className={`portal-sidebar ${isMenuOpen ? "open" : ""}`}>
         <div className="portal-logo">
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span /> XYZ Portal
+            <span /> {portalName}
           </div>
           <button
             type="button"
@@ -643,9 +644,16 @@ export function PortalShell({ title, subtitle, children }) {
             </button>
             <div className="portal-avatar">{initials}</div>
             <div className="portal-brand">
-              <div className="portal-brand-mark">X</div>
+              <div className="portal-brand-mark" aria-hidden="true">
+                {Array.from(portalName.trim())[0]?.toUpperCase()}
+              </div>
               <div>
-                <div className="portal-brand-name">XYZ</div>
+                <div
+                  className="portal-brand-name"
+                  style={{ overflowWrap: "anywhere", fontSize: 18 }}
+                >
+                  {portalName}
+                </div>
                 <div className="portal-brand-tag">PORTAL</div>
               </div>
             </div>
@@ -739,7 +747,11 @@ export function PortalShell({ title, subtitle, children }) {
 
         {canReportConcern && activePanel === "concern" && (
           <div className="portal-modal-backdrop">
-            <form className="portal-modal" onSubmit={submitConcern}>
+            <ValidatedForm
+              error={concernError}
+              className="portal-modal"
+              onSubmit={submitConcern}
+            >
               <div className="portal-action-panel-head">
                 <strong>Report a Concern</strong>
                 <button type="button" onClick={() => setActivePanel("")}>
@@ -792,7 +804,7 @@ export function PortalShell({ title, subtitle, children }) {
                   Submit
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         )}
         <main className="portal-content">{children}</main>

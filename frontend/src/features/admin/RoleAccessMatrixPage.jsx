@@ -3,7 +3,23 @@ import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
 
-const roles = ["Super Admin", "Admin", "Client Admin (Mgmt)", "IC", "Employee"];
+const standardRoles = [
+  "Super Admin",
+  "Co-Partner",
+  "Admin",
+  "Client Admin (Mgmt)",
+  "IC",
+  "Employee",
+];
+const roleAliases = {
+  "Company Admin": "Admin",
+  "Corp Admin": "Admin",
+  "Client / Management": "Client Admin (Mgmt)",
+  HR: "IC",
+  "HR / IC": "IC",
+  "PO / Member": "IC",
+};
+const accessRole = (role) => roleAliases[role] || role;
 
 const pages = [
   "Home",
@@ -26,6 +42,7 @@ const pages = [
 ];
 
 const defaultAllowed = {
+  "Co-Partner": new Set(pages),
   "Super Admin": new Set([
     "Home",
     "PoSH Policy",
@@ -60,7 +77,6 @@ const defaultAllowed = {
     "PoSH Training",
     "IC Member Training",
     "Assessment & Certificate",
-    "POSH Compliance",
     "POSH Complaints",
     "Audit",
     "Analytics & Reports",
@@ -73,7 +89,6 @@ const defaultAllowed = {
     "PoSH Training",
     "IC Member Training",
     "Assessment & Certificate",
-    "POSH Compliance",
     "POSH Complaints",
     "Analytics & Reports",
   ]),
@@ -110,6 +125,28 @@ export function RoleAccessMatrixPage() {
   const [savingKey, setSavingKey] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const roles = useMemo(
+    () => [
+      ...standardRoles,
+      ...new Set(
+        records
+          .map((record) => accessRole(record.role_label))
+          .filter((role) => !standardRoles.includes(role)),
+      ),
+    ],
+    [records],
+  );
+  const visiblePages = useMemo(
+    () => [
+      ...pages,
+      ...new Set(
+        records
+          .map((record) => normalizeAccessItem(record.access_item))
+          .filter((page) => !pages.includes(page)),
+      ),
+    ],
+    [records],
+  );
 
   const loadAccess = useCallback(async () => {
     setLoading(true);
@@ -132,21 +169,23 @@ export function RoleAccessMatrixPage() {
   const accessMap = useMemo(() => {
     const map = new Map();
     records.forEach((record) => {
-      map.set(
-        `${record.role_label}::${normalizeAccessItem(record.access_item)}`,
-        record,
-      );
+      const key = `${accessRole(record.role_label)}::${normalizeAccessItem(record.access_item)}`;
+      if (map.has(key) && record.role_label !== accessRole(record.role_label))
+        return;
+      map.set(key, record);
     });
     return map;
   }, [records]);
 
   const isAllowed = (role, page) => {
+    role = accessRole(role);
     const record = accessMap.get(`${role}::${page}`);
     if (record) return Boolean(record.is_allowed);
     return Boolean(defaultAllowed[role]?.has(page));
   };
 
   const toggleAccess = async (role, page, nextAllowed, pageIndex) => {
+    role = accessRole(role);
     const key = `${role}::${page}`;
     const existing = accessMap.get(key);
     setSavingKey(key);
@@ -188,9 +227,10 @@ export function RoleAccessMatrixPage() {
       <section style={introStyle}>
         <h3 style={introTitleStyle}>Role & Access Matrix</h3>
         <p style={helperTextStyle}>
-          Tick or untick which pages each role can see. This is the same pattern
-          as the POSH Access role table in the master file, extended to every
-          role and every backend page.
+          Super Admin and Co-Partner have independent page permissions. Primary
+          Super Admin can access all companies; Co-Partner and Admin data access
+          is limited to assigned companies. Client / Management access is
+          limited to its organization.
         </p>
       </section>
 
@@ -210,7 +250,7 @@ export function RoleAccessMatrixPage() {
               </tr>
             </thead>
             <tbody>
-              {pages.map((page, pageIndex) => (
+              {visiblePages.map((page, pageIndex) => (
                 <tr key={page}>
                   <td style={pageTdStyle}>{page}</td>
                   {roles.map((role) => {
@@ -220,7 +260,8 @@ export function RoleAccessMatrixPage() {
                         <input
                           type="checkbox"
                           checked={isAllowed(role, page)}
-                          disabled={savingKey === key}
+                          aria-label={`${role}: ${page}`}
+                          disabled={Boolean(savingKey)}
                           onChange={(event) =>
                             toggleAccess(
                               role,

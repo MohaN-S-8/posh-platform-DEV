@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useState } from "react";
 import apiClient from "../../api/client";
 import { PortalShell } from "../../components/PortalShell";
@@ -38,7 +39,10 @@ export function ChangePasswordPage() {
   };
 
   return (
-    <PortalShell title="Change Password" subtitle="Update your account password.">
+    <PortalShell
+      title="Change Password"
+      subtitle="Update your account password."
+    >
       <div
         style={{
           background: "white",
@@ -49,16 +53,37 @@ export function ChangePasswordPage() {
           maxWidth: "520px",
         }}
       >
-        {error && <div style={messageStyle("#fff7f6", "#f3b4ae", "#c0392b")}>{error}</div>}
-        {success && <div style={messageStyle("#e8f5ee", "#1f7a4d", "#1f7a4d")}>{success}</div>}
-        <form onSubmit={submit} style={{ display: "grid", gap: "14px" }}>
+        {error && (
+          <div style={messageStyle("#fff7f6", "#f3b4ae", "#c0392b")}>
+            {error}
+          </div>
+        )}
+        {success && (
+          <div style={messageStyle("#e8f5ee", "#1f7a4d", "#1f7a4d")}>
+            {success}
+          </div>
+        )}
+        <ValidatedForm
+          error={error}
+          validate={() =>
+            form.new_password &&
+            form.confirm_password &&
+            form.new_password !== form.confirm_password
+              ? ["Confirm Password must match New Password."]
+              : []
+          }
+          onSubmit={submit}
+          style={{ display: "grid", gap: "14px" }}
+        >
           <label style={labelStyle}>
             Current Password
             <input
               required
               type="password"
               value={form.current_password}
-              onChange={(e) => setForm({ ...form, current_password: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, current_password: e.target.value })
+              }
               style={inputStyle}
             />
           </label>
@@ -70,7 +95,9 @@ export function ChangePasswordPage() {
               minLength={8}
               maxLength={15}
               value={form.new_password}
-              onChange={(e) => setForm({ ...form, new_password: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, new_password: e.target.value })
+              }
               style={inputStyle}
             />
           </label>
@@ -82,7 +109,9 @@ export function ChangePasswordPage() {
               minLength={8}
               maxLength={15}
               value={form.confirm_password}
-              onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, confirm_password: e.target.value })
+              }
               style={inputStyle}
             />
           </label>
@@ -101,7 +130,7 @@ export function ChangePasswordPage() {
           >
             {saving ? "Changing..." : "Change Password"}
           </button>
-        </form>
+        </ValidatedForm>
       </div>
     </PortalShell>
   );

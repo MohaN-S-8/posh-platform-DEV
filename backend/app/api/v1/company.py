@@ -266,6 +266,15 @@ async def update_employee_master_status(
     )
 
 
+@router.get("/geography-codes/")
+async def list_geography_codes(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles([1, 2, 5])),
+):
+    rows = await company_service.get_company_master_codes(db)
+    return [row for row in rows if row["category"] in {"Country Code", "State Code", "City Code"}]
+
+
 @router.get("/master-codes/")
 async def list_company_master_codes(
     db: AsyncSession = Depends(get_db),

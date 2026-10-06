@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_roles
+from app.core.company_deliverables import restrict_role_records
+from app.core.dependencies import get_current_user, matrix_role, require_roles
 from app.db.session import get_db
 from app.schemas.admin_config import (
     AdminConfigResponse,
@@ -50,7 +51,12 @@ async def get_my_role_access(
     role_label = ROLE_ACCESS_LABELS.get(current_user.role_id)
     if not role_label:
         return []
-    for label in ROLE_ACCESS_ALIASES.get(current_user.role_id, [role_label]):
+    labels = (
+        ["Co-Partner"]
+        if matrix_role(current_user) == "Co-Partner"
+        else ROLE_ACCESS_ALIASES.get(current_user.role_id, [role_label])
+    )
+    for label in labels:
         result = await db.execute(
             text(
                 """
@@ -64,8 +70,8 @@ async def get_my_role_access(
         )
         rows = [_row_dict(row) for row in result]
         if rows:
-            return rows
-    return []
+            return await restrict_role_records(db, current_user, rows)
+    return await restrict_role_records(db, current_user, [])
 
 
 async def _ensure_exists(db: AsyncSession, table_name: str, record_id: int):
@@ -291,6 +297,8 @@ async def create_role_access(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_roles(SUPER_ADMIN_ROLES)),
 ):
+    if matrix_role(current_user) != 1:
+        raise HTTPException(403, "Only the primary Super Admin can change role access")
     if await _duplicate_exists(
         db,
         """
@@ -334,6 +342,8 @@ async def update_role_access(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_roles(SUPER_ADMIN_ROLES)),
 ):
+    if matrix_role(current_user) != 1:
+        raise HTTPException(403, "Only the primary Super Admin can change role access")
     await _ensure_exists(db, "posh_role_access", record_id)
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -361,6 +371,8 @@ async def delete_role_access(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_roles(SUPER_ADMIN_ROLES)),
 ):
+    if matrix_role(current_user) != 1:
+        raise HTTPException(403, "Only the primary Super Admin can change role access")
     await _ensure_exists(db, "posh_role_access", record_id)
     await db.execute(text("DELETE FROM posh_role_access WHERE id = :id"), {"id": record_id})
     await db.commit()

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.company_scope import assigned_company_ids as _assigned_company_ids
 from app.core.dependencies import require_permission, require_roles
 from app.db.session import get_db
 from app.models.annual_return import AnnualReturn
@@ -299,7 +300,11 @@ async def _user_training_rows(db: AsyncSession, company_ids: list[int] | None = 
     return rows
 
 
-async def _platform_overview(db: AsyncSession) -> dict:
+async def _platform_overview(db: AsyncSession, company_ids: list[int]) -> dict:
+    assessment_scope = AssessmentResult.user_id.in_(
+        select(UserMaster.user_id).where(UserMaster.company_id.in_(company_ids))
+    )
+
     async def scalar_count(*conditions) -> int:
         result = await db.execute(select(func.count()).where(*conditions))
         return result.scalar() or 0
@@ -313,43 +318,60 @@ async def _platform_overview(db: AsyncSession) -> dict:
             CompanyMaster.is_deleted == "N",
             CompanyMaster.company_id != 1,
             CompanyMaster.status == "Active",
+            CompanyMaster.company_id.in_(company_ids),
         )
     )
     total_companies = companies_result.scalar() or 0
 
     users_result = await db.execute(
-        select(func.count()).where(UserMaster.is_deleted == "N", UserMaster.status == "Active")
+        select(func.count()).where(
+            UserMaster.is_deleted == "N",
+            UserMaster.status == "Active",
+            UserMaster.company_id.in_(company_ids),
+        )
     )
     total_users = users_result.scalar() or 0
 
-    certs_result = await db.execute(select(func.count()).where(Certificate.status == "Valid"))
+    certs_result = await db.execute(
+        select(func.count()).where(
+            Certificate.status == "Valid", Certificate.company_id.in_(company_ids)
+        )
+    )
     total_certificates = certs_result.scalar() or 0
 
     completions_result = await db.execute(
-        select(func.count()).where(TrainingHistory.status == "Completed")
+        select(func.count()).where(
+            TrainingHistory.status == "Completed", TrainingHistory.company_id.in_(company_ids)
+        )
     )
     total_completions = completions_result.scalar() or 0
 
     avg_score_result = await db.execute(
-        select(func.avg(AssessmentResult.score)).where(AssessmentResult.result == "Pass")
+        select(func.avg(AssessmentResult.score)).where(
+            AssessmentResult.result == "Pass", assessment_scope
+        )
     )
     avg_score = round(float(avg_score_result.scalar() or 0), 2)
     role_counts = await grouped_counts(
         UserMaster.role_id,
         UserMaster.is_deleted == "N",
         UserMaster.status == "Active",
+        UserMaster.company_id.in_(company_ids),
     )
     company_approval = await grouped_counts(
         CompanyMaster.approval_status,
         CompanyMaster.is_deleted == "N",
         CompanyMaster.company_id != 1,
+        CompanyMaster.company_id.in_(company_ids),
     )
     company_status = await grouped_counts(
         CompanyMaster.status,
         CompanyMaster.is_deleted == "N",
         CompanyMaster.company_id != 1,
+        CompanyMaster.company_id.in_(company_ids),
     )
-    video_status = await grouped_counts(VideoMaster.status)
+    video_scope = VideoMaster.company_id.in_(company_ids)
+    video_status = await grouped_counts(VideoMaster.status, video_scope)
     service_training_result = await db.execute(
         select(
             VideoMaster.service_code,
@@ -357,7 +379,9 @@ async def _platform_overview(db: AsyncSession) -> dict:
             VideoMaster.target_audience,
             VideoMaster.status,
             func.count(),
-        ).group_by(
+        )
+        .where(video_scope)
+        .group_by(
             VideoMaster.service_code,
             VideoMaster.training_level,
             VideoMaster.target_audience,
@@ -383,18 +407,26 @@ async def _platform_overview(db: AsyncSession) -> dict:
         )
         audience["total"] += count
         audience[str(status or "Draft").lower()] = count
-    template_status = await grouped_counts(CertificateTemplate.status)
-    concern_status = await grouped_counts(Concern.status)
-    assessment_results = await grouped_counts(AssessmentResult.result)
-    annual_return_status = await grouped_counts(AnnualReturn.status)
+    template_status = await grouped_counts(
+        CertificateTemplate.status, CertificateTemplate.company_id.in_(company_ids)
+    )
+    concern_status = await grouped_counts(Concern.status, Concern.company_id.in_(company_ids))
+    assessment_results = await grouped_counts(AssessmentResult.result, assessment_scope)
+    annual_return_status = await grouped_counts(
+        AnnualReturn.status, AnnualReturn.company_id.in_(company_ids)
+    )
     total_employees = role_counts.get("4", 0)
     completed_users_result = await db.execute(
         select(func.count(TrainingHistory.user_id.distinct())).where(
-            TrainingHistory.status == "Completed"
+            TrainingHistory.status == "Completed", TrainingHistory.company_id.in_(company_ids)
         )
     )
     completed_users = completed_users_result.scalar() or 0
-    assignments_result = await db.execute(select(func.count()).select_from(CourseAssignment))
+    assignments_result = await db.execute(
+        select(func.count())
+        .select_from(CourseAssignment)
+        .where(CourseAssignment.company_id.in_(company_ids))
+    )
     total_assignments = assignments_result.scalar() or 0
     compliance_rate = round((completed_users / total_employees * 100), 2) if total_employees else 0
     company_rows = (
@@ -406,7 +438,10 @@ async def _platform_overview(db: AsyncSession) -> dict:
                 CompanyMaster.status,
                 CompanyMaster.scope_codes_json,
                 CompanyMaster.service_details_json,
-            ).where(CompanyMaster.is_deleted == "N", CompanyMaster.company_id != 1)
+            ).where(
+                CompanyMaster.is_deleted == "N",
+                CompanyMaster.company_id.in_(company_ids),
+            )
         )
     ).all()
     company_ids = [row.company_id for row in company_rows]
@@ -415,7 +450,11 @@ async def _platform_overview(db: AsyncSession) -> dict:
         for company_id, count in (
             await db.execute(
                 select(UserMaster.company_id, func.count())
-                .where(UserMaster.is_deleted == "N", UserMaster.role_id == 4)
+                .where(
+                    UserMaster.is_deleted == "N",
+                    UserMaster.role_id == 4,
+                    UserMaster.company_id.in_(company_ids),
+                )
                 .group_by(UserMaster.company_id)
             )
         ).all()
@@ -425,7 +464,7 @@ async def _platform_overview(db: AsyncSession) -> dict:
         for company_id, count in (
             await db.execute(
                 select(Certificate.company_id, func.count())
-                .where(Certificate.status == "Valid")
+                .where(Certificate.status == "Valid", Certificate.company_id.in_(company_ids))
                 .group_by(Certificate.company_id)
             )
         ).all()
@@ -435,7 +474,11 @@ async def _platform_overview(db: AsyncSession) -> dict:
         for company_id, count in (
             await db.execute(
                 select(UserMaster.company_id, func.count())
-                .where(UserMaster.is_deleted == "N", UserMaster.role_id == 3)
+                .where(
+                    UserMaster.is_deleted == "N",
+                    UserMaster.role_id == 3,
+                    UserMaster.company_id.in_(company_ids),
+                )
                 .group_by(UserMaster.company_id)
             )
         ).all()
@@ -525,7 +568,7 @@ async def _platform_overview(db: AsyncSession) -> dict:
             }
         )
 
-    user_training_rows = await _user_training_rows(db)
+    user_training_rows = await _user_training_rows(db, company_ids)
     return {
         "scope": "platform",
         "total_companies": total_companies,
@@ -558,7 +601,9 @@ async def _platform_overview(db: AsyncSession) -> dict:
             "assignments": max(total_assignments, len(user_training_rows)),
             "completed_users": completed_users,
             "completed_history": total_completions,
-            "in_progress": await scalar_count(TrainingHistory.status == "In Progress"),
+            "in_progress": await scalar_count(
+                TrainingHistory.status == "In Progress", TrainingHistory.company_id.in_(company_ids)
+            ),
             "compliance_rate": compliance_rate,
         },
         "assessments": {
@@ -568,7 +613,9 @@ async def _platform_overview(db: AsyncSession) -> dict:
         },
         "certificates": {
             "issued": total_certificates,
-            "revoked": await scalar_count(Certificate.status == "Revoked"),
+            "revoked": await scalar_count(
+                Certificate.status == "Revoked", Certificate.company_id.in_(company_ids)
+            ),
             "templates_pending": template_status.get("Pending", 0),
             "templates_active": template_status.get("Active", 0),
             "templates_rejected": template_status.get("Rejected", 0),
@@ -666,8 +713,8 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
 
     avg_score_result = await db.execute(
         select(func.avg(AssessmentResult.score)).where(
-            AssessmentResult.video_id.in_(
-                select(TrainingHistory.video_id).where(TrainingHistory.company_id == company_id)
+            AssessmentResult.user_id.in_(
+                select(UserMaster.user_id).where(UserMaster.company_id == company_id)
             ),
             AssessmentResult.result == "Pass",
         )
@@ -813,153 +860,14 @@ async def _company_overview(db: AsyncSession, company_id: int) -> dict:
     }
 
 
-async def _admin_overview(db: AsyncSession, current_user) -> dict:
-    all_company_rows = (
-        await db.execute(
-            select(
-                CompanyMaster.company_id,
-                CompanyMaster.company_name,
-                CompanyMaster.approval_status,
-                CompanyMaster.status,
-                CompanyMaster.scope_codes_json,
-                CompanyMaster.service_details_json,
-            ).where(CompanyMaster.is_deleted == "N", CompanyMaster.company_id != 1)
-        )
-    ).all()
-    visible_rows = []
-    for row in all_company_rows:
-        try:
-            service_rows = json.loads(row.service_details_json or "[]")
-        except json.JSONDecodeError:
-            service_rows = []
-        if not isinstance(service_rows, list):
-            service_rows = []
-        is_assigned = any(
-            str(item.get("assigned_to") or "") == str(current_user.user_id)
-            or str(item.get("created_by") or "") == str(current_user.user_id)
-            for item in service_rows
-            if isinstance(item, dict)
-        )
-        if is_assigned:
-            visible_rows.append(row)
-
-    company_ids = [row.company_id for row in visible_rows]
-    own_company_id = current_user.company_id
-    training_company_ids = sorted(set(company_ids + ([own_company_id] if own_company_id else [])))
-    employees_by_company = {
-        company_id: count
-        for company_id, count in (
-            await db.execute(
-                select(UserMaster.company_id, func.count())
-                .where(
-                    UserMaster.company_id.in_(training_company_ids or [0]),
-                    UserMaster.is_deleted == "N",
-                    UserMaster.role_id == 4,
-                )
-                .group_by(UserMaster.company_id)
-            )
-        ).all()
-    }
-    certificates_by_company = {
-        company_id: count
-        for company_id, count in (
-            await db.execute(
-                select(Certificate.company_id, func.count())
-                .where(
-                    Certificate.company_id.in_(training_company_ids or [0]),
-                    Certificate.status == "Valid",
-                )
-                .group_by(Certificate.company_id)
-            )
-        ).all()
-    }
-    ic_by_company = {
-        company_id: count
-        for company_id, count in (
-            await db.execute(
-                select(UserMaster.company_id, func.count())
-                .where(
-                    UserMaster.company_id.in_(training_company_ids or [0]),
-                    UserMaster.is_deleted == "N",
-                    UserMaster.role_id == 3,
-                )
-                .group_by(UserMaster.company_id)
-            )
-        ).all()
-    }
-    annual_status_map = await _annual_status_by_company(db, company_ids)
-    open_complaints_map = await _open_complaints_by_company(db, company_ids)
-    completed_by_company = await _training_completed_users_by_company(db, training_company_ids)
-    organizations = []
-    for row in visible_rows:
-        service_codes = _service_codes(row.scope_codes_json)
-        service_summary = _service_summary(row.service_details_json)
-        employee_count = employees_by_company.get(row.company_id, 0)
-        completed_count = completed_by_company.get(row.company_id, 0)
-        training_rate = round((completed_count / employee_count * 100), 2) if employee_count else 0
-        org_annual_status = annual_status_map.get(row.company_id, "Pending")
-        open_complaints = open_complaints_map.get(row.company_id, 0)
-        organizations.append(
-            {
-                "company_id": row.company_id,
-                "company_name": row.company_name,
-                "status": row.status,
-                "approval_status": row.approval_status or "Pending",
-                "services": service_codes,
-                "client_id": service_summary["client_id"],
-                "frequency": service_summary["frequency"],
-                "billing": service_summary["billing"],
-                "start_date": service_summary["start_date"],
-                "stop_date": service_summary["stop_date"],
-                "assigned_to_name": service_summary["assigned_to_name"],
-                "deliverables": service_summary["deliverables"],
-                "ic_meetings": service_summary["ic_meetings"],
-                "annual_return_status": org_annual_status,
-                "training_rate": training_rate,
-                "completed_training": completed_count,
-                "open_complaints": open_complaints,
-                "ic_users": ic_by_company.get(row.company_id, 0),
-                "contract": (
-                    "Active"
-                    if row.status == "Active" and row.approval_status == "Approved"
-                    else "Pending"
-                ),
-                "health": (
-                    "Red"
-                    if open_complaints or org_annual_status == "Overdue"
-                    else (
-                        "Amber" if org_annual_status == "Pending" or training_rate < 80 else "Green"
-                    )
-                ),
-                "employees": employee_count,
-                "certificates": certificates_by_company.get(row.company_id, 0),
-            }
-        )
-
-    own_company = await _company_overview(db, own_company_id)
-    admin_training_rows = await _user_training_rows(db, training_company_ids)
-    own_company.update(
-        {
-            "scope": "admin",
-            "managed_clients": len(organizations),
-            "organizations": organizations,
-            "assignments": max(own_company.get("assignments", 0), len(admin_training_rows)),
-            "user_training_rows": admin_training_rows,
-        }
-    )
-    return own_company
-
-
 @router.get("/current")
 async def current_analytics(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission("reports.view")),
 ):
     """Analytics for the current admin scope."""
-    if current_user.role_id == 1:
-        return await _platform_overview(db)
-    if current_user.role_id == 2:
-        return await _admin_overview(db, current_user)
+    if current_user.role_id in (1, 2):
+        return await _platform_overview(db, await _assigned_company_ids(db, current_user))
     return await _company_overview(db, current_user.company_id)
 
 
@@ -968,5 +876,18 @@ async def analytics_overview(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_roles([1])),  # Super Admin only
 ):
-    """Platform-wide analytics for Super Admin."""
-    return await _platform_overview(db)
+    """Analytics restricted to companies assigned to this Super Admin."""
+    return await _platform_overview(db, await _assigned_company_ids(db, current_user))
+
+
+@router.get("/company/{company_id}")
+async def company_analytics(
+    company_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("reports.view")),
+):
+    """Analytics for a specific company."""
+    if company_id not in await _assigned_company_ids(db, current_user):
+        raise HTTPException(403, "You do not have permission to access this company.")
+
+    return await _company_overview(db, company_id)

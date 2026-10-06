@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
@@ -146,6 +147,38 @@ async def list_users(
     if current_user.role_id != ROLE_SUPER_ADMIN:
         company_id = current_user.company_id
     return await user_service.get_all(db, company_id, _visible_role_ids(current_user))
+
+
+@router.get("/company/{company_id}/branches")
+async def user_branch_options(
+    company_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission("users.manage")),
+):
+    """Workplace details only, scoped to companies the caller can manage."""
+    await _ensure_can_create_in_company(db, current_user, company_id)
+    company = await company_service.get_by_id(db, company_id)
+    try:
+        rows = json.loads(company.branches_json or "[]")
+    except (TypeError, ValueError):
+        raise HTTPException(409, "Company branch data needs correction in Branch Master.")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise HTTPException(409, "Company branch data needs correction in Branch Master.")
+    fields = (
+        "branch_id",
+        "branch_name",
+        "city",
+        "state",
+        "country",
+        "address1",
+        "address2",
+        "pincode",
+    )
+    return [
+        {field: row.get(field) or "" for field in fields}
+        for row in rows
+        if row.get("branch_id") and row.get("branch_name")
+    ]
 
 
 @router.post("/", response_model=UserResponse, status_code=201)

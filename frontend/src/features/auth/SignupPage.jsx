@@ -1,3 +1,6 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
+import { useBrandingStore } from "../../store/brandingStore";
+import { PortalBrand } from "../../components/PortalBrand";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +12,7 @@ import { authApi } from "../../api/auth";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 import { authInputStyle } from "../../styles/formStyles";
 
-const lettersOnly = /^[a-zA-Z\s]+$/;
+const lettersOnly = /^(?=.*\p{L})[\p{L}\p{M} .'’-]+$/u;
 
 const signupSchema = z
   .object({
@@ -80,6 +83,7 @@ const passwordToggleStyle = {
 };
 
 export function SignupPage() {
+  const portalName = useBrandingStore((state) => state.portalName);
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -89,7 +93,7 @@ export function SignupPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm({
     resolver: zodResolver(signupSchema),
     mode: "onChange",
@@ -102,7 +106,9 @@ export function SignupPage() {
       await authApi.signup(data);
       navigate("/verify-otp", { state: { email: data.email } });
     } catch (err) {
-      setError(err.response?.data?.detail || "Signup failed. Please try again.");
+      setError(
+        err.response?.data?.detail || "Signup failed. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -110,22 +116,23 @@ export function SignupPage() {
 
   return (
     <div className="auth-page">
-      <Link to="/" className="auth-brand" aria-label="POSH platform home">
-        <span className="auth-brand-mark">P</span>
-        <span>
-          <strong>POSH</strong>
-          <small>Training Platform</small>
-        </span>
+      <Link to="/" className="auth-brand" aria-label={`${portalName} home`}>
+        <PortalBrand />
       </Link>
 
       <section className="auth-card auth-card-lg">
         <div className="auth-card-header">
           <p className="auth-eyebrow">Client onboarding</p>
           <h1>Create account</h1>
-          <p>Join XYZ Portal and verify your account with OTP.</p>
+          <p>Join {portalName} and verify your account with OTP.</p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <ValidatedForm
+          error={error}
+          fieldErrors={errors}
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+        >
           <div className="auth-form-grid">
             <div>
               <label htmlFor="first_name" style={labelStyle}>
@@ -135,9 +142,14 @@ export function SignupPage() {
                 id="first_name"
                 autoComplete="given-name"
                 aria-invalid={!!errors.first_name}
-                aria-describedby={errors.first_name ? "first_name_error" : undefined}
+                aria-describedby={
+                  errors.first_name ? "first_name_error" : undefined
+                }
                 {...register("first_name")}
-                style={{ ...authInputStyle(!!errors.first_name), borderRadius: "8px" }}
+                style={{
+                  ...authInputStyle(!!errors.first_name),
+                  borderRadius: "8px",
+                }}
               />
               {errors.first_name && (
                 <p id="first_name_error" style={errorStyle}>
@@ -154,9 +166,14 @@ export function SignupPage() {
                 id="last_name"
                 autoComplete="family-name"
                 aria-invalid={!!errors.last_name}
-                aria-describedby={errors.last_name ? "last_name_error" : undefined}
+                aria-describedby={
+                  errors.last_name ? "last_name_error" : undefined
+                }
                 {...register("last_name")}
-                style={{ ...authInputStyle(!!errors.last_name), borderRadius: "8px" }}
+                style={{
+                  ...authInputStyle(!!errors.last_name),
+                  borderRadius: "8px",
+                }}
               />
               {errors.last_name && (
                 <p id="last_name_error" style={errorStyle}>
@@ -199,7 +216,10 @@ export function SignupPage() {
               aria-describedby={errors.mobile ? "mobile_error" : undefined}
               {...register("mobile")}
               placeholder="10 digit number"
-              style={{ ...authInputStyle(!!errors.mobile), borderRadius: "8px" }}
+              style={{
+                ...authInputStyle(!!errors.mobile),
+                borderRadius: "8px",
+              }}
             />
             {errors.mobile && (
               <p id="mobile_error" style={errorStyle}>
@@ -219,7 +239,9 @@ export function SignupPage() {
                 autoComplete="new-password"
                 aria-invalid={!!errors.password}
                 aria-describedby={
-                  errors.password ? "password_error password_help" : "password_help"
+                  errors.password
+                    ? "password_error password_help"
+                    : "password_help"
                 }
                 {...register("password")}
                 style={{
@@ -243,10 +265,7 @@ export function SignupPage() {
                 {errors.password.message}
               </p>
             )}
-            <p
-              id="password_help"
-              className="auth-help-text"
-            >
+            <p id="password_help" className="auth-help-text">
               8-15 characters, uppercase, lowercase, number, special character
             </p>
           </div>
@@ -286,7 +305,11 @@ export function SignupPage() {
                     : "Show confirm password"
                 }
               >
-                {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                {showConfirmPassword ? (
+                  <VisibilityOffIcon />
+                ) : (
+                  <VisibilityIcon />
+                )}
               </button>
             </div>
             {errors.confirm_password && (
@@ -302,19 +325,14 @@ export function SignupPage() {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={!isValid || loading}
-            className="auth-submit-btn"
-          >
+          <button type="submit" disabled={loading} className="auth-submit-btn">
             {loading ? "Creating account..." : "Create Account"}
           </button>
-        </form>
+        </ValidatedForm>
 
         <div className="auth-footer-links">
           <span>
-            Already have an account?{" "}
-            <Link to="/login">Sign in</Link>
+            Already have an account? <Link to="/login">Sign in</Link>
           </span>
         </div>
         <LoadingOverlay

@@ -1,9 +1,9 @@
 import io
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import pandas as pd
 from fastapi import HTTPException, UploadFile, status
+from pydantic import ValidationError
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
@@ -20,9 +20,16 @@ from app.models.training import CourseAssignment, TrainingHistory
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
 from app.schemas.hr import TrainingAssignRequest
+from app.schemas.user import UserCreate
 from app.services.notification_service import notification_service
 
 REQUIRED_COLUMNS = {"employee_id", "first_name", "email", "mobile"}
+
+
+def _company_filter(column, company_id):
+    if company_id is None:
+        return []
+    return [column.in_(company_id if isinstance(company_id, list) else [company_id])]
 
 
 class HRService:
@@ -192,6 +199,23 @@ class HRService:
 
             if role_id != 4:
                 row_errors.append("bulk employee upload can only create Employee users")
+
+            try:
+                UserCreate(
+                    employee_id=employee_id,
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=email,
+                    mobile=mobile,
+                    department=department,
+                    designation=designation,
+                    role_id=role_id,
+                    company_id=company_id,
+                )
+            except ValidationError as exc:
+                row_errors.extend(
+                    f"{'.'.join(map(str, issue['loc']))}: {issue['msg']}" for issue in exc.errors()
+                )
 
             # ── CSV injection defense ──────────────────────────────────────
             # Prefix cells starting with =, +, -, @ with apostrophe
@@ -448,16 +472,14 @@ class HRService:
         else:
             raise HTTPException(400, "assign_type must be Individual, Department, or Company-Wide")
 
-    async def get_compliance_dashboard(self, db: AsyncSession, company_id: Optional[int]) -> dict:
+    async def get_compliance_dashboard(
+        self, db: AsyncSession, company_id: int | list[int] | None
+    ) -> dict:
         """Compliance overview: how many employees completed training."""
 
-        company_filter = [] if company_id is None else [UserMaster.company_id == company_id]
-        history_company_filter = (
-            [] if company_id is None else [TrainingHistory.company_id == company_id]
-        )
-        assignment_company_filter = (
-            [] if company_id is None else [CourseAssignment.company_id == company_id]
-        )
+        company_filter = _company_filter(UserMaster.company_id, company_id)
+        history_company_filter = _company_filter(TrainingHistory.company_id, company_id)
+        assignment_company_filter = _company_filter(CourseAssignment.company_id, company_id)
 
         # Total active employees
         total_result = await db.execute(
@@ -590,10 +612,12 @@ class HRService:
             "overdue_employees": overdue,
         }
 
-    async def generate_employee_report(self, db: AsyncSession, company_id: Optional[int]) -> bytes:
+    async def generate_employee_report(
+        self, db: AsyncSession, company_id: int | list[int] | None
+    ) -> bytes:
         """Generate an Excel report of employee training status."""
 
-        company_filter = [] if company_id is None else [UserMaster.company_id == company_id]
+        company_filter = _company_filter(UserMaster.company_id, company_id)
         result = await db.execute(
             select(
                 CompanyMaster.company_name,
@@ -649,7 +673,7 @@ class HRService:
         return output.read()
 
     async def generate_department_report(
-        self, db: AsyncSession, company_id: Optional[int]
+        self, db: AsyncSession, company_id: int | list[int] | None
     ) -> bytes:
         """Generate an Excel report with department-level compliance."""
 
@@ -680,11 +704,11 @@ class HRService:
         return output.read()
 
     async def generate_certificate_report(
-        self, db: AsyncSession, company_id: Optional[int]
+        self, db: AsyncSession, company_id: int | list[int] | None
     ) -> bytes:
         """Generate an Excel report of issued certificates."""
 
-        certificate_filter = [] if company_id is None else [Certificate.company_id == company_id]
+        certificate_filter = _company_filter(Certificate.company_id, company_id)
         result = await db.execute(
             select(
                 CompanyMaster.company_name,
@@ -783,37 +807,37 @@ class HRService:
         return pd.read_excel(io.BytesIO(report_bytes))
 
     async def generate_employee_report_csv(
-        self, db: AsyncSession, company_id: Optional[int]
+        self, db: AsyncSession, company_id: int | list[int] | None
     ) -> bytes:
         df = await self._read_excel_report(await self.generate_employee_report(db, company_id))
         return self._dataframe_to_csv(df)
 
     async def generate_department_report_csv(
-        self, db: AsyncSession, company_id: Optional[int]
+        self, db: AsyncSession, company_id: int | list[int] | None
     ) -> bytes:
         df = await self._read_excel_report(await self.generate_department_report(db, company_id))
         return self._dataframe_to_csv(df)
 
     async def generate_certificate_report_csv(
-        self, db: AsyncSession, company_id: Optional[int]
+        self, db: AsyncSession, company_id: int | list[int] | None
     ) -> bytes:
         df = await self._read_excel_report(await self.generate_certificate_report(db, company_id))
         return self._dataframe_to_csv(df)
 
     async def generate_employee_report_pdf(
-        self, db: AsyncSession, company_id: Optional[int]
+        self, db: AsyncSession, company_id: int | list[int] | None
     ) -> bytes:
         df = await self._read_excel_report(await self.generate_employee_report(db, company_id))
         return self._dataframe_to_pdf(df, "Employee Training Report")
 
     async def generate_department_report_pdf(
-        self, db: AsyncSession, company_id: Optional[int]
+        self, db: AsyncSession, company_id: int | list[int] | None
     ) -> bytes:
         df = await self._read_excel_report(await self.generate_department_report(db, company_id))
         return self._dataframe_to_pdf(df, "Department Compliance Report")
 
     async def generate_certificate_report_pdf(
-        self, db: AsyncSession, company_id: Optional[int]
+        self, db: AsyncSession, company_id: int | list[int] | None
     ) -> bytes:
         df = await self._read_excel_report(await self.generate_certificate_report(db, company_id))
         return self._dataframe_to_pdf(df, "Certificate Report")

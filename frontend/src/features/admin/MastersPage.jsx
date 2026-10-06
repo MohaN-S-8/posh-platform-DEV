@@ -4,13 +4,14 @@ import apiClient from "../../api/client";
 import { apiErrorMessage } from "../../api/errors";
 import { PortalShell } from "../../components/PortalShell";
 import { useAuthStore } from "../../store/authStore";
+import { BranchMasterTab } from "./BranchMasterTab";
 
 const tabs = [
   { key: "Country Code", label: "Country Code", addLabel: "+ Add Country" },
   { key: "State Code", label: "State Code", addLabel: "+ Add State" },
   { key: "City Code", label: "City Code", addLabel: "+ Add City" },
+  { key: "Branch Master", label: "Branch Master" },
   { key: "Deliverables", label: "Deliverables", addLabel: "+ Add Deliverable" },
-  { key: "Office Master", label: "Office Master", addLabel: "+ Add Office" },
 ];
 
 const emptyByTab = {
@@ -246,7 +247,7 @@ export function MastersPage() {
   return (
     <PortalShell
       title="POSH Masters"
-      subtitle="Country, state, city, deliverables, and POSH office master setup."
+      subtitle="Country, state, city, branch, and deliverables master setup."
     >
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
@@ -266,6 +267,8 @@ export function MastersPage() {
 
       {loading ? (
         <div style={emptyStyle}>Loading masters...</div>
+      ) : activeTab === "Branch Master" ? (
+        <BranchMasterTab readOnly={readOnly} />
       ) : activeTab === "Office Master" ? (
         <OfficeMasterTab
           offices={offices}

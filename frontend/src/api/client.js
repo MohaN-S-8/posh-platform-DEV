@@ -1,13 +1,12 @@
 import axios from "axios";
-
-const runtimeApiBaseUrl = window.__APP_CONFIG__?.API_BASE_URL;
-const buildApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-const configuredApiBaseUrl =
-  runtimeApiBaseUrl && runtimeApiBaseUrl !== "/api/v1" ? runtimeApiBaseUrl : buildApiBaseUrl;
-const apiBaseUrl = (configuredApiBaseUrl || "/api/v1").replace(/\/$/, "");
+import {
+  startActionNotification,
+  finishActionNotification,
+  failActionNotification,
+} from "./actionNotifications";
 
 const apiClient = axios.create({
-  baseURL: apiBaseUrl,
+  baseURL: "/api/v1",
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -15,13 +14,11 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  if (config.data instanceof FormData) {
-    delete config.headers["Content-Type"];
-  }
   const token = localStorage.getItem("access_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  startActionNotification(config);
   return config;
 });
 
@@ -42,7 +39,11 @@ apiClient.interceptors.response.use(
     ) {
       originalRequest._retry = true;
       try {
-        const res = await axios.post(`${apiBaseUrl}/auth/refresh`, {}, { withCredentials: true });
+        const res = await axios.post(
+          "/api/v1/auth/refresh",
+          {},
+          { withCredentials: true },
+        );
         if (res.data?.access_token) {
           localStorage.setItem("access_token", res.data.access_token);
           originalRequest.headers.Authorization = `Bearer ${res.data.access_token}`;
@@ -56,6 +57,11 @@ apiClient.interceptors.response.use(
     }
     return Promise.reject(error);
   },
+);
+
+apiClient.interceptors.response.use(
+  finishActionNotification,
+  failActionNotification,
 );
 
 export default apiClient;

@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,7 +17,7 @@ export function ForgotPasswordPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm({ resolver: zodResolver(schema), mode: "onChange" });
 
   const onSubmit = async (data) => {
@@ -76,7 +77,10 @@ export function ForgotPasswordPage() {
             <p style={{ color: "#666", marginBottom: "32px" }}>
               Enter your email and we`&#39;ll send you reset instructions.
             </p>
-            <form onSubmit={handleSubmit(onSubmit)}>
+            <ValidatedForm
+              fieldErrors={errors}
+              onSubmit={handleSubmit(onSubmit)}
+            >
               <label
                 style={{
                   display: "block",
@@ -111,23 +115,23 @@ export function ForgotPasswordPage() {
               )}
               <button
                 type="submit"
-                disabled={!isValid || loading}
+                disabled={loading}
                 style={{
                   width: "100%",
                   padding: "12px",
                   marginTop: "24px",
-                  background: !isValid || loading ? "#93b8d4" : "#1a3c5e",
+                  background: loading ? "#93b8d4" : "#1a3c5e",
                   color: "white",
                   border: "none",
                   borderRadius: "6px",
                   fontSize: "16px",
                   fontWeight: 600,
-                  cursor: !isValid || loading ? "not-allowed" : "pointer",
+                  cursor: loading ? "not-allowed" : "pointer",
                 }}
               >
                 {loading ? "Sending..." : "Send Reset Instructions"}
               </button>
-            </form>
+            </ValidatedForm>
             <div style={{ textAlign: "center", marginTop: "20px" }}>
               <Link to="/login" style={{ color: "#1a3c5e", fontSize: "14px" }}>
                 Back to Login

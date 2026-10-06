@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useCallback, useEffect, useState } from "react";
 import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
@@ -69,7 +70,7 @@ export function OwnerAdminSetupPage() {
       {error && <div style={errorStyle}>{error}</div>}
       {success && <div style={successStyle}>{success}</div>}
 
-      <form onSubmit={createAdmin} style={panelStyle}>
+      <ValidatedForm error={error} onSubmit={createAdmin} style={panelStyle}>
         <div style={gridStyle}>
           <label style={labelStyle}>
             Company
@@ -99,7 +100,13 @@ export function OwnerAdminSetupPage() {
             <label key={key} style={labelStyle}>
               {label}
               <input
-                required={["employee_id", "first_name", "last_name", "email", "mobile"].includes(key)}
+                required={[
+                  "employee_id",
+                  "first_name",
+                  "last_name",
+                  "email",
+                  "mobile",
+                ].includes(key)}
                 type={key === "email" ? "email" : "text"}
                 value={form[key]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
@@ -111,7 +118,7 @@ export function OwnerAdminSetupPage() {
         <button type="submit" disabled={saving} style={primaryButtonStyle}>
           {saving ? "Creating..." : "Create Admin User"}
         </button>
-      </form>
+      </ValidatedForm>
 
       <LoadingOverlay
         show={loading || saving}

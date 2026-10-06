@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_URL: str = "redis://redis:6379/0"
+    PRIMARY_SUPER_ADMIN_USER_ID: int = 1
 
     # JWT
     JWT_SECRET_KEY: str = "change-this-secret"

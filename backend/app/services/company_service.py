@@ -6,9 +6,11 @@ import uuid
 from datetime import datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import bindparam, select, text
+from sqlalchemy import bindparam, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.company_deliverables import master_features
+from app.core.config import settings
 from app.core.storage import upload_file
 from app.models.company import CompanyMaster
 from app.models.policy import PoshPolicy
@@ -167,6 +169,19 @@ class CompanyService:
 
         # Only update fields that were actually sent
         update_data = data.model_dump(exclude_unset=True)
+        if (
+            company_id == 1
+            and "company_name" in update_data
+            and update_data["company_name"] != company.company_name
+        ):
+            if (
+                current_user is None
+                or current_user.role_id != 1
+                or current_user.user_id != settings.PRIMARY_SUPER_ADMIN_USER_ID
+            ):
+                raise HTTPException(
+                    403, "Only the primary Super Admin can change the default company name"
+                )
         if "service_details_json" in update_data or "company_code" in update_data:
             merged_data = {
                 "company_code": update_data.get("company_code", company.company_code),
@@ -193,16 +208,18 @@ class CompanyService:
     async def approve(self, db: AsyncSession, company_id: int) -> dict:
         company = await self.get_by_id(db, company_id)
         rows = self._json_list(company.service_details_json)
+        blockers = []
         if not rows or any(not row.get("assigned_to") for row in rows):
-            raise HTTPException(
-                400,
-                "Assign every work-order service before approval.",
-            )
+            blockers.append("Assign every work-order service to an admin.")
         missing_registration = self._missing_registration_fields(company)
         if missing_registration:
+            blockers.append(
+                "Complete company registration: " + ", ".join(missing_registration) + "."
+            )
+        if blockers:
             raise HTTPException(
                 400,
-                "Complete company registration before approval: " + ", ".join(missing_registration),
+                "Company cannot be approved yet. " + " ".join(blockers),
             )
         company.approval_status = "Approved"
         await db.commit()
@@ -509,7 +526,10 @@ class CompanyService:
         filters = [
             UserMaster.is_deleted == "N",
             UserMaster.status == "Active",
-            UserMaster.role_id.in_(assignable_roles),
+            or_(
+                UserMaster.role_id.in_(assignable_roles),
+                UserMaster.user_id == settings.PRIMARY_SUPER_ADMIN_USER_ID,
+            ),
         ]
         if current_user.role_id != 1:
             filters.append(UserMaster.company_id == current_user.company_id)
@@ -520,6 +540,8 @@ class CompanyService:
         return [
             {
                 "user_id": user.user_id,
+                "is_default_assignee": user.role_id == 1
+                and user.user_id == settings.PRIMARY_SUPER_ADMIN_USER_ID,
                 "name": f"{user.first_name} {user.last_name or ''}".strip(),
                 "email": user.email,
                 "mobile": user.mobile,
@@ -903,7 +925,44 @@ class CompanyService:
         )
         row = dict(row)
         row["scope"] = "POSH"
+        if not row.get("assigned_to"):
+            row.update(
+                assigned_to=str(settings.PRIMARY_SUPER_ADMIN_USER_ID),
+                assigned_to_name="Primary Super Admin",
+                assigned_to_role="Super Admin",
+            )
         row["deliverables"] = row.get("deliverables") or "PoSH Training & Compliance"
+        if "deliverable_codes" in row:
+            codes = row["deliverable_codes"]
+            if (
+                not isinstance(codes, list)
+                or not codes
+                or any(not isinstance(code, str) for code in codes)
+            ):
+                raise HTTPException(422, "Select at least one deliverable from Masters.")
+            result = await db.execute(
+                text(
+                    "SELECT code, name FROM posh_master_codes WHERE category = 'Deliverables' AND is_active = TRUE"
+                )
+            )
+            masters = {item["code"]: item["name"] for item in result.mappings()}
+            if any(code not in masters for code in codes):
+                raise HTTPException(422, "Select active deliverables from Masters only.")
+            features = set().union(
+                *(master_features({"code": code, "name": masters[code]}) for code in codes)
+            )
+            if "training" in features and "policy" not in features:
+                raise HTTPException(
+                    422,
+                    "Select PoSH Policy along with Training; policy acknowledgement is required before training.",
+                )
+            if "certificate" in features and "training" not in features:
+                raise HTTPException(
+                    422,
+                    "Select Training along with Assessment & Certificates; training must be completed first.",
+                )
+            row["deliverable_codes"] = list(dict.fromkeys(codes))
+            row["deliverables"] = ", ".join(masters[code] for code in row["deliverable_codes"])
         if not row.get("client_id"):
             row["client_id"] = f"{company_code}/POSH/{year}-{next_number}"
 

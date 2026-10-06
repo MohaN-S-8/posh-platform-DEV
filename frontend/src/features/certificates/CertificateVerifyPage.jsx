@@ -1,4 +1,5 @@
 import BadgeIcon from "@mui/icons-material/Badge";
+import { useBrandingStore } from "../../store/brandingStore";
 import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import PropTypes from "prop-types";
@@ -8,6 +9,7 @@ import apiClient from "../../api/client";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
 
 export function CertificateVerifyPage() {
+  const portalName = useBrandingStore((state) => state.portalName);
   const { certificateNumber } = useParams();
   const [certificate, setCertificate] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,11 +22,15 @@ export function CertificateVerifyPage() {
       setLoading(true);
       setError("");
       try {
-        const res = await apiClient.get(`/certificates/verify/${certificateNumber}`);
+        const res = await apiClient.get(
+          `/certificates/verify/${certificateNumber}`,
+        );
         if (active) setCertificate(res.data);
       } catch (err) {
         if (active) {
-          setError(err.response?.data?.detail || "Unable to verify this certificate.");
+          setError(
+            err.response?.data?.detail || "Unable to verify this certificate.",
+          );
         }
       } finally {
         if (active) setLoading(false);
@@ -73,14 +79,18 @@ export function CertificateVerifyPage() {
             color: isValid ? "#1f7a4d" : "#c0392b",
           }}
         >
-          {isValid ? <VerifiedIcon fontSize="large" /> : <ErrorOutlinedIcon fontSize="large" />}
+          {isValid ? (
+            <VerifiedIcon fontSize="large" />
+          ) : (
+            <ErrorOutlinedIcon fontSize="large" />
+          )}
         </div>
 
         <h1 style={{ color: "#17324d", margin: "0 0 8px", fontSize: "30px" }}>
           Certificate Verification
         </h1>
         <p style={{ color: "#64748b", margin: "0 0 24px", lineHeight: 1.6 }}>
-          This public page checks the certificate number against XYZ Portal
+          This public page checks the certificate number against {portalName}
           records.
         </p>
 
@@ -110,19 +120,33 @@ export function CertificateVerifyPage() {
                 fontWeight: 800,
               }}
             >
-              {isValid ? "Valid certificate" : certificate.message || "Certificate is not valid"}
+              {isValid
+                ? "Valid certificate"
+                : certificate.message || "Certificate is not valid"}
             </div>
 
-            <Detail label="Certificate Number" value={certificate.certificate_number} />
+            <Detail
+              label="Certificate Number"
+              value={certificate.certificate_number}
+            />
             {certificate.employee_name && (
               <Detail label="Employee" value={certificate.employee_name} />
             )}
-            {certificate.course_name && <Detail label="Course" value={certificate.course_name} />}
-            {certificate.completion_date && (
-              <Detail label="Completion Date" value={certificate.completion_date} />
+            {certificate.course_name && (
+              <Detail label="Course" value={certificate.course_name} />
             )}
-            {certificate.issue_date && <Detail label="Issue Date" value={certificate.issue_date} />}
-            {certificate.status && <Detail label="Status" value={certificate.status} />}
+            {certificate.completion_date && (
+              <Detail
+                label="Completion Date"
+                value={certificate.completion_date}
+              />
+            )}
+            {certificate.issue_date && (
+              <Detail label="Issue Date" value={certificate.issue_date} />
+            )}
+            {certificate.status && (
+              <Detail label="Status" value={certificate.status} />
+            )}
           </div>
         )}
 
@@ -136,7 +160,13 @@ export function CertificateVerifyPage() {
               color: "#64748b",
             }}
           >
-            <BadgeIcon style={{ fontSize: "40px", color: "#17324d", marginBottom: "8px" }} />
+            <BadgeIcon
+              style={{
+                fontSize: "40px",
+                color: "#17324d",
+                marginBottom: "8px",
+              }}
+            />
             <p style={{ margin: 0 }}>No certificate details were returned.</p>
           </div>
         )}
@@ -163,7 +193,9 @@ function Detail({ label, value }) {
       }}
     >
       <span style={{ color: "#64748b", fontWeight: 700 }}>{label}</span>
-      <span style={{ color: "#17324d", fontWeight: 700, overflowWrap: "anywhere" }}>
+      <span
+        style={{ color: "#17324d", fontWeight: 700, overflowWrap: "anywhere" }}
+      >
         {value || "-"}
       </span>
     </div>

@@ -1,4 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { useBrandingStore } from "./store/brandingStore";
 import { SessionTimeout } from "./components/SessionTimeout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { RoleRoute } from "./routes/RoleRoute";
@@ -43,6 +45,7 @@ import { HRDashboard } from "./features/hr/HRDashboard";
 import { BulkUploadPage } from "./features/hr/BulkUploadPage";
 import { TrainingAssignPage } from "./features/hr/TrainingAssignPage";
 import { CompliancePage } from "./features/hr/CompliancePage";
+import { ConstitutionApprovalPage } from "./features/hr/ConstitutionApprovalPage";
 import { HRReportsPage } from "./features/hr/HRReportsPage";
 
 // Employee portal
@@ -58,11 +61,21 @@ import { TrainingHistoryPage } from "./features/employee/TrainingHistoryPage";
 import { StatsHomePage } from "./features/dashboard/StatsHomePage";
 
 function App() {
+  useEffect(() => {
+    const load = () => useBrandingStore.getState().load();
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, []);
   return (
     <BrowserRouter>
       <SessionTimeout />
       <Routes>
         {/* Public routes */}
+        <Route
+          path="/constitution-approval"
+          element={<ConstitutionApprovalPage />}
+        />
         <Route path="/" element={<LandingPage />} />
         <Route path="/services/posh-compliance" element={<PoshServicePage />} />
         <Route path="/login" element={<LoginPage />} />

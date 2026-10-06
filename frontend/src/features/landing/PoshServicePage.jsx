@@ -4,6 +4,7 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import PolicyIcon from "@mui/icons-material/Policy";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import { Link } from "react-router-dom";
+import { useBrandingStore } from "../../store/brandingStore";
 
 const servicePoints = [
   {
@@ -29,14 +30,20 @@ const servicePoints = [
 ];
 
 export function PoshServicePage() {
+  const portalName = useBrandingStore((state) => state.portalName);
   return (
     <div className="landing-page service-page">
       <header className="landing-nav">
-        <Link to="/" className="landing-brand" aria-label="POSH platform home">
-          <span className="landing-brand-mark">P</span>
+        <Link
+          to="/"
+          className="landing-brand"
+          aria-label={`${portalName} home`}
+        >
+          <span className="landing-brand-mark" aria-hidden="true">
+            {Array.from(portalName.trim())[0]?.toUpperCase()}
+          </span>
           <span>
-            <strong>POSH</strong>
-            <small>Training Platform</small>
+            <strong>{portalName}</strong>
           </span>
         </Link>
         <nav className="landing-nav-actions" aria-label="Account access">
@@ -60,7 +67,10 @@ export function PoshServicePage() {
             evidence.
           </p>
           <div className="landing-hero-actions">
-            <Link to="/login" className="landing-primary-btn landing-primary-btn-lg">
+            <Link
+              to="/login"
+              className="landing-primary-btn landing-primary-btn-lg"
+            >
               POSH Login
             </Link>
           </div>

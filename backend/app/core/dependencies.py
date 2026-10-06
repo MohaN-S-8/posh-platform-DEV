@@ -1,22 +1,32 @@
 from datetime import datetime, timezone
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.company_deliverables import enforce_company_deliverable
+from app.core.config import settings
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.auth import RefreshTokens
 from app.models.user import UserMaster
 
 ROLE_ACCESS_LABELS = {
+    "Co-Partner": ["Co-Partner"],
     1: ["Super Admin"],
     2: ["Company Admin", "Corp Admin", "Admin"],
     5: ["Client Admin (Mgmt)", "Client / Management"],
     3: ["IC", "HR", "HR / IC", "PO / Member"],
     4: ["Employee"],
 }
+
+
+def matrix_role(user):
+    if user.role_id == 1 and user.user_id != settings.PRIMARY_SUPER_ADMIN_USER_ID:
+        return "Co-Partner"
+    return user.role_id
+
 
 PERMISSION_ACCESS_ITEMS = {
     "users.manage": ["User Master", "Employee Master", "Employee Master - PoSH"],
@@ -54,6 +64,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 async def get_current_user(
+    request: Request,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> CurrentUser:
@@ -104,6 +115,7 @@ async def get_current_user(
 
     current_user = CurrentUser(user)
     current_user.session_id = session_id
+    await enforce_company_deliverable(db, current_user, request.url.path)
     return current_user
 
 
@@ -148,11 +160,11 @@ def require_permission(permission_key: str):
         current_user: CurrentUser = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ):
-        if current_user.role_id == 1:
+        if matrix_role(current_user) == 1:
             return current_user
 
         matrix_decision = await _matrix_permission_decision(
-            db, current_user.role_id, permission_key
+            db, matrix_role(current_user), permission_key
         )
         if matrix_decision is False:
             raise HTTPException(
@@ -192,13 +204,13 @@ def require_any_permission(permission_keys: list[str]):
         current_user: CurrentUser = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ):
-        if current_user.role_id == 1:
+        if matrix_role(current_user) == 1:
             return current_user
 
         fallback_permission_keys = []
         for permission_key in permission_keys:
             matrix_decision = await _matrix_permission_decision(
-                db, current_user.role_id, permission_key
+                db, matrix_role(current_user), permission_key
             )
             if matrix_decision is True:
                 return current_user
@@ -308,9 +320,15 @@ def require_roles_or_matrix(role_ids: list[int], access_items: list[str]):
         db: AsyncSession = Depends(get_db),
     ):
         if current_user.role_id in role_ids:
+            if (
+                matrix_role(current_user) == "Co-Partner"
+                and await _matrix_access_decision(db, matrix_role(current_user), access_items)
+                is False
+            ):
+                raise HTTPException(403, "You do not have permission to access this resource.")
             return current_user
 
-        if await _has_matrix_access_items(db, current_user.role_id, access_items):
+        if await _has_matrix_access_items(db, matrix_role(current_user), access_items):
             return current_user
 
         raise HTTPException(
@@ -334,7 +352,7 @@ def require_roles_with_matrix(role_ids: list[int], access_items: list[str]):
                 detail="You do not have permission to access this resource.",
             )
 
-        decision = await _matrix_access_decision(db, current_user.role_id, access_items)
+        decision = await _matrix_access_decision(db, matrix_role(current_user), access_items)
         if decision is False:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

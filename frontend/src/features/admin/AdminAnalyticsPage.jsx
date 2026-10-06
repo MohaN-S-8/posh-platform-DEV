@@ -250,7 +250,7 @@ export function AdminAnalyticsPage() {
       title="Analytics"
       subtitle={
         user?.role_id === 1
-          ? "Platform-level analytics across organizations, services, training, and certificates."
+          ? "Analytics for your assigned companies, services, training, and certificates."
           : "Choose a service to view company analytics."
       }
     >
@@ -315,7 +315,9 @@ export function AdminAnalyticsPage() {
       {(user?.role_id === 1 || selectedService === "posh") && (
         <>
           <div className="portal-section-title">
-            {user?.role_id === 1 ? "Platform Overview" : "PoSH Analytics"}
+            {user?.role_id === 1
+              ? "Assigned Companies Overview"
+              : "PoSH Analytics"}
           </div>
           <section style={gridStyle}>
             {metrics.map((metric) => (

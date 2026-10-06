@@ -1,3 +1,4 @@
+import html
 import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -14,6 +15,15 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:80")
 
 
 async def send_email(to: str, subject: str, html_body: str, cc: list[str] | None = None) -> None:
+    if "XYZ Portal" in subject or "XYZ Portal" in html_body:
+        from app.db.session import AsyncSessionLocal
+        from app.models.company import CompanyMaster
+
+        async with AsyncSessionLocal() as db:
+            company = await db.get(CompanyMaster, 1)
+            portal_name = company.company_name if company else "Portal"
+        subject = subject.replace("XYZ Portal", portal_name)
+        html_body = html_body.replace("XYZ Portal", html.escape(portal_name))
     message = MIMEMultipart("alternative")
     message["From"] = EMAILS_FROM
     message["To"] = to

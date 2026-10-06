@@ -7,7 +7,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import _matrix_access_decision
+from app.core.dependencies import _matrix_access_decision, matrix_role
 from app.core.storage import generate_presigned_url, upload_file
 from app.models.training import (
     AssessmentOption,
@@ -326,7 +326,7 @@ class VideoService:
         access_item = (
             "IC Member Training" if video.target_audience == "IC Member" else "PoSH Training"
         )
-        decision = await _matrix_access_decision(db, user.role_id, [access_item])
+        decision = await _matrix_access_decision(db, matrix_role(user), [access_item])
         if decision is False:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

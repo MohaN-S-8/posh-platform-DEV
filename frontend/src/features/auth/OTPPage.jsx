@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import { useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "../../api/auth";
@@ -78,7 +79,7 @@ export function OTPPage() {
           {email}
         </p>
 
-        <form onSubmit={handleSubmit}>
+        <ValidatedForm error={error} onSubmit={handleSubmit}>
           <div
             style={{
               display: "flex",
@@ -137,7 +138,7 @@ export function OTPPage() {
           >
             {loading ? "Verifying..." : "Verify Email"}
           </button>
-        </form>
+        </ValidatedForm>
 
         <p style={{ marginTop: "20px", fontSize: "14px", color: "#666" }}>
           Didn`&#39;t receive the code? Contact your administrator.

@@ -1,3 +1,4 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
 import ChatIcon from "@mui/icons-material/Chat";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HandshakeIcon from "@mui/icons-material/Handshake";
@@ -339,7 +340,8 @@ export function PoshPolicyPage() {
       )}
 
       {canEdit && editing && (
-        <form
+        <ValidatedForm
+          error={error}
           className="portal-card portal-policy-editor"
           onSubmit={savePolicy}
         >
@@ -421,7 +423,7 @@ export function PoshPolicyPage() {
               {saving ? "Saving..." : "Save Permanently"}
             </button>
           </div>
-        </form>
+        </ValidatedForm>
       )}
 
       <section className="portal-policy-hero">

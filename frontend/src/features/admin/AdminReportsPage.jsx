@@ -247,7 +247,7 @@ export function AdminReportsPage() {
       title="Reports"
       subtitle={
         user?.role_id === 1
-          ? "Download platform and service reports."
+          ? "Download reports for your assigned companies and services."
           : "Choose a service to download its reports."
       }
     >

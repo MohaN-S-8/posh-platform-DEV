@@ -2,6 +2,8 @@ import re
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.schemas.input_validation import person_name
+
 
 class SignupRequest(BaseModel):
     first_name: str
@@ -19,9 +21,7 @@ class SignupRequest(BaseModel):
             raise ValueError("First name must be at least 2 characters")
         if len(v) > 50:
             raise ValueError("First name must be at most 50 characters")
-        if not re.match(r"^[a-zA-Z\s]+$", v):
-            raise ValueError("First name must contain only letters")
-        return v
+        return person_name(v)
 
     @field_validator("last_name")
     @classmethod
@@ -31,9 +31,7 @@ class SignupRequest(BaseModel):
             raise ValueError("Last name is required")
         if len(v) > 50:
             raise ValueError("Last name must be at most 50 characters")
-        if not re.match(r"^[a-zA-Z\s]+$", v):
-            raise ValueError("Last name must contain only letters")
-        return v
+        return person_name(v)
 
     @field_validator("email")
     @classmethod
@@ -81,7 +79,7 @@ class SignupRequest(BaseModel):
 
 class OTPVerifyRequest(BaseModel):
     email: EmailStr
-    otp: str
+    otp: str = Field(pattern=r"^[0-9]{6}$")
 
 
 class LoginRequest(BaseModel):
@@ -122,6 +120,18 @@ class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
     confirm_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, value):
+        return SignupRequest.validate_password(value)
+
+    @field_validator("confirm_password")
+    @classmethod
+    def confirm(cls, value, info):
+        if "new_password" in info.data and value != info.data["new_password"]:
+            raise ValueError("Passwords do not match")
+        return value
 
 
 class ChangePasswordRequest(BaseModel):

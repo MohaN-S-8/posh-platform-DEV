@@ -3,7 +3,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import _matrix_access_decision, get_current_user
+from app.core.dependencies import _matrix_access_decision, get_current_user, matrix_role
 from app.db.session import get_db
 from app.schemas.employee import (
     EmployeeCourseResponse,
@@ -38,7 +38,7 @@ async def _current_training_user(
         if current_user.role_id == 3 and training_type == "ic"
         else "PoSH Training"
     )
-    decision = await _matrix_access_decision(db, current_user.role_id, [access_item])
+    decision = await _matrix_access_decision(db, matrix_role(current_user), [access_item])
     if decision is False:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

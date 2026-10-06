@@ -1,3 +1,6 @@
+import { ValidatedForm } from "../../components/ValidatedForm";
+import { PortalBrand } from "../../components/PortalBrand";
+import { useBrandingStore } from "../../store/brandingStore";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,9 +58,12 @@ const loginErrorStorageKey = "posh_login_error";
 const loginErrorVisibleMs = 60 * 1000;
 
 export function LoginPage() {
+  const portalName = useBrandingStore((state) => state.portalName);
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [error, setError] = useState(() => sessionStorage.getItem(loginErrorStorageKey) || "");
+  const [error, setError] = useState(
+    () => sessionStorage.getItem(loginErrorStorageKey) || "",
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -85,9 +91,13 @@ export function LoginPage() {
     sessionStorage.removeItem(loginErrorStorageKey);
     try {
       const res = await authApi.login(data);
-      const { access_token, user_id, role_id, company_id, permissions } = res.data;
+      const { access_token, user_id, role_id, company_id, permissions } =
+        res.data;
       sessionStorage.removeItem(loginErrorStorageKey);
-      setAuth({ user_id, role_id, company_id, permissions: permissions || [] }, access_token);
+      setAuth(
+        { user_id, role_id, company_id, permissions: permissions || [] },
+        access_token,
+      );
 
       if ([1, 2, 3, 4, 5].includes(role_id)) {
         navigate("/dashboard");
@@ -99,7 +109,10 @@ export function LoginPage() {
       if (err.response?.status === 423) {
         nextError = apiErrorMessage(err, "Account locked. Try again later.");
       } else if (err.response?.status === 403) {
-        nextError = apiErrorMessage(err, "Your account is inactive. Contact your administrator.");
+        nextError = apiErrorMessage(
+          err,
+          "Your account is inactive. Contact your administrator.",
+        );
       }
       sessionStorage.setItem(loginErrorStorageKey, nextError);
       setError(nextError);
@@ -122,12 +135,8 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
-      <Link to="/" className="auth-brand" aria-label="POSH platform home">
-        <span className="auth-brand-mark">P</span>
-        <span>
-          <strong>POSH</strong>
-          <small>Training Platform</small>
-        </span>
+      <Link to="/" className="auth-brand" aria-label={`${portalName} home`}>
+        <PortalBrand />
       </Link>
 
       <section className="auth-card auth-card-sm">
@@ -145,7 +154,12 @@ export function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <ValidatedForm
+          error={error}
+          fieldErrors={errors}
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+        >
           <div style={{ marginBottom: "20px" }}>
             <label htmlFor="email" style={labelStyle}>
               Email Address *
@@ -214,14 +228,10 @@ export function LoginPage() {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="auth-submit-btn"
-          >
+          <button type="submit" disabled={loading} className="auth-submit-btn">
             {loading ? "Signing in..." : "Sign In"}
           </button>
-        </form>
+        </ValidatedForm>
 
         {/* <button
           type="button"

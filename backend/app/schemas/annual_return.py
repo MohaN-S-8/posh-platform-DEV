@@ -1,10 +1,13 @@
+import json
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, TypeAdapter, field_validator, model_validator
+
+from app.schemas.input_validation import person_name, phone
 
 
-class AnnualReturnPayload(BaseModel):
+class AnnualReturnFields(BaseModel):
     company_id: int
     branch_id: str = Field(min_length=1, max_length=80)
     branch_name: str = Field(min_length=1, max_length=150)
@@ -50,7 +53,52 @@ class AnnualReturnPayload(BaseModel):
     posh_office_address: Optional[str] = None
 
 
-class AnnualReturnResponse(AnnualReturnPayload):
+class AnnualReturnPayload(AnnualReturnFields):
+    @field_validator("presiding_officer", "posh_awareness_resource_person")
+    @classmethod
+    def names(cls, value):
+        return person_name(value)
+
+    @field_validator("status")
+    @classmethod
+    def status_choice(cls, value):
+        if value not in {"Pending", "Draft", "Submitted"}:
+            raise ValueError("Status must be Pending, Draft or Submitted")
+        return value
+
+    @field_validator("ic_members_json", "complaint_rows_json")
+    @classmethod
+    def rows(cls, value, info):
+        if not value:
+            return value
+        try:
+            rows = json.loads(value)
+        except (ValueError, TypeError):
+            raise ValueError("Rows must be valid JSON")
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise ValueError("Rows must be a list of objects")
+        if info.field_name == "ic_members_json":
+            for row in rows:
+                if row.get("name"):
+                    person_name(row["name"])
+                if row.get("email"):
+                    TypeAdapter(EmailStr).validate_python(row["email"])
+                if row.get("contact_no"):
+                    phone(row["contact_no"])
+        return value
+
+    @model_validator(mode="after")
+    def period(self):
+        if (
+            self.workshop_period_from
+            and self.workshop_period_to
+            and self.workshop_period_to < self.workshop_period_from
+        ):
+            raise ValueError("Workshop period end cannot be before its start")
+        return self
+
+
+class AnnualReturnResponse(AnnualReturnFields):
     annual_return_id: Optional[int] = None
     company_name: Optional[str] = None
     company_code: Optional[str] = None

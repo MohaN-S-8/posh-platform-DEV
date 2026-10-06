@@ -12,8 +12,12 @@ from app.api.v1.analytics import router as analytics_router
 from app.api.v1.annual_returns import router as annual_returns_router
 from app.api.v1.assessments import router as assessments_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.branches import router as branches_router
+from app.api.v1.branding import router as branding_router
 from app.api.v1.certificates import router as certificates_router
 from app.api.v1.company import router as company_router
+from app.api.v1.compliance import router as compliance_router
+from app.api.v1.compliance_meetings import router as compliance_meetings_router
 from app.api.v1.concerns import router as concerns_router
 from app.api.v1.employee import router as employee_router
 from app.api.v1.hr import router as hr_router
@@ -26,7 +30,7 @@ from app.core.config import settings
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
-    title="XYZ Portal API",
+    title="Portal API",
     version="1.0.0",
     docs_url=None,
     redoc_url=None,
@@ -54,11 +58,15 @@ app.include_router(users_router, prefix="/api/v1")
 app.include_router(videos_router, prefix="/api/v1")
 app.include_router(assessments_router, prefix="/api/v1")
 app.include_router(hr_router, prefix="/api/v1")
+app.include_router(compliance_router, prefix="/api/v1")
+app.include_router(compliance_meetings_router, prefix="/api/v1")
 app.include_router(certificates_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(annual_returns_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(admin_config_router, prefix="/api/v1")
+app.include_router(branches_router, prefix="/api/v1")
+app.include_router(branding_router, prefix="/api/v1")
 app.include_router(employee_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(policy_router, prefix="/api/v1")
@@ -73,7 +81,24 @@ async def run_seed_on_startup():
     from sqlalchemy import text
 
     from app.core.security import hash_password
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import AsyncSessionLocal, engine
+    from app.models.compliance import (
+        ConstitutionLetter,
+        ExternalMember,
+        NoticeDisplay,
+        QuarterlyMeeting,
+    )
+
+    async with engine.begin() as connection:
+        for table in (
+            ExternalMember.__table__,
+            ConstitutionLetter.__table__,
+            NoticeDisplay.__table__,
+            QuarterlyMeeting.__table__,
+        ):
+            await connection.run_sync(
+                lambda sync_connection, table=table: table.create(sync_connection, checkfirst=True)
+            )
 
     async with AsyncSessionLocal() as db:
         await db.execute(
@@ -675,7 +700,6 @@ async def run_seed_on_startup():
                     (1, 'DEFAULT', 'XYZ Portal', 'Active', 'N')
                 ON DUPLICATE KEY UPDATE
                     company_code = VALUES(company_code),
-                    company_name = VALUES(company_name),
                     status = 'Active',
                     is_deleted = 'N'
                 """
@@ -884,12 +908,12 @@ async def run_seed_on_startup():
                 INSERT INTO posh_master_codes (category, name, code, description, is_active)
                 VALUES
                     ('Country Code', 'INDIA', 'IN', 'Default country code', TRUE),
-                    ('State Code', 'Tamil Nadu', 'TN', 'Default state code', TRUE),
-                    ('State Code', 'Karnataka', 'KA', 'Default state code', TRUE),
-                    ('State Code', 'Maharashtra', 'MH', 'Default state code', TRUE),
-                    ('City Code', 'Chennai', 'CHN', 'Default city code', TRUE),
-                    ('City Code', 'Bangalore', 'BLR', 'Default city code', TRUE),
-                    ('City Code', 'Mumbai', 'MUM', 'Default city code', TRUE),
+                    ('State Code', 'Tamil Nadu', 'TN', '{"country":"IN"}', TRUE),
+                    ('State Code', 'Karnataka', 'KA', '{"country":"IN"}', TRUE),
+                    ('State Code', 'Maharashtra', 'MH', '{"country":"IN"}', TRUE),
+                    ('City Code', 'Chennai', 'CHN', '{"state":"TN","country":"IN"}', TRUE),
+                    ('City Code', 'Bangalore', 'BLR', '{"state":"KA","country":"IN"}', TRUE),
+                    ('City Code', 'Mumbai', 'MUM', '{"state":"MH","country":"IN"}', TRUE),
                     ('Deliverables', 'PoSH Policy', 'POLICY', 'Policy documentation and publishing', TRUE),
                     ('Deliverables', 'Awareness Training', 'TRAINING', 'Training video assignment and completion tracking', TRUE),
                     ('Deliverables', 'Assessment & Certificates', 'CERTIFICATE', 'Assessment and certificate issue flow', TRUE),
@@ -1141,18 +1165,31 @@ async def run_seed_on_startup():
             )
         )
 
+        from app.core.role_matrix import SEED_COPARTNER
+
+        await db.execute(SEED_COPARTNER)
         await db.commit()
         print("Auto-seed complete: roles, default company, admin, and IC users are ready.")
 
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "app": "XYZ Portal"}
+    from app.api.v1.branding import get_branding
+    from app.db.session import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        branding = await get_branding(db)
+    return {"status": "ok", "app": branding["portal_name"]}
 
 
 @app.get("/")
 async def root():
-    return {"message": "XYZ Portal API"}
+    from app.api.v1.branding import get_branding
+    from app.db.session import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        branding = await get_branding(db)
+    return {"message": f"{branding['portal_name']} API"}
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

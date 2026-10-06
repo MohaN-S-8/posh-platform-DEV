@@ -4,8 +4,10 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 
+from app.schemas.input_validation import CompanyInput, PersonInput, person_name, phone
 
-class CompanyCreate(BaseModel):
+
+class CompanyCreate(CompanyInput):
     company_code: str
     company_name: str
     industry_type: str
@@ -73,12 +75,7 @@ class CompanyCreate(BaseModel):
     @field_validator("contact_mobile")
     @classmethod
     def validate_contact_mobile(cls, v):
-        if not v:
-            return v
-        value = v.strip()
-        if not re.match(r"^\d{4,15}$", value):
-            raise ValueError("Contact number must be 4 to 15 digits")
-        return value
+        return phone(v)
 
     @field_validator("contact_person")
     @classmethod
@@ -88,7 +85,7 @@ class CompanyCreate(BaseModel):
         value = v.strip()
         if len(value) < 2:
             raise ValueError("Contact person must be at least 2 characters")
-        return value
+        return person_name(value)
 
     @field_validator("certificate_issue_mode")
     @classmethod
@@ -101,7 +98,7 @@ class CompanyCreate(BaseModel):
         return value
 
 
-class CompanyUpdate(BaseModel):
+class CompanyUpdate(CompanyInput):
     company_name: Optional[str] = None
     industry_type: Optional[str] = None
     reference_no: Optional[str] = None
@@ -130,6 +127,13 @@ class CompanyUpdate(BaseModel):
     contact_person: Optional[str] = None
     contact_email: Optional[EmailStr] = None
     contact_mobile: Optional[str] = None
+
+    @field_validator("company_name")
+    @classmethod
+    def validate_company_name(cls, value):
+        if value is None:
+            raise ValueError("Company name cannot be empty")
+        return CompanyCreate.validate_name(value)
 
     @field_validator("website")
     @classmethod
@@ -216,7 +220,7 @@ class CompanyIcMeetingUpdate(BaseModel):
         return value
 
 
-class EmployeeMasterCreate(BaseModel):
+class EmployeeMasterFields(BaseModel):
     company_id: int
     employee_id: str
     first_name: str
@@ -263,7 +267,14 @@ class EmployeeMasterCreate(BaseModel):
         return value
 
 
-class EmployeeMasterResponse(EmployeeMasterCreate):
+class EmployeeMasterCreate(EmployeeMasterFields, PersonInput):
+    @field_validator("mobile")
+    @classmethod
+    def strict_mobile(cls, value):
+        return phone(value)
+
+
+class EmployeeMasterResponse(EmployeeMasterFields):
     id: int
     status: str
 

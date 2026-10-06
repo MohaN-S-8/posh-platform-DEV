@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import _matrix_access_decision
+from app.core.dependencies import _matrix_access_decision, matrix_role
 from app.models.company import CompanyMaster
 from app.models.training import (
     AssessmentOption,
@@ -74,7 +74,7 @@ class AssessmentService:
         access_item = (
             "IC Member Training" if video.target_audience == "IC Member" else "PoSH Training"
         )
-        decision = await _matrix_access_decision(db, user.role_id, [access_item])
+        decision = await _matrix_access_decision(db, matrix_role(user), [access_item])
         if decision is False:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

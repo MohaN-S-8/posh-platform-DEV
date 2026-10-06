@@ -9,7 +9,12 @@
   --portal-text: #1f2430;
   --portal-muted: #6b7280;
   --portal-border: #e5e7ef;
-  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   color: var(--portal-text);
   background: var(--portal-bg);
   font-synthesis: none;
@@ -212,11 +217,13 @@ textarea {
   }
   68% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(2deg) scale(1.04);
+    transform: translate(calc(-50% + var(--landing-letter-offset)), 0)
+      rotate(2deg) scale(1.04);
   }
   100% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(0) scale(1);
+    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(0)
+      scale(1);
   }
 }
 
@@ -227,11 +234,13 @@ textarea {
   }
   68% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(-2deg) scale(1.04);
+    transform: translate(calc(-50% + var(--landing-letter-offset)), 0)
+      rotate(-2deg) scale(1.04);
   }
   100% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(0) scale(1);
+    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(0)
+      scale(1);
   }
 }
 
@@ -242,11 +251,13 @@ textarea {
   }
   68% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(-2deg) scale(1.04);
+    transform: translate(calc(-50% + var(--landing-letter-offset)), 0)
+      rotate(-2deg) scale(1.04);
   }
   100% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(0) scale(1);
+    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(0)
+      scale(1);
   }
 }
 
@@ -257,11 +268,13 @@ textarea {
   }
   68% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(2deg) scale(1.04);
+    transform: translate(calc(-50% + var(--landing-letter-offset)), 0)
+      rotate(2deg) scale(1.04);
   }
   100% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(0) scale(1);
+    transform: translate(calc(-50% + var(--landing-letter-offset)), 0) rotate(0)
+      scale(1);
   }
 }
 
@@ -330,13 +343,87 @@ textarea {
 
 .landing-brand {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 10px;
   color: var(--portal-text);
   text-decoration: none;
 }
 
+.dynamic-portal-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  max-width: 100%;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+.dynamic-portal-brand strong {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.dynamic-portal-box {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  background: var(--portal-purple, #4a2e83);
+  color: white;
+  border-radius: 8px;
+  font-size: 24px;
+  font-weight: 700;
+}
+.auth-brand .dynamic-portal-brand {
+  margin-bottom: 0;
+}
+.loading-brand-letters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0 auto 20px;
+}
+.loading-brand-letter {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 42px;
+  border-radius: 6px;
+  color: white;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 3px 7px #0002;
+  animation: loadingLetterEnter 500ms ease both;
+}
+.loading-brand-space {
+  flex: 0 0 10px;
+  height: 42px;
+}
+@keyframes loadingLetterEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-brand-letter {
+    animation: none;
+  }
+}
+
 .landing-brand-mark {
+  flex-shrink: 0;
   width: 38px;
   height: 38px;
   display: grid;
@@ -350,6 +437,7 @@ textarea {
 .landing-brand strong,
 .landing-brand small {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .landing-brand small {
@@ -416,7 +504,8 @@ textarea {
 .landing-hero-bg {
   position: absolute;
   inset: 0;
-  background: url("./assets/hero.png") right 9% center / min(44vw, 430px) no-repeat #f3f7f5;
+  background: url("./assets/hero.png") right 9% center / min(44vw, 430px)
+    no-repeat #f3f7f5;
 }
 
 .landing-hero-bg img {
@@ -500,7 +589,10 @@ textarea {
   color: inherit;
   text-decoration: none;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .landing-service-card-link:hover {
@@ -562,7 +654,8 @@ textarea {
   border: 1px solid var(--portal-border);
   border-radius: 8px;
   background:
-    url("./assets/hero.png") right clamp(-70px, -4vw, -20px) center / min(36vw, 330px) no-repeat,
+    url("./assets/hero.png") right clamp(-70px, -4vw, -20px) center /
+      min(36vw, 330px) no-repeat,
     #f3f7f5;
   padding: clamp(28px, 5vw, 58px);
 }
@@ -681,7 +774,8 @@ textarea {
   padding: 92px 20px 36px;
   overflow: hidden;
   background:
-    url("./assets/hero.png") left clamp(-100px, -8vw, -30px) bottom 34px / min(42vw, 360px) no-repeat,
+    url("./assets/hero.png") left clamp(-100px, -8vw, -30px) bottom 34px /
+      min(42vw, 360px) no-repeat,
     #f3f7f5;
 }
 
@@ -874,7 +968,11 @@ textarea {
   top: 0;
   height: 100vh;
   overflow-y: auto;
-  background: linear-gradient(180deg, var(--portal-purple), var(--portal-purple-light));
+  background: linear-gradient(
+    180deg,
+    var(--portal-purple),
+    var(--portal-purple-light)
+  );
   color: #fff;
   padding: 22px 0;
 }
@@ -1083,7 +1181,10 @@ textarea {
   text-align: left;
   min-height: 152px;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .portal-tile:hover {
@@ -1353,7 +1454,10 @@ textarea {
   color: var(--portal-text);
   text-align: left;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .portal-home-action:hover {
@@ -1765,7 +1869,9 @@ button.portal-home-module-row:not(:disabled):hover {
   background: var(--portal-card);
   color: var(--portal-purple);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
   flex-shrink: 0;
 }
 
@@ -1989,8 +2095,12 @@ button.portal-home-module-row:not(:disabled):hover {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 860px) {
