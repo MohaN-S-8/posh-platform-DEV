@@ -4,9 +4,15 @@ import {
   finishActionNotification,
   failActionNotification,
 } from "./actionNotifications";
+import { resolveApiBaseUrl } from "./config";
+
+const apiBaseUrl = resolveApiBaseUrl(
+  window.__APP_CONFIG__?.API_BASE_URL,
+  import.meta.env.VITE_API_BASE_URL,
+);
 
 const apiClient = axios.create({
-  baseURL: "/api/v1",
+  baseURL: apiBaseUrl,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -14,6 +20,9 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
+  if (config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  }
   const token = localStorage.getItem("access_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -40,7 +49,7 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       try {
         const res = await axios.post(
-          "/api/v1/auth/refresh",
+          `${apiBaseUrl}/auth/refresh`,
           {},
           { withCredentials: true },
         );
