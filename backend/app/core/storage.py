@@ -2,9 +2,15 @@ import os
 
 import boto3
 from botocore.client import Config
+from botocore.exceptions import ClientError
 
 _client = None
 _presign_client = None
+POLICY_BUCKET = (
+    os.environ.get("MINIO_BUCKET_POLICIES")
+    or os.environ.get("MINIO_BUCKET_CERTIFICATES")
+    or "posh-policy-documents"
+)
 
 
 def _endpoint_url(value: str) -> str:
@@ -21,7 +27,7 @@ def get_storage_client():
             aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "minioadmin"),
             aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "minioadmin123"),
             config=Config(signature_version="s3v4"),
-            region_name="us-east-1",
+            region_name=os.environ.get("S3_REGION", "us-east-1"),
         )
     return _client
 
@@ -40,7 +46,7 @@ def get_presign_client():
             aws_access_key_id=os.environ.get("MINIO_ROOT_USER", "minioadmin"),
             aws_secret_access_key=os.environ.get("MINIO_ROOT_PASSWORD", "minioadmin123"),
             config=Config(signature_version="s3v4"),
-            region_name="us-east-1",
+            region_name=os.environ.get("S3_REGION", "us-east-1"),
         )
     return _presign_client
 
@@ -50,7 +56,13 @@ def ensure_bucket_exists(bucket_name: str) -> None:
     client = get_storage_client()
     try:
         client.head_bucket(Bucket=bucket_name)
-    except Exception:
+    except ClientError as exc:
+        if str(exc.response.get("Error", {}).get("Code")) not in {
+            "404",
+            "NoSuchBucket",
+            "NotFound",
+        }:
+            raise
         client.create_bucket(Bucket=bucket_name)
 
 

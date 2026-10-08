@@ -1,5 +1,6 @@
-from typing import List
+import json
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:80"
     PUBLIC_APP_URL: str = "http://localhost:80"
 
@@ -29,6 +30,24 @@ class Settings(BaseSettings):
     ENTRA_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/sso/entra/callback"
     # App
     APP_ENV: str = "development"
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def normalize_cors_setting(cls, value):
+        return json.dumps(value) if isinstance(value, list) else value
+
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        raw = self.BACKEND_CORS_ORIGINS.strip()
+        origins = json.loads(raw) if raw.startswith("[") else raw.split(",")
+        origins = [*origins, self.FRONTEND_URL, self.PUBLIC_APP_URL]
+        return list(
+            dict.fromkeys(
+                origin.strip().rstrip("/")
+                for origin in origins
+                if isinstance(origin, str) and origin.strip()
+            )
+        )
 
     class Config:
         env_file = ".env"  # reads from the .env file automatically

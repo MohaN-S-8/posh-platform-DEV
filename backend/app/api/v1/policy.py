@@ -7,7 +7,7 @@ from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, require_roles
-from app.core.storage import generate_presigned_url, upload_file
+from app.core.storage import POLICY_BUCKET, generate_presigned_url, upload_file
 from app.db.session import get_db
 from app.models.company import CompanyMaster
 from app.models.policy import PoshPolicy
@@ -16,7 +16,6 @@ from app.services.audit_service import write_audit_log
 from app.services.company_service import CompanyService
 
 router = APIRouter(prefix="/policy", tags=["PoSH Policy"])
-POLICY_BUCKET = "posh-policy-documents"
 company_service = CompanyService()
 
 

@@ -11,13 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.company_deliverables import master_features
 from app.core.config import settings
-from app.core.storage import upload_file
+from app.core.storage import POLICY_BUCKET, upload_file
 from app.models.company import CompanyMaster
 from app.models.policy import PoshPolicy
 from app.schemas.company import CompanyCreate, CompanyUpdate
 
 logger = logging.getLogger(__name__)
-POLICY_BUCKET = "posh-policy-documents"
 
 DEFAULT_POLICY_JSON = {
     "harassment_types": [
