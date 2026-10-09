@@ -1,10 +1,12 @@
 import io
 import logging
+import os
 import uuid
 from datetime import date, datetime, timezone
 from typing import Optional
 
 import qrcode
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import HTTPException, status
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
@@ -23,7 +25,7 @@ from app.models.certificate import Certificate, CertificateTemplate
 from app.models.user import UserMaster
 from app.models.video import VideoMaster
 
-CERT_BUCKET = "posh-certificates"
+CERT_BUCKET = os.environ.get("MINIO_BUCKET_CERTIFICATES") or "posh-certificates"
 logger = logging.getLogger(__name__)
 
 
@@ -729,12 +731,22 @@ class CertificateService:
         object_key = (
             f"certificate-templates/{template.company_id}/{template_id}/{asset_type}.{extension}"
         )
-        upload_file(
-            file_bytes,
-            CERT_BUCKET,
-            object_key,
-            file.content_type or "application/octet-stream",
-        )
+        try:
+            upload_file(
+                file_bytes,
+                CERT_BUCKET,
+                object_key,
+                file.content_type or "application/octet-stream",
+            )
+        except (BotoCoreError, ClientError) as exc:
+            logger.exception(
+                "Certificate template storage upload failed for template %s", template_id
+            )
+            raise HTTPException(
+                503,
+                "Certificate storage is unavailable. Check the backend storage endpoint, "
+                "credentials, region, and MINIO_BUCKET_CERTIFICATES configuration.",
+            ) from exc
 
         if asset_type == "logo":
             template.logo_path = object_key
