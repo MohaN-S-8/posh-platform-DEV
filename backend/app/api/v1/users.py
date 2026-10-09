@@ -76,6 +76,13 @@ ROLE_VISIBLE_FLOW = {
 }
 
 
+def _ensure_company_role(company_id: int, role_id: int) -> None:
+    if company_id != 1 and role_id not in {ROLE_CLIENT_MANAGEMENT, ROLE_HR_IC, ROLE_EMPLOYEE}:
+        raise HTTPException(
+            422, "Only Client Admin, IC and Employee roles are allowed for non-default companies."
+        )
+
+
 def _managed_company_id(current_user):
     return None if current_user.role_id == ROLE_SUPER_ADMIN else current_user.company_id
 
@@ -194,6 +201,7 @@ async def create_user(
         await _ensure_can_create_in_company(db, current_user, data.company_id)
     elif current_user.role_id != ROLE_SUPER_ADMIN:
         data.company_id = current_user.company_id
+    _ensure_company_role(data.company_id, data.role_id)
     user = await user_service.create(db, data)
     await write_audit_log(
         db,
@@ -280,6 +288,7 @@ async def bulk_upload_users(
                 await _ensure_can_create_in_company(db, current_user, data.company_id)
             elif current_user.role_id != ROLE_SUPER_ADMIN:
                 data.company_id = current_user.company_id
+            _ensure_company_role(data.company_id, data.role_id)
             user = await user_service.create(db, data)
             await write_audit_log(
                 db,
@@ -386,6 +395,8 @@ async def update_user(
     await _ensure_can_manage_user(db, current_user, existing)
     if data.role_id is not None:
         _ensure_can_manage_role(current_user, data.role_id)
+        if data.role_id != existing.role_id:
+            _ensure_company_role(existing.company_id, data.role_id)
     user = await user_service.update(
         db,
         user_id,
