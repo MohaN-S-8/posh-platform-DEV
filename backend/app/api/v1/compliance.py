@@ -1,11 +1,14 @@
 import hashlib
 import html
 import io
+import logging
+import os
 import re
 import secrets
 from datetime import datetime, timedelta
 from pathlib import PurePath
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from pypdf import PdfReader
@@ -26,7 +29,12 @@ from app.schemas.input_validation import person_name
 router = APIRouter(prefix="/hr/compliance", tags=["POSH Compliance"])
 view_access = require_roles_with_matrix([1, 2, 3, 5], ["POSH Compliance"])
 edit_access = require_roles_with_matrix([1, 2, 5], ["POSH Compliance"])
-BUCKET = "posh-constitution-letters"
+BUCKET = (
+    os.environ.get("MINIO_BUCKET_CONSTITUTION_LETTERS")
+    or os.environ.get("MINIO_BUCKET_CERTIFICATES")
+    or "posh-constitution-letters"
+)
+logger = logging.getLogger(__name__)
 MAX_BYTES = 10 * 1024 * 1024
 
 
@@ -253,7 +261,15 @@ async def submit_letter(
         raise HTTPException(422, "File name must contain 1 to 200 characters.")
     await run_in_threadpool(validate_pdf, content, filename)
     key = f"{company_id}/{secrets.token_hex(20)}.pdf"
-    await run_in_threadpool(upload_file, content, BUCKET, key, "application/pdf")
+    try:
+        await run_in_threadpool(upload_file, content, BUCKET, key, "application/pdf")
+    except (BotoCoreError, ClientError) as exc:
+        logger.exception("Constitution letter storage upload failed for company %s", company_id)
+        raise HTTPException(
+            503,
+            "Constitution letter storage is unavailable. Check the backend storage endpoint, "
+            "credentials, region, and MINIO_BUCKET_CONSTITUTION_LETTERS configuration.",
+        ) from exc
     letter = ConstitutionLetter(
         company_id=company_id,
         member_id=member.id,
@@ -271,7 +287,12 @@ async def submit_letter(
         await db.refresh(letter)
     except Exception:
         await db.rollback()
-        await run_in_threadpool(delete_file, BUCKET, key)
+        try:
+            await run_in_threadpool(delete_file, BUCKET, key)
+        except Exception:
+            logger.exception(
+                "Failed to clean up constitution letter upload for company %s", company_id
+            )
         raise
     return await route_email(db, letter)
 

@@ -1,9 +1,11 @@
+import importlib
 import io
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError
 from fastapi import HTTPException, UploadFile
 from pydantic import ValidationError
 from pypdf import PdfWriter
@@ -199,3 +201,62 @@ def test_member_validation(changes):
 def test_invalid_upload(content, filename):
     with pytest.raises(HTTPException):
         api.validate_pdf(content, filename)
+
+
+def test_constitution_bucket_uses_production_configuration(monkeypatch):
+    try:
+        monkeypatch.delenv("MINIO_BUCKET_CONSTITUTION_LETTERS", raising=False)
+        monkeypatch.setenv("MINIO_BUCKET_CERTIFICATES", "production-bucket")
+        importlib.reload(api)
+        assert api.BUCKET == "production-bucket"
+        monkeypatch.setenv("MINIO_BUCKET_CONSTITUTION_LETTERS", "constitution-bucket")
+        importlib.reload(api)
+        assert api.BUCKET == "constitution-bucket"
+        monkeypatch.delenv("MINIO_BUCKET_CONSTITUTION_LETTERS")
+        monkeypatch.delenv("MINIO_BUCKET_CERTIFICATES")
+        importlib.reload(api)
+        assert api.BUCKET == "posh-constitution-letters"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(api)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "storage_error",
+    [
+        ClientError({"Error": {"Code": "AccessDenied"}}, "PutObject"),
+        EndpointConnectionError(endpoint_url="https://storage.example"),
+    ],
+)
+async def test_storage_failure_does_not_save_letter_or_send_email(
+    setup, monkeypatch, storage_error
+):
+    db, _, mail = setup
+
+    def fail_upload(*args):
+        raise storage_error
+
+    monkeypatch.setattr(api, "upload_file", fail_upload)
+    with pytest.raises(HTTPException) as error:
+        await submit(setup)
+    assert error.value.status_code == 503
+    assert "MINIO_BUCKET_CONSTITUTION_LETTERS" in error.value.detail
+    assert db.session.query(ConstitutionLetter).count() == 0
+    mail.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_submission_uploads_to_configured_bucket(setup, monkeypatch):
+    original = api.upload_file
+    buckets = []
+
+    def record_upload(content, bucket, key, content_type):
+        buckets.append(bucket)
+        return original(content, bucket, key, content_type)
+
+    monkeypatch.setattr(api, "BUCKET", "production-bucket")
+    monkeypatch.setattr(api, "upload_file", record_upload)
+    result, _ = await submit(setup)
+    assert buckets == ["production-bucket"]
+    assert result["delivery_status"] == "Sent"
