@@ -45,3 +45,29 @@ test("IC has a read-only view", async () => {
   expect(screen.queryByRole("button", { name: "Submit for Approval" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Save External Member" })).toBeNull();
 });
+
+test.each(["Sent", "Failed"])("shows saved letter immediately when email delivery is %s", async (delivery_status) => {
+  apiClient.post.mockResolvedValue({ data: {
+    id: 42, title: "Management Approval", filename: "approval.pdf",
+    approver_name: "Advisor", approver_email: "advisor@example.com",
+    submitted_at: "2026-10-09T10:00:00", status: "Pending", delivery_status,
+  } });
+  render(<ConstitutionPanel />);
+  await screen.findByRole("option", { name: "Advisor (advisor@example.com)" });
+  fireEvent.change(screen.getByLabelText("Route for Approval to External Member *"), { target: { value: "1" } });
+  const fileInput = screen.getByLabelText("Management Approval File (PDF, up to 10 MB) *");
+  // jsdom does not update native file validity from a simulated files array.
+  Object.defineProperty(fileInput, "value", { configurable: true, value: "C:\\fakepath\\approval.pdf" });
+  Object.defineProperty(fileInput, "validity", { configurable: true, value: { valid: true } });
+  fireEvent.change(fileInput, {
+    target: { files: [new File(["%PDF-test"], "approval.pdf", { type: "application/pdf" })] },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Submit for Approval" }));
+  expect(screen.queryAllByRole("alert").map((node) => node.textContent)).toEqual([]);
+  expect(await screen.findByRole("button", { name: "approval.pdf" })).toBeTruthy();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Submit for Approval" }).disabled).toBe(false));
+  expect(apiClient.get.mock.calls.filter(([url]) => url.endsWith("/constitution"))).toHaveLength(1);
+  expect(screen.getByText(delivery_status === "Sent"
+    ? "Letter submitted. Approval email sent."
+    : "Letter saved, but email delivery failed. Use Resend approval email.")).toBeTruthy();
+});

@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import io
 from datetime import datetime, timedelta
@@ -158,6 +159,28 @@ async def test_email_failure_keeps_submission_and_retry_rotates_token(setup):
     assert result["delivery_status"] == "Sent"
     with pytest.raises(HTTPException):
         await api.external_review(old, db)
+
+
+@pytest.mark.asyncio
+async def test_slow_email_times_out_and_preserves_saved_letter(setup, monkeypatch):
+    db, _, mail = setup
+    cancelled = asyncio.Event()
+
+    async def stalled_email(*args):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    mail.side_effect = stalled_email
+    monkeypatch.setattr(api, "APPROVAL_EMAIL_TIMEOUT_SECONDS", 0.01)
+    result, token = await asyncio.wait_for(submit(setup), timeout=2)
+    assert cancelled.is_set()
+    assert result["delivery_status"] == "Failed"
+    assert result["status"] == "Pending"
+    assert db.session.get(ConstitutionLetter, result["id"]).object_key
+    mail.side_effect = None
+    assert (await api.resend(2, result["id"], db, setup[1]))["delivery_status"] == "Sent"
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import html
 import io
@@ -36,6 +37,7 @@ BUCKET = (
 )
 logger = logging.getLogger(__name__)
 MAX_BYTES = 10 * 1024 * 1024
+APPROVAL_EMAIL_TIMEOUT_SECONDS = 10
 
 
 class MemberInput(BaseModel):
@@ -223,13 +225,17 @@ async def route_email(db, letter):
     await db.commit()
     url = f"{FRONTEND_URL.rstrip('/')}/constitution-approval#token={token}"
     try:
-        await send_email(
-            letter.approver_email,
-            "IC Constitution Letter - Approval Required",
-            f'<p>Dear {html.escape(letter.approver_name)},</p><p>A management approval letter is ready for your review.</p><p><a href="{html.escape(url, quote=True)}">Review and approve the letter</a></p><p>This private link expires in 7 days. Do not forward it.</p>',
+        await asyncio.wait_for(
+            send_email(
+                letter.approver_email,
+                "IC Constitution Letter - Approval Required",
+                f'<p>Dear {html.escape(letter.approver_name)},</p><p>A management approval letter is ready for your review.</p><p><a href="{html.escape(url, quote=True)}">Review and approve the letter</a></p><p>This private link expires in 7 days. Do not forward it.</p>',
+            ),
+            timeout=APPROVAL_EMAIL_TIMEOUT_SECONDS,
         )
         letter.delivery_status = "Sent"
     except Exception:
+        logger.exception("Approval email delivery failed for constitution letter %s", letter.id)
         letter.delivery_status = "Failed"
     await db.commit()
     return letter_data(letter)

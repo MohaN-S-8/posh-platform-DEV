@@ -80,7 +80,8 @@ function CompanyConstitution({ companyId, canEdit }) {
     return act(async () => {
       const body = new FormData(); body.append("member_id", memberId); body.append("title", title); body.append("file", file);
       const res = await apiClient.post(`${base}/letters`, body, { headers: { "Content-Type": "multipart/form-data" } });
-      setTitle(""); setFile(null); setFileKey((key) => key + 1); await refresh();
+      setData((current) => ({ ...current, letters: [res.data, ...current.letters.filter((row) => row.id !== res.data.id)] }));
+      setTitle(""); setFile(null); setFileKey((key) => key + 1);
       setMessage(res.data.delivery_status === "Sent" ? "Letter submitted. Approval email sent." : "Letter saved, but email delivery failed. Use Resend approval email.");
     });
   };
