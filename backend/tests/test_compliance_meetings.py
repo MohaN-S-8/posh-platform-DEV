@@ -1,8 +1,10 @@
+import importlib
 import io
 import json
 from types import SimpleNamespace
 
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError
 from fastapi import HTTPException, UploadFile
 from PIL import Image
 from pydantic import ValidationError
@@ -12,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.api.v1 import compliance_meetings as api
 from app.db.base import Base
 from app.models.company import CompanyMaster
+from app.models.compliance import QuarterlyMeeting
 from tests.test_constitution_workflow import Adapter, pdf_bytes
 
 
@@ -39,6 +42,91 @@ def setup(monkeypatch):
         monkeypatch.setattr(api, "delete_file", lambda bucket, key: files.pop(key, None))
         yield Adapter(session), SimpleNamespace(role_id=5, company_id=2, user_id=10), files
     engine.dispose()
+
+
+def photo_file():
+    image = io.BytesIO()
+    Image.new("RGB", (10, 10)).save(image, format="PNG")
+    return UploadFile(filename="proof.png", file=io.BytesIO(image.getvalue()))
+
+
+def test_meeting_bucket_uses_production_configuration(monkeypatch):
+    try:
+        monkeypatch.delenv("MINIO_BUCKET_MEETINGS", raising=False)
+        monkeypatch.setenv("MINIO_BUCKET_CERTIFICATES", "production-bucket")
+        importlib.reload(api)
+        assert api.BUCKET == "production-bucket"
+        monkeypatch.setenv("MINIO_BUCKET_MEETINGS", "meeting-bucket")
+        importlib.reload(api)
+        assert api.BUCKET == "meeting-bucket"
+        monkeypatch.delenv("MINIO_BUCKET_MEETINGS")
+        monkeypatch.delenv("MINIO_BUCKET_CERTIFICATES")
+        importlib.reload(api)
+        assert api.BUCKET == "posh-meeting-documents"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(api)
+
+
+@pytest.mark.asyncio
+async def test_meeting_photo_and_signed_pdf_use_configured_bucket(setup, monkeypatch):
+    db, user, _ = setup
+    buckets = []
+    original_upload = api.upload_file
+
+    def upload(content, bucket, key, content_type):
+        buckets.append(bucket)
+        return original_upload(content, bucket, key, content_type)
+
+    monkeypatch.setattr(api, "BUCKET", "production-bucket")
+    monkeypatch.setattr(api, "upload_file", upload)
+    result = await api.create_meeting(2, json.dumps(payload()), photo_file(), db, user)
+    await api.update_meeting(2, result["id"], json.dumps(payload()), photo_file(), db, user)
+    result = await api.upload_signed(
+        2, result["id"], UploadFile(filename="signed.pdf", file=io.BytesIO(pdf_bytes())), db, user
+    )
+    assert buckets == ["production-bucket"] * 3
+    assert result["has_photo"] and result["has_signed_mom"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "storage_error",
+    [
+        ClientError({"Error": {"Code": "AccessDenied"}}, "PutObject"),
+        EndpointConnectionError(endpoint_url="https://storage.example"),
+    ],
+)
+async def test_photo_failure_does_not_create_or_change_meeting(setup, monkeypatch, storage_error):
+    db, user, _ = setup
+
+    def fail_upload(*args):
+        raise storage_error
+
+    monkeypatch.setattr(api, "upload_file", fail_upload)
+    with pytest.raises(HTTPException) as error:
+        await api.create_meeting(2, json.dumps(payload()), photo_file(), db, user)
+    assert error.value.status_code == 503
+    assert "MINIO_BUCKET_MEETINGS" in error.value.detail
+    assert db.session.query(QuarterlyMeeting).count() == 0
+    saved = await api.create_meeting(2, json.dumps(payload()), None, db, user)
+    with pytest.raises(HTTPException) as error:
+        await api.update_meeting(
+            2, saved["id"], json.dumps(payload(venue="Changed")), photo_file(), db, user
+        )
+    assert error.value.status_code == 503
+    row = db.session.get(QuarterlyMeeting, saved["id"])
+    assert row.venue == "Main office" and row.photo_key is None
+    with pytest.raises(HTTPException) as error:
+        await api.upload_signed(
+            2,
+            saved["id"],
+            UploadFile(filename="signed.pdf", file=io.BytesIO(pdf_bytes())),
+            db,
+            user,
+        )
+    assert error.value.status_code == 503
+    assert row.signed_key is None
 
 
 def payload(**changes):

@@ -1,9 +1,12 @@
 import io
 import json
+import logging
+import os
 import secrets
 from datetime import date, datetime, time
 from typing import Literal
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
@@ -22,7 +25,31 @@ from app.schemas.input_validation import person_name
 router = APIRouter(
     prefix="/hr/compliance/companies/{company_id}", tags=["POSH Notices and Meetings"]
 )
-BUCKET = "posh-meeting-documents"
+BUCKET = (
+    os.environ.get("MINIO_BUCKET_MEETINGS")
+    or os.environ.get("MINIO_BUCKET_CERTIFICATES")
+    or "posh-meeting-documents"
+)
+logger = logging.getLogger(__name__)
+
+
+async def upload_meeting_document(content, key, content_type):
+    try:
+        await run_in_threadpool(upload_file, content, BUCKET, key, content_type)
+    except (BotoCoreError, ClientError) as exc:
+        logger.exception("Meeting document storage upload failed")
+        raise HTTPException(
+            503,
+            "Meeting document storage is unavailable. Check the backend storage endpoint, "
+            "credentials, region, and MINIO_BUCKET_MEETINGS configuration.",
+        ) from exc
+
+
+async def cleanup_meeting_document(key):
+    try:
+        await run_in_threadpool(delete_file, BUCKET, key)
+    except Exception:
+        logger.exception("Failed to clean up meeting document upload")
 
 
 class NoticeInput(BaseModel):
@@ -230,7 +257,7 @@ async def create_meeting(
         await photo.close()
         content = await run_in_threadpool(normalize_photo, content)
         key = f"{company_id}/{secrets.token_hex(20)}.jpg"
-        await run_in_threadpool(upload_file, content, BUCKET, key, "image/jpeg")
+        await upload_meeting_document(content, key, "image/jpeg")
     row = QuarterlyMeeting(
         company_id=company_id,
         branch_name=branch["branch_name"],
@@ -244,7 +271,7 @@ async def create_meeting(
     except Exception as error:
         await db.rollback()
         if key:
-            await run_in_threadpool(delete_file, BUCKET, key)
+            await cleanup_meeting_document(key)
         if isinstance(error, IntegrityError):
             raise HTTPException(409, "A meeting already exists for this branch, year and quarter.")
         raise
@@ -301,7 +328,7 @@ async def update_meeting(
         await photo.close()
         content = await run_in_threadpool(normalize_photo, content)
         key = f"{company_id}/{secrets.token_hex(20)}.jpg"
-        await run_in_threadpool(upload_file, content, BUCKET, key, "image/jpeg")
+        await upload_meeting_document(content, key, "image/jpeg")
     for field, value in data.model_dump().items():
         setattr(row, field, value)
     row.branch_name = branch["branch_name"]
@@ -312,7 +339,7 @@ async def update_meeting(
     except Exception as error:
         await db.rollback()
         if key:
-            await run_in_threadpool(delete_file, BUCKET, key)
+            await cleanup_meeting_document(key)
         if isinstance(error, IntegrityError):
             raise HTTPException(409, "A meeting already exists for this branch, year and quarter.")
         raise
@@ -338,13 +365,13 @@ async def upload_signed(
         raise HTTPException(422, "File name is too long.")
     await run_in_threadpool(validate_pdf, content, filename)
     key = f"{company_id}/{secrets.token_hex(20)}.pdf"
-    await run_in_threadpool(upload_file, content, BUCKET, key, "application/pdf")
+    await upload_meeting_document(content, key, "application/pdf")
     row.signed_key, row.signed_filename = key, filename
     try:
         await db.commit()
     except Exception:
         await db.rollback()
-        await run_in_threadpool(delete_file, BUCKET, key)
+        await cleanup_meeting_document(key)
         raise
     return meeting_data(row)
 
